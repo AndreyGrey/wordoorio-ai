@@ -30,8 +30,17 @@ def handler(event, context):
             return error_response('Текст слишком короткий (минимум 5 слов)')
         
         # Настройка переменных окружения для AI клиента
-        os.environ['YANDEX_IAM_TOKEN'] = context.token['access_token']
-        os.environ['YANDEX_FOLDER_ID'] = os.environ.get('YANDEX_FOLDER_ID', '')
+        try:
+            if hasattr(context, 'token') and context.token and 'access_token' in context.token:
+                os.environ['YANDEX_IAM_TOKEN'] = context.token['access_token']
+            else:
+                # Fallback - использовать IAM из переменных окружения
+                os.environ['YANDEX_IAM_TOKEN'] = os.environ.get('YANDEX_IAM_TOKEN', '')
+            os.environ['YANDEX_FOLDER_ID'] = os.environ.get('YANDEX_FOLDER_ID', '')
+        except Exception as e:
+            print(f"Ошибка настройки окружения: {e}")
+            os.environ['YANDEX_IAM_TOKEN'] = ''
+            os.environ['YANDEX_FOLDER_ID'] = os.environ.get('YANDEX_FOLDER_ID', '')
         
         # Используем настоящий AI анализ
         analyzer = AIVocabularyAnalyzer()
