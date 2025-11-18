@@ -5,10 +5,16 @@
 echo "🚀 Деплой Wordoorio AI на Yandex Cloud"
 echo "======================================"
 
+# Настраиваем путь к yc CLI
+export PATH="$HOME/yandex-cloud/bin:$PATH"
+YC_CLI="$HOME/yandex-cloud/bin/yc"
+
 # Проверяем yc CLI
 if ! command -v yc &> /dev/null; then
-    echo "❌ Yandex Cloud CLI не установлен. Установите: https://cloud.yandex.ru/docs/cli/quickstart"
-    exit 1
+    if [ ! -f "$YC_CLI" ]; then
+        echo "❌ Yandex Cloud CLI не найден. Установите: https://cloud.yandex.ru/docs/cli/quickstart"
+        exit 1
+    fi
 fi
 
 # Проверяем docker
