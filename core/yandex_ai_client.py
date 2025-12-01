@@ -433,8 +433,19 @@ JSON формат: [{{"highlight": "фраза", "context": "предложен�
                 why_interesting=f"Длинное слово, потенциально интересное"
             )
             highlights.append(highlight)
-        
+
         return highlights
+
+    # Публичные методы для совместимости с новой архитектурой
+    async def request_gpt(self, prompt: str) -> str:
+        """Публичный метод для запроса к GPT (для новой архитектуры)"""
+        result = await self._request_yandex_gpt(prompt)
+        # Возвращаем текст ответа
+        return result.get("result", {}).get("alternatives", [{}])[0].get("message", {}).get("text", "")
+
+    async def translate_text(self, text: str, target_lang: str = "ru") -> str:
+        """Публичный метод для перевода (для новой архитектуры)"""
+        return await self._translate_text(text)
 
 def test_yandex_ai_client():
     """Тест клиента Yandex AI"""

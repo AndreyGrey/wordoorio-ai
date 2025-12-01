@@ -30,63 +30,90 @@ def index():
 
 @app.route('/analyze', methods=['POST'])
 def analyze_text():
-    """API для анализа текста"""
+    """API для анализа текста - использует новую архитектуру"""
     try:
         data = request.get_json()
         text = data.get('text', '').strip()
-        
-        if not text:
-            return jsonify({'error': 'Текст не может быть пустым'})
-        
-        if len(text.split()) < 5:
-            return jsonify({'error': 'Текст слишком короткий (минимум 5 слов)'})
-        
-        # Используем AI Agent 2
-        from agents.agent_2 import AIVocabularyAnalyzer
-        analyzer = AIVocabularyAnalyzer()
-        result = analyzer.analyze_text(text)
-        
-        if result['success']:
-            if not result['highlights']:
-                return jsonify({
-                    'error': 'Для AI анализа нужны токены Yandex GPT. Без них система не может генерировать качественные хайлайты.',
-                    'need_tokens': True
-                })
-            
-            # Генерируем session_id если его нет
-            if 'session_id' not in session:
-                session['session_id'] = str(uuid.uuid4())
-            
-            # Сохраняем анализ в базу данных
-            try:
-                analysis_id = db.save_analysis(
-                    original_text=text,
-                    highlights=result['highlights'],
-                    stats=result['stats'],
-                    session_id=session['session_id'],
-                    ip_address=request.remote_addr
-                )
-                
-                return jsonify({
-                    'success': True,
-                    'stats': result['stats'],
-                    'highlights': result['highlights'],
-                    'analysis_id': analysis_id
-                })
-            except Exception as db_error:
-                # Если БД не работает, возвращаем результат без сохранения
-                print(f"Database error: {db_error}")
-                
-                return jsonify({
-                    'success': True,
-                    'stats': result['stats'],
-                    'highlights': result['highlights'],
-                    'warning': 'Анализ выполнен, но не сохранен в историю'
-                })
-        else:
-            return jsonify({'error': f"Ошибка анализа: {result.get('error', 'Неизвестная ошибка')}"})
-            
+
+        # Используем новую архитектуру
+        import asyncio
+        from contracts.analysis_contracts import AnalysisRequest
+        from core.analysis_service import get_analysis_service
+        from core.yandex_ai_client import YandexAIClient
+
+        # Создаем запрос
+        analysis_request = AnalysisRequest(
+            text=text,
+            page_id='main',
+            user_session=session.get('session_id')
+        )
+
+        # Валидация
+        error = analysis_request.validate()
+        if error:
+            return jsonify({'error': error})
+
+        # Генерируем session_id если его нет
+        if 'session_id' not in session:
+            session['session_id'] = str(uuid.uuid4())
+
+        # Получаем сервис и клиент
+        service = get_analysis_service()
+        ai_client = YandexAIClient()
+
+        # Анализируем
+        loop = None
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        result = loop.run_until_complete(
+            service.analyze_text(analysis_request, ai_client)
+        )
+
+        # Проверяем успех
+        if not result.success:
+            return jsonify({'error': result.error})
+
+        if not result.highlights:
+            return jsonify({
+                'error': 'Для AI анализа нужны токены Yandex GPT. Без них система не может генерировать качественные хайлайты.',
+                'need_tokens': True
+            })
+
+        # Сохраняем в БД
+        try:
+            highlights_dicts = [h.to_dict() for h in result.highlights]
+
+            analysis_id = db.save_analysis(
+                original_text=text,
+                highlights=highlights_dicts,
+                stats=result.stats,
+                session_id=session['session_id'],
+                ip_address=request.remote_addr
+            )
+
+            return jsonify({
+                'success': True,
+                'stats': result.stats,
+                'highlights': highlights_dicts,
+                'analysis_id': analysis_id
+            })
+        except Exception as db_error:
+            print(f"Database error: {db_error}")
+
+            return jsonify({
+                'success': True,
+                'stats': result.stats,
+                'highlights': [h.to_dict() for h in result.highlights],
+                'warning': 'Анализ выполнен, но не сохранен в историю'
+            })
+
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Критическая ошибка: {str(e)}'})
 
 @app.route('/api/history', methods=['GET'])
