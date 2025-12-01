@@ -248,6 +248,101 @@ def experimental_analyze():
     except Exception as e:
         return jsonify({'error': f'Критическая ошибка: {str(e)}'})
 
+@app.route('/api/v2/analyze', methods=['POST'])
+def analyze_v2():
+    """🚀 API V2 - использует новую архитектуру с версионированием промптов"""
+    try:
+        data = request.get_json()
+        text = data.get('text', '').strip()
+        page_id = data.get('page_id', 'main')  # "main" или "experimental"
+
+        # Импортируем новую архитектуру
+        import asyncio
+        from contracts.analysis_contracts import AnalysisRequest
+        from core.analysis_service import get_analysis_service
+        from core.yandex_ai_client import YandexAIClient
+
+        # Создаем запрос
+        analysis_request = AnalysisRequest(
+            text=text,
+            page_id=page_id,
+            user_session=session.get('session_id')
+        )
+
+        # Валидация
+        error = analysis_request.validate()
+        if error:
+            return jsonify({'error': error})
+
+        # Генерируем session_id если его нет
+        if 'session_id' not in session:
+            session['session_id'] = str(uuid.uuid4())
+
+        # Получаем сервис и клиент
+        service = get_analysis_service()
+        ai_client = YandexAIClient()
+
+        # Анализируем (сервис сам выберет промпт и применит дедупликацию)
+        loop = None
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        result = loop.run_until_complete(
+            service.analyze_text(analysis_request, ai_client)
+        )
+
+        # Проверяем успех
+        if not result.success:
+            return jsonify({'error': result.error})
+
+        if not result.highlights:
+            return jsonify({
+                'error': 'Для AI анализа нужны токены Yandex GPT.',
+                'need_tokens': True
+            })
+
+        # Сохраняем в БД
+        try:
+            highlights_dicts = [h.to_dict() for h in result.highlights]
+
+            analysis_id = db.save_analysis(
+                original_text=text,
+                highlights=highlights_dicts,
+                stats=result.stats,
+                session_id=session['session_id'],
+                ip_address=request.remote_addr
+            )
+
+            return jsonify({
+                'success': True,
+                'api_version': 'v2',
+                'page_id': page_id,
+                'stats': result.stats,
+                'highlights': highlights_dicts,
+                'performance': result.performance,
+                'analysis_id': analysis_id
+            })
+        except Exception as db_error:
+            print(f"Database error: {db_error}")
+
+            return jsonify({
+                'success': True,
+                'api_version': 'v2',
+                'page_id': page_id,
+                'stats': result.stats,
+                'highlights': [h.to_dict() for h in result.highlights],
+                'performance': result.performance,
+                'warning': 'Анализ выполнен, но не сохранен в историю'
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Критическая ошибка V2: {str(e)}'})
+
 @app.route('/history')
 def history_page():
     """Страница истории анализов"""
