@@ -180,99 +180,94 @@ def experimental_page():
 
 @app.route('/experimental/analyze', methods=['POST'])
 def experimental_analyze():
-    """🧪 API для экспериментального dual-prompt анализа"""
+    """🧪 API для экспериментального dual-prompt анализа - использует новую архитектуру"""
     try:
         data = request.get_json()
         text = data.get('text', '').strip()
-        
-        if not text:
-            return jsonify({'error': 'Текст не может быть пустым'})
-        
-        if len(text.split()) < 5:
-            return jsonify({'error': 'Текст слишком короткий (минимум 5 слов)'})
-        
-        # Используем экспериментальный клиент
+
+        # Используем новую архитектуру
         import asyncio
-        from core.experimental_ai_client import ExperimentalYandexAIClient
-        
-        client = ExperimentalYandexAIClient()
-        
-        # Асинхронный вызов
+        from contracts.analysis_contracts import AnalysisRequest
+        from core.analysis_service import get_analysis_service
+        from core.yandex_ai_client import YandexAIClient
+
+        # Создаем запрос для experimental (использует v2_dual)
+        analysis_request = AnalysisRequest(
+            text=text,
+            page_id='experimental',
+            user_session=session.get('session_id')
+        )
+
+        # Валидация
+        error = analysis_request.validate()
+        if error:
+            return jsonify({'error': error})
+
+        # Генерируем session_id если его нет
+        if 'session_id' not in session:
+            session['session_id'] = str(uuid.uuid4())
+
+        # Получаем сервис и клиент
+        service = get_analysis_service()
+        ai_client = YandexAIClient()
+
+        # Анализируем
         loop = None
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        
-        result = loop.run_until_complete(client.analyze_dual_highlights(text))
-        
-        if not result['words'] and not result['phrases']:
+
+        result = loop.run_until_complete(
+            service.analyze_text(analysis_request, ai_client)
+        )
+
+        # Проверяем успех
+        if not result.success:
+            return jsonify({'error': result.error})
+
+        if not result.highlights:
             return jsonify({
                 'error': 'Для AI анализа нужны токены Yandex GPT.',
                 'need_tokens': True
             })
-        
-        # Генерируем session_id если его нет
-        if 'session_id' not in session:
-            session['session_id'] = str(uuid.uuid4())
-        
-        # Объединяем и преобразуем в словари для совместимости с БД
-        all_highlights = []
-        for highlight in result['words'] + result['phrases']:
-            if hasattr(highlight, 'to_dict'):
-                all_highlights.append(highlight.to_dict())
-            elif isinstance(highlight, dict):
-                all_highlights.append(highlight)
-            else:
-                # Если это dataclass объект без to_dict
-                from dataclasses import asdict
-                all_highlights.append(asdict(highlight))
-        
-        # Сохраняем в БД (опционально)
+
+        # Сохраняем в БД
         try:
+            highlights_dicts = [h.to_dict() for h in result.highlights]
+
             analysis_id = db.save_analysis(
                 original_text=text,
-                highlights=all_highlights,
-                stats={
-                    'total_words': len(text.split()),
-                    'total_highlights': len(all_highlights)
-                },
+                highlights=highlights_dicts,
+                stats=result.stats,
                 session_id=session['session_id'],
                 ip_address=request.remote_addr
             )
-            
+
             return jsonify({
                 'success': True,
                 'experimental': True,
-                'stats': {
-                    'total_words': len(text.split()),
-                    'total_word_highlights': len(result['words']),
-                    'total_phrase_highlights': len(result['phrases']),
-                    'total_highlights': len(all_highlights)
-                },
-                'words': [h.to_dict() for h in result['words']],
-                'phrases': [h.to_dict() for h in result['phrases']],
+                'stats': result.stats,
+                'highlights': highlights_dicts,
+                'performance': result.performance,
                 'analysis_id': analysis_id
             })
         except Exception as db_error:
             print(f"Database error: {db_error}")
-            
+
             return jsonify({
                 'success': True,
                 'experimental': True,
-                'stats': {
-                    'total_words': len(text.split()),
-                    'total_word_highlights': len(result['words']),
-                    'total_phrase_highlights': len(result['phrases']),
-                    'total_highlights': len(all_highlights)
-                },
-                'words': [h.to_dict() for h in result['words']],
-                'phrases': [h.to_dict() for h in result['phrases']],
+                'stats': result.stats,
+                'highlights': [h.to_dict() for h in result.highlights],
+                'performance': result.performance,
                 'warning': 'Анализ выполнен, но не сохранен в историю'
             })
-            
+
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Критическая ошибка: {str(e)}'})
 
 @app.route('/api/v2/analyze', methods=['POST'])

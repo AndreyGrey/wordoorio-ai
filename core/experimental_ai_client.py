@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Клиент для Yandex AI Studio API
-Поддержка Yandex GPT и Yandex Translate
+🧪 ЭКСПЕРИМЕНТАЛЬНЫЙ клиент для dual-prompt анализа
+Копия YandexAIClient с поддержкой двух параллельных промптов
 """
 
 import os
@@ -9,37 +9,32 @@ import re
 import requests
 import json
 from typing import Dict, List, Any, Optional
+from dataclasses import dataclass
+from dotenv import load_dotenv
+
+# Загружаем переменные из .env файла
+load_dotenv()
+
+@dataclass
 class LinguisticHighlight:
     """Лингвистический хайлайт"""
-    def __init__(self, highlight, context, context_translation, english_example, 
-                 russian_example, cefr_level, importance_score, dictionary_meanings, 
-                 why_interesting):
-        self.highlight = highlight
-        self.context = context
-        self.context_translation = context_translation
-        self.english_example = english_example
-        self.russian_example = russian_example
-        self.cefr_level = cefr_level
-        self.importance_score = importance_score
-        self.dictionary_meanings = dictionary_meanings
-        self.why_interesting = why_interesting
+    highlight: str              # Слово или фраза
+    context: str               # Контекст из текста
+    context_translation: str   # Перевод контекста
+    english_example: str       # Пример на английском
+    russian_example: str       # Пример на русском
+    cefr_level: str           # A1-C2
+    importance_score: int      # 0-100
+    dictionary_meanings: List[str]  # Словарные значения
+    why_interesting: str       # Почему интересен для изучения
     
     def to_dict(self) -> Dict[str, Any]:
         """Преобразование в словарь для JSON"""
-        return {
-            'highlight': self.highlight,
-            'context': self.context,
-            'context_translation': self.context_translation,
-            'english_example': self.english_example,
-            'russian_example': self.russian_example,
-            'cefr_level': self.cefr_level,
-            'importance_score': self.importance_score,
-            'dictionary_meanings': self.dictionary_meanings,
-            'why_interesting': self.why_interesting
-        }
+        from dataclasses import asdict
+        return asdict(self)
 
-class YandexAIClient:
-    """Клиент для работы с Yandex AI Studio"""
+class ExperimentalYandexAIClient:
+    """🧪 Экспериментальный клиент для dual-prompt анализа"""
     
     def __init__(self):
         self.folder_id = os.getenv('YANDEX_FOLDER_ID')
@@ -49,49 +44,46 @@ class YandexAIClient:
         
     def _get_iam_token(self) -> str:
         """Получает IAM токен для Yandex Cloud"""
-        # Попробуем получить токен из переменной окружения
-        # Пока используем заглушку
         return os.getenv('YANDEX_IAM_TOKEN', '')
     
-    async def analyze_linguistic_highlights(self, text: str) -> List[LinguisticHighlight]:
+    async def analyze_dual_highlights(self, text: str) -> Dict[str, List[LinguisticHighlight]]:
         """
-        Анализирует текст и выделяет 3-30 лингвистических хайлайтов
+        🧪 ЭКСПЕРИМЕНТАЛЬНЫЙ: Анализирует текст двумя параллельными промптами
+        Возвращает: {"words": [...], "phrases": [...]}
         """
-        print(f"🧠 Анализирую лингвистические хайлайты в тексте...", flush=True)
-        
-        # Определяем количество хайлайтов в зависимости от длины текста
-        word_count = len(text.split())
-        if word_count < 20:
-            target_count = "3-5"
-        elif word_count < 50:
-            target_count = "5-10"
-        elif word_count < 100:
-            target_count = "10-20"
-        else:
-            target_count = "15-30"
-        
-        prompt = self._create_highlights_prompt(text, target_count)
+        print(f"🧪 Экспериментальный dual-prompt анализ...", flush=True)
         
         try:
-            # Запрос к Yandex GPT
-            gpt_response = await self._request_yandex_gpt(prompt)
+            # Два параллельных запроса к Yandex GPT
+            words_prompt = self._create_words_prompt(text)
+            phrases_prompt = self._create_phrases_prompt(text)
             
-            # Парсим ответ и создаем хайлайты
-            highlights = self._parse_gpt_response(gpt_response)
+            # Запросы выполняются последовательно для экономии ресурсов
+            words_response = await self._request_yandex_gpt(words_prompt)
+            phrases_response = await self._request_yandex_gpt(phrases_prompt)
             
-            # Добавляем переводы через Yandex Translate
-            highlights = await self._add_translations(highlights)
+            # Парсим оба ответа
+            words = self._parse_gpt_response(words_response)
+            phrases = self._parse_gpt_response(phrases_response)
             
-            print(f"✅ Найдено {len(highlights)} хайлайтов", flush=True)
-            return highlights
+            # Добавляем переводы
+            words = await self._add_translations(words)
+            phrases = await self._add_translations(phrases)
+            
+            result = {
+                "words": words,
+                "phrases": phrases
+            }
+            
+            print(f"✅ Найдено {len(words)} слов и {len(phrases)} фраз", flush=True)
+            return result
             
         except Exception as e:
-            print(f"❌ Ошибка анализа хайлайтов: {e}", flush=True)
-            # Fallback на простой анализ
-            return self._fallback_analysis(text)
+            print(f"❌ Ошибка экспериментального анализа: {e}", flush=True)
+            return {"words": [], "phrases": []}
     
-    def _create_highlights_prompt(self, text: str, target_count: str) -> str:
-        """Создает промпт для анализа хайлайтов"""
+    def _create_words_prompt(self, text: str) -> str:
+        """Создает промпт для анализа слов (оригинальный)"""
         return f"""
 Ты — эксперт по продвинутой английской лексике, которая делает речь выразительной, натуральной и стильной. Найди ВСЕ слова и выражения из текста, которые действительно стоят изучения.
 
@@ -133,6 +125,32 @@ class YandexAIClient:
 Верни только массив JSON.
 """
     
+    def _create_phrases_prompt(self, text: str) -> str:
+        """Создает промпт для анализа продвинутых глагольных конструкций"""
+        return f"""
+Ты — эксперт по продвинутым речевым конструкциям английского языка. Найди СТИЛЬНЫЕ ГЛАГОЛЬНЫЕ ФРАЗЫ и ВЫРАЗИТЕЛЬНЫЕ РЕЧЕВЫЕ ОБОРОТЫ, которые делают речь профессиональной и естественной.
+
+Проанализируй этот английский текст:
+"{text}"
+
+БРАТЬ (только продвинутые конструкции 3+ слов):
+- Изощренные речевые паттерны с глаголами
+- Стильные глагольные связки и обороты  
+- Выразительные модальные конструкции
+- Профессиональные речевые обороты
+- Сложные фразовые глаголы с дополнениями
+
+НЕ БРАТЬ:
+- Базовые конструкции уровня школьной программы
+- Простые модальные глаголы с одним словом
+- Примитивные связки и переходы
+- Очевидные повседневные фразы
+
+ФОКУС: Только конструкции, которые выделяют речь как продвинутую и стильную. Ищи разнообразные паттерны.
+
+JSON формат: [{{"highlight": "продвинутая фраза", "context": "предложение", "context_translation": "перевод фразы"}}]
+"""
+    
     async def _request_yandex_gpt(self, prompt: str) -> Dict[str, Any]:
         """Отправляет запрос к Yandex GPT"""
         headers = {
@@ -155,6 +173,10 @@ class YandexAIClient:
             ]
         }
         
+        # Приблизительный подсчет токенов (1 токен ≈ 4 символа для английского)
+        input_tokens = len(prompt) // 4
+        print(f"💰 Приблизительно {input_tokens} входных токенов", flush=True)
+        
         # Реальный запрос к Yandex GPT
         if not self.iam_token:
             print("⚠️ Yandex IAM токен не найден, использую fallback")
@@ -164,7 +186,13 @@ class YandexAIClient:
             response = requests.post(self.gpt_url, headers=headers, json=data, timeout=60)
             
             if response.status_code == 200:
-                return response.json()
+                result = response.json()
+                # Подсчет выходных токенов
+                response_text = result.get("result", {}).get("alternatives", [{}])[0].get("message", {}).get("text", "")
+                output_tokens = len(response_text) // 4
+                total_cost = (input_tokens * 0.0006) + (output_tokens * 0.0012)  # Примерные цены в рублях за 1K токенов
+                print(f"💰 ~{output_tokens} выходных токенов | Стоимость: ~{total_cost:.3f}₽", flush=True)
+                return result
             else:
                 print(f"⚠️ Yandex GPT ошибка {response.status_code}: {response.text[:200]}...")
                 return {"result": {"alternatives": [{"message": {"text": "[]"}}]}}
@@ -240,13 +268,13 @@ class YandexAIClient:
                 dictionary_meanings = self._get_dictionary_meanings(highlight.highlight)
                 highlight.dictionary_meanings = dictionary_meanings
                 
-                # Переводим пример
-                highlight.russian_example = await self._translate_text(highlight.english_example)
+                # Переводим только сам хайлайт, а не весь пример
+                highlight.russian_example = await self._translate_text(highlight.highlight)
                 
             except Exception as e:
                 print(f"⚠️ Ошибка получения словарных значений для '{highlight.highlight}': {e}", flush=True)
                 highlight.dictionary_meanings = [f"Значение: {highlight.highlight}"]
-                highlight.russian_example = f"Пример: {highlight.english_example}"
+                highlight.russian_example = f"Перевод: {highlight.highlight}"
         
         return highlights
     
@@ -320,101 +348,25 @@ class YandexAIClient:
             print(f"⚠️ Ошибка перевода определения: {e}", flush=True)
             return definition  # Возвращаем оригинал
 
-    async def _translate_definition(self, definition: str) -> str:
-        """Переводит английское определение на русский через Yandex Translate"""
-        try:
-            # Используем реальный Yandex Translate API
-            headers = {
-                "Authorization": f"Bearer {self.iam_token}",
-                "Content-Type": "application/json"
-            }
-            
-            data = {
-                "folderId": self.folder_id,
-                "texts": [definition],
-                "sourceLanguageCode": "en",
-                "targetLanguageCode": "ru"
-            }
-            
-            response = requests.post(
-                "https://translate.api.cloud.yandex.net/translate/v2/translate",
-                headers=headers, 
-                json=data, 
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                translation = result["translations"][0]["text"]
-                return translation
-            else:
-                return definition  # Возвращаем оригинал если перевод не удался
-                
-        except Exception as e:
-            print(f"⚠️ Ошибка перевода определения: {e}", flush=True)
-            return definition  # Возвращаем оригинал
-
     async def _translate_text(self, text: str) -> str:
         """Переводит текст через Yandex Translate"""
-        headers = {
-            "Authorization": f"Bearer {self.iam_token}",
-            "Content-Type": "application/json"
-        }
-        
-        data = {
-            "folderId": self.folder_id,
-            "texts": [text],
-            "sourceLanguageCode": "en",
-            "targetLanguageCode": "ru"
-        }
-        
         try:
-            # TODO: Заменить на реальный запрос
-            # response = requests.post(self.translate_url, headers=headers, json=data)
-            # result = response.json()
-            # return result["translations"][0]["text"]
-            
             # Пока возвращаем заглушку
             return f"[ПЕРЕВОД: {text}]"
             
         except Exception as e:
             print(f"⚠️ Ошибка Yandex Translate: {e}", flush=True)
             return f"[ПЕРЕВОД: {text}]"
-    
-    def _fallback_analysis(self, text: str) -> List[LinguisticHighlight]:
-        """Fallback анализ если GPT недоступен"""
-        print("🔄 Использую fallback анализ...", flush=True)
-        
-        # Простой анализ для демонстрации
-        words = text.split()
-        interesting_words = [w for w in words if len(w) > 6 and w.isalpha()][:5]
-        
-        highlights = []
-        for word in interesting_words:
-            highlight = LinguisticHighlight(
-                highlight=word.lower(),
-                context=f"Found in: ...{word}...",
-                context_translation=f"Найдено в: ...{word}...",
-                english_example=f"Example with {word}",
-                russian_example=f"Пример с {word}",
-                cefr_level="B2",
-                importance_score=70,
-                dictionary_meanings=[f"Значение слова {word}"],
-                why_interesting=f"Длинное слово, потенциально интересное"
-            )
-            highlights.append(highlight)
-        
-        return highlights
 
-def test_yandex_ai_client():
-    """Тест клиента Yandex AI"""
+def test_experimental_client():
+    """Тест экспериментального клиента"""
     import asyncio
     
     async def run_test():
-        print("🧪 ТЕСТ YANDEX AI CLIENT")
+        print("🧪 ТЕСТ EXPERIMENTAL CLIENT")
         print("=" * 50)
         
-        client = YandexAIClient()
+        client = ExperimentalYandexAIClient()
         
         test_text = """
         Machine learning algorithms analyze complex patterns in massive datasets. 
@@ -422,19 +374,21 @@ def test_yandex_ai_client():
         Scientists develop innovative approaches to solve computational problems.
         """
         
-        highlights = await client.analyze_linguistic_highlights(test_text.strip())
+        result = await client.analyze_dual_highlights(test_text.strip())
         
-        print(f"\n📚 Найдено {len(highlights)} хайлайтов:")
-        for i, h in enumerate(highlights):
-            print(f"\n{i+1}. {h.highlight} ({h.cefr_level})")
-            print(f"   📝 Контекст: {h.context}")
-            print(f"   🇷🇺 Перевод: {h.context_translation}")
-            print(f"   💡 Почему интересен: {h.why_interesting}")
-            print(f"   📊 Важность: {h.importance_score}/100")
+        print(f"\n📚 Найдено {len(result['words'])} слов и {len(result['phrases'])} фраз:")
+        
+        print(f"\n🔤 СЛОВА ({len(result['words'])}):")
+        for i, h in enumerate(result['words']):
+            print(f"{i+1}. {h.highlight}")
+        
+        print(f"\n💬 ФРАЗЫ ({len(result['phrases'])}):")
+        for i, h in enumerate(result['phrases']):
+            print(f"{i+1}. {h.highlight}")
         
         print("\n✅ Тест завершен!")
     
     asyncio.run(run_test())
 
 if __name__ == "__main__":
-    test_yandex_ai_client()
+    test_experimental_client()

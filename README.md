@@ -21,6 +21,8 @@
 ```bash
 git clone https://github.com/yourusername/wordoorio-ai.git
 cd wordoorio-ai
+python -m venv venv
+source venv/bin/activate  # На Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
@@ -53,8 +55,8 @@ wordoorio-ai/
 ├── web_app.py                 # Flask веб-сервер
 ├── templates/index.html       # Современный UI
 ├── agents/
-│   ├── agent_1_youtube.py     # YouTube обработка (будущее)
-│   └── agent_2_ai_powered.py  # AI анализ лексики
+│   ├── agent_1.py     # YouTube обработка (future feature)
+│   └── agent_2.py     # AI анализ лексики
 ├── core/
 │   └── yandex_ai_client.py    # Yandex GPT + Dictionary API
 ├── requirements.txt           # Python зависимости

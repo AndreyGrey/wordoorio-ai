@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-🧠 Agent 2: AI-powered Vocabulary Intelligence Analyzer
+🧠 Agent 2: AI-powered Vocabulary Analyzer  
 
-Только Yandex GPT анализ, никаких примитивных алгоритмов.
+Основной AI анализатор лексики через Yandex GPT.
+Никаких примитивных алгоритмов - только искусственный интеллект.
 """
 
 import re
@@ -46,9 +47,32 @@ class AIVocabularyAnalyzer:
             # Оценка сложности на основе AI хайлайтов
             difficulty_info = self._assess_difficulty(highlights, text_stats)
             
+            # Преобразуем хайлайты в словари
+            print(f"🔍 Обрабатываю {len(highlights)} хайлайтов...", flush=True)
+            highlights_dicts = []
+            for i, h in enumerate(highlights):
+                try:
+                    print(f"🔍 Хайлайт {i+1}: тип = {type(h)}", flush=True)
+                    if hasattr(h, 'to_dict'):
+                        print(f"🔍 Использую to_dict()", flush=True)
+                        highlights_dicts.append(h.to_dict())
+                    elif isinstance(h, dict):
+                        print(f"🔍 Уже словарь", flush=True)
+                        highlights_dicts.append(h)
+                    else:
+                        print(f"🔍 Использую asdict()", flush=True)
+                        # Если это объект LinguisticHighlight без to_dict
+                        from dataclasses import asdict
+                        highlights_dicts.append(asdict(h))
+                    print(f"🔍 Хайлайт {i+1} успешно обработан", flush=True)
+                except Exception as e:
+                    print(f"❌ Ошибка обработки хайлайта {i+1}: {e}", flush=True)
+                    print(f"❌ Содержимое хайлайта: {h}", flush=True)
+                    raise
+            
             return {
                 'success': True,
-                'highlights': [h.to_dict() for h in highlights],
+                'highlights': highlights_dicts,
                 'stats': {
                     'total_words': text_stats.get('total_words', 0),
                     'total_highlights': len(highlights)
@@ -61,8 +85,10 @@ class AIVocabularyAnalyzer:
                 'success': False,
                 'error': f'Ошибка AI анализа: {str(e)}',
                 'highlights': [],
-                'text_stats': {},
-                'difficulty_info': {}
+                'stats': {
+                    'total_words': 0,
+                    'total_highlights': 0
+                }
             }
     
     def _extract_ai_highlights(self, text: str) -> List[LinguisticHighlight]:

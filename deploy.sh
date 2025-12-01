@@ -25,9 +25,9 @@ fi
 
 # Переменные
 IMAGE_NAME="wordoorio-ai"
-REGISTRY_ID=${REGISTRY_ID:-"crp9example"} # Замените на ваш registry
+REGISTRY_ID="crp1mj4p9ro0clhe5t61" # wordoorio-registry
 SERVICE_NAME="wordoorio"
-FOLDER_ID=$(yc config get folder-id)
+FOLDER_ID=$(~/yandex-cloud/bin/yc config get folder-id)
 
 if [ -z "$FOLDER_ID" ]; then
     echo "❌ Folder ID не найден. Выполните: yc init"
@@ -46,14 +46,14 @@ docker push cr.yandex/$REGISTRY_ID/$IMAGE_NAME:latest
 echo "☁️ Создаем/обновляем Serverless Container..."
 yc serverless container create --name $SERVICE_NAME 2>/dev/null || echo "Контейнер уже существует"
 
-yc serverless container revision deploy \
+~/yandex-cloud/bin/yc serverless container revision deploy \
   --container-name $SERVICE_NAME \
   --image cr.yandex/$REGISTRY_ID/$IMAGE_NAME:latest \
   --memory 512m \
   --cores 1 \
   --execution-timeout 60s \
-  --environment YANDEX_IAM_TOKEN=$YANDEX_IAM_TOKEN,YANDEX_FOLDER_ID=$YANDEX_FOLDER_ID \
-  --service-account-id $(yc iam service-account get default --format json | jq -r .id 2>/dev/null || echo "")
+  --environment YANDEX_FOLDER_ID=$FOLDER_ID \
+  --service-account-id ajetorbok30ucvg88kqn
 
 echo "🌐 Создаем/обновляем API Gateway..."
 cat > api-gateway.yaml << EOF

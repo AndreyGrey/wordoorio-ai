@@ -1,0 +1,16 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.gitignore
+.DS_Store
+*.log
+.env
+IMPORTANT.md
+simple-deploy.sh
+index.py
+README.md
+.yc-exclude
+api-gateway.yaml
