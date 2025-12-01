@@ -75,8 +75,8 @@ class AnalysisRequest:
             return "Текст не может быть пустым"
         if len(self.text.split()) < 5:
             return "Текст слишком короткий (минимум 5 слов)"
-        if len(self.text) > 10000:
-            return "Текст слишком длинный (максимум 10000 символов)"
+        if len(self.text) > 50000:
+            return "Текст слишком длинный (максимум 50000 символов)"
         return None
 
 
