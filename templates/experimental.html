@@ -7,7 +7,7 @@
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="shortcut icon" href="/static/favicon.ico">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&family=Manrope:wght@400;600;700;800&display=swap');
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -394,6 +394,244 @@
             border-color: #FF6B35;
             color: #FF6B35;
         }
+
+        /* ===== HIGHLIGHT CARD STYLES ===== */
+        .highlight-card {
+            font-family: 'Manrope', 'Inter', Arial, sans-serif;
+            background: var(--card-bg, #FEE8BF);
+            border-radius: 32px;
+            padding: 50px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .highlight-card:hover {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            transform: translateY(-2px);
+        }
+
+        /* Цветовые темы */
+        .highlight-card[data-theme="green"] {
+            --card-bg: #C8E3BF;
+            --primary: #1B7A94;
+            --secondary: #0A3A4D;
+            --accent: #4CAF50;
+            --text-light: #C8E3BF;
+        }
+
+        .highlight-card[data-theme="orange"] {
+            --card-bg: #FEE8BF;
+            --primary: #FF7964;
+            --secondary: #0A3A4D;
+            --accent: #F7931E;
+            --text-light: #FEE8BF;
+        }
+
+        /* Заголовок (слово/фраза) */
+        .highlight-header {
+            margin-bottom: 50px;
+        }
+
+        .highlight-card .highlight-word {
+            font-size: 80px;
+            font-weight: 800;
+            line-height: 1.1;
+            color: var(--secondary);
+            margin: 0;
+            word-break: break-word;
+        }
+
+        /* Блок перевода */
+        .highlight-translation-block {
+            background: var(--secondary);
+            color: var(--card-bg);
+            font-size: 44px;
+            font-weight: 600;
+            line-height: 1.2;
+            padding: 30px;
+            border-radius: 32px;
+            margin-bottom: 50px;
+            display: inline-block;
+            max-width: 100%;
+            word-break: break-word;
+        }
+
+        /* Контекст */
+        .highlight-context-section {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            margin-bottom: 50px;
+        }
+
+        .context-arrow {
+            font-size: 42px;
+            color: var(--primary);
+            flex-shrink: 0;
+            line-height: 1;
+        }
+
+        .context-text {
+            font-size: 32px;
+            font-weight: 600;
+            line-height: 1.4;
+            color: var(--secondary);
+        }
+
+        .highlight-card .highlighted-word {
+            color: white;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-weight: 800;
+        }
+
+        /* Словарные значения (таблетки) */
+        .highlight-meanings {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .meaning-pill {
+            font-size: 32px;
+            font-weight: 600;
+            color: var(--secondary);
+            background: transparent;
+            border: 3px solid var(--secondary);
+            border-radius: 32px;
+            padding: 12px 24px;
+            transition: all 0.2s ease;
+        }
+
+        .meaning-pill:hover {
+            background: var(--secondary);
+            color: var(--card-bg);
+            transform: translateY(-2px);
+        }
+
+        /* ===== АДАПТИВНОСТЬ ===== */
+
+        /* Планшеты (768px - 1024px) */
+        @media (max-width: 1024px) {
+            .highlight-card {
+                padding: 40px;
+                margin-bottom: 30px;
+            }
+
+            .highlight-card .highlight-word {
+                font-size: 60px;
+            }
+
+            .highlight-translation-block {
+                font-size: 36px;
+                padding: 24px;
+            }
+
+            .context-arrow {
+                font-size: 36px;
+            }
+
+            .context-text {
+                font-size: 28px;
+            }
+
+            .meaning-pill {
+                font-size: 28px;
+                padding: 10px 20px;
+            }
+        }
+
+        /* Мобильные (до 768px) */
+        @media (max-width: 768px) {
+            .highlight-card {
+                padding: 30px;
+                border-radius: 24px;
+                margin-bottom: 24px;
+            }
+
+            .highlight-header {
+                margin-bottom: 30px;
+            }
+
+            .highlight-card .highlight-word {
+                font-size: 42px;
+            }
+
+            .highlight-translation-block {
+                font-size: 28px;
+                padding: 20px;
+                border-radius: 24px;
+                margin-bottom: 30px;
+            }
+
+            .highlight-context-section {
+                gap: 12px;
+                margin-bottom: 30px;
+            }
+
+            .context-arrow {
+                font-size: 28px;
+            }
+
+            .context-text {
+                font-size: 22px;
+            }
+
+            .meaning-pill {
+                font-size: 22px;
+                padding: 8px 16px;
+                gap: 12px;
+            }
+        }
+
+        /* Маленькие мобильные (до 480px) */
+        @media (max-width: 480px) {
+            .highlight-card {
+                padding: 20px;
+                border-radius: 20px;
+                margin-bottom: 20px;
+            }
+
+            .highlight-header {
+                margin-bottom: 24px;
+            }
+
+            .highlight-card .highlight-word {
+                font-size: 32px;
+            }
+
+            .highlight-translation-block {
+                font-size: 22px;
+                padding: 16px;
+                border-radius: 20px;
+                margin-bottom: 24px;
+            }
+
+            .highlight-context-section {
+                gap: 10px;
+                margin-bottom: 24px;
+            }
+
+            .context-arrow {
+                font-size: 22px;
+            }
+
+            .context-text {
+                font-size: 18px;
+            }
+
+            .highlight-meanings {
+                gap: 10px;
+            }
+
+            .meaning-pill {
+                font-size: 18px;
+                padding: 6px 12px;
+                border-radius: 20px;
+                border-width: 2px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -497,6 +735,9 @@
             <div class="excitement-message">Тестируем новые промпты!</div>
         </div>
     </div>
+
+    <!-- Компонент HighlightCard -->
+    <script src="/static/components/HighlightCard.js"></script>
 
     <script>
         function showLoadingAnimation() {
@@ -622,38 +863,22 @@
 
         function fillHighlightsList(listId, highlights, isPhrase) {
             const list = document.getElementById(listId);
-            
+
             if (!highlights || highlights.length === 0) {
                 list.innerHTML = '<p style="color:#718096;">Хайлайты не найдены</p>';
                 return;
             }
-            
+
             list.innerHTML = '';
 
             highlights.forEach((highlight, index) => {
-                const item = document.createElement('div');
-                item.className = `highlight-item${isPhrase ? ' phrase-item' : ''}`;
-                
-                const hasValidMeanings = highlight.dictionary_meanings && 
-                    highlight.dictionary_meanings.length > 0;
-                
-                const meaningsHtml = hasValidMeanings 
-                    ? `<div class="highlight-meaning">
-                         <strong>Другие значения:</strong> ${highlight.dictionary_meanings.join('; ')}
-                       </div>`
-                    : '';
-                
-                const contextWithHighlight = highlightWord(highlight.context, highlight.highlight);
-                
-                item.innerHTML = `
-                    <div class="highlight-word">
-                        ${index + 1}. ${highlight.highlight}
-                    </div>
-                    <div class="highlight-translation">${highlight.context_translation}</div>
-                    ${meaningsHtml}
-                    <div class="highlight-context">"${contextWithHighlight}"</div>
-                `;
-                list.appendChild(item);
+                // Используем компонент HighlightCard с оранжевой темой
+                const cardHTML = createHighlightCard(highlight, index, 'orange');
+
+                // Создаем div и вставляем HTML карточки
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = cardHTML;
+                list.appendChild(tempDiv.firstElementChild);
             });
         }
 

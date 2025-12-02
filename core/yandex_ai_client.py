@@ -35,13 +35,149 @@ class LinguisticHighlight:
 
 class YandexAIClient:
     """Клиент для работы с Yandex AI Studio"""
-    
+
+    # Список примитивных/базовых слов, которые не нужно проверять в словаре
+    PRIMITIVE_WORDS = {
+        # Артикли
+        'a', 'an', 'the',
+        # Предлоги
+        'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'about', 'as',
+        'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between',
+        'under', 'over', 'across', 'off', 'out', 'up', 'down',
+        # Местоимения
+        'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them',
+        'my', 'your', 'his', 'her', 'its', 'our', 'their', 'mine', 'yours', 'hers', 'ours', 'theirs',
+        'this', 'that', 'these', 'those', 'who', 'what', 'which', 'whom', 'whose',
+        # Базовые глаголы
+        'be', 'is', 'are', 'was', 'were', 'been', 'being', 'am',
+        'have', 'has', 'had', 'having',
+        'do', 'does', 'did', 'doing', 'done',
+        'will', 'would', 'could', 'should', 'may', 'might', 'can', 'must',
+        'get', 'got', 'getting', 'go', 'goes', 'went', 'going', 'gone',
+        'make', 'makes', 'made', 'making',
+        'take', 'takes', 'took', 'taking', 'taken',
+        'come', 'comes', 'came', 'coming',
+        'give', 'gives', 'gave', 'giving', 'given',
+        'know', 'knows', 'knew', 'knowing', 'known',
+        'see', 'sees', 'saw', 'seeing', 'seen',
+        'use', 'uses', 'used', 'using',
+        'find', 'finds', 'found', 'finding',
+        'tell', 'tells', 'told', 'telling',
+        'ask', 'asks', 'asked', 'asking',
+        'want', 'wants', 'wanted', 'wanting',
+        'need', 'needs', 'needed', 'needing',
+        'try', 'tries', 'tried', 'trying',
+        'call', 'calls', 'called', 'calling',
+        'put', 'puts', 'putting',
+        'say', 'says', 'said', 'saying',
+        'keep', 'keeps', 'kept', 'keeping',
+        'let', 'lets', 'letting',
+        'begin', 'begins', 'began', 'beginning', 'begun',
+        'seem', 'seems', 'seemed', 'seeming',
+        'help', 'helps', 'helped', 'helping',
+        'talk', 'talks', 'talked', 'talking',
+        'turn', 'turns', 'turned', 'turning',
+        'start', 'starts', 'started', 'starting',
+        'show', 'shows', 'showed', 'showing', 'shown',
+        'hear', 'hears', 'heard', 'hearing',
+        'play', 'plays', 'played', 'playing',
+        'run', 'runs', 'ran', 'running',
+        'move', 'moves', 'moved', 'moving',
+        'like', 'likes', 'liked', 'liking',
+        'live', 'lives', 'lived', 'living',
+        'believe', 'believes', 'believed', 'believing',
+        'bring', 'brings', 'brought', 'bringing',
+        'happen', 'happens', 'happened', 'happening',
+        'write', 'writes', 'wrote', 'writing', 'written',
+        'sit', 'sits', 'sat', 'sitting',
+        'stand', 'stands', 'stood', 'standing',
+        'lose', 'loses', 'lost', 'losing',
+        'pay', 'pays', 'paid', 'paying',
+        'meet', 'meets', 'met', 'meeting',
+        'include', 'includes', 'included', 'including',
+        'continue', 'continues', 'continued', 'continuing',
+        'set', 'sets', 'setting',
+        'learn', 'learns', 'learned', 'learning', 'learnt',
+        'change', 'changes', 'changed', 'changing',
+        'lead', 'leads', 'led', 'leading',
+        'understand', 'understands', 'understood', 'understanding',
+        'watch', 'watches', 'watched', 'watching',
+        'follow', 'follows', 'followed', 'following',
+        'stop', 'stops', 'stopped', 'stopping',
+        'create', 'creates', 'created', 'creating',
+        'speak', 'speaks', 'spoke', 'speaking', 'spoken',
+        'read', 'reads', 'reading',
+        'spend', 'spends', 'spent', 'spending',
+        'grow', 'grows', 'grew', 'growing', 'grown',
+        'open', 'opens', 'opened', 'opening',
+        'walk', 'walks', 'walked', 'walking',
+        'win', 'wins', 'won', 'winning',
+        'teach', 'teaches', 'taught', 'teaching',
+        'offer', 'offers', 'offered', 'offering',
+        'remember', 'remembers', 'remembered', 'remembering',
+        'consider', 'considers', 'considered', 'considering',
+        'appear', 'appears', 'appeared', 'appearing',
+        'buy', 'buys', 'bought', 'buying',
+        'serve', 'serves', 'served', 'serving',
+        'die', 'dies', 'died', 'dying',
+        'send', 'sends', 'sent', 'sending',
+        'build', 'builds', 'built', 'building',
+        'stay', 'stays', 'stayed', 'staying',
+        'fall', 'falls', 'fell', 'falling', 'fallen',
+        'cut', 'cuts', 'cutting',
+        'reach', 'reaches', 'reached', 'reaching',
+        'kill', 'kills', 'killed', 'killing',
+        'raise', 'raises', 'raised', 'raising',
+        'pass', 'passes', 'passed', 'passing',
+        'sell', 'sells', 'sold', 'selling',
+        'decide', 'decides', 'decided', 'deciding',
+        'return', 'returns', 'returned', 'returning',
+        'explain', 'explains', 'explained', 'explaining',
+        'hope', 'hopes', 'hoped', 'hoping',
+        'develop', 'develops', 'developed', 'developing',
+        'carry', 'carries', 'carried', 'carrying',
+        'break', 'breaks', 'broke', 'breaking', 'broken',
+        # Базовые прилагательные
+        'good', 'better', 'best', 'bad', 'worse', 'worst', 'big', 'bigger', 'biggest',
+        'small', 'smaller', 'smallest', 'new', 'newer', 'newest', 'old', 'older', 'oldest',
+        'great', 'greater', 'greatest', 'high', 'higher', 'highest', 'low', 'lower', 'lowest',
+        'long', 'longer', 'longest', 'short', 'shorter', 'shortest', 'early', 'earlier', 'earliest',
+        'late', 'later', 'latest', 'young', 'younger', 'youngest', 'important', 'more', 'most',
+        'large', 'larger', 'largest', 'little', 'less', 'least', 'own', 'other', 'another',
+        'same', 'few', 'public', 'able', 'such', 'only', 'first', 'last', 'next', 'different',
+        'many', 'much', 'several', 'every', 'each', 'some', 'any', 'all', 'both', 'either',
+        'neither', 'right', 'left', 'true', 'false', 'real', 'sure', 'full', 'half', 'whole',
+        'free', 'ready', 'easy', 'hard', 'simple', 'clear', 'close', 'open', 'strong', 'weak',
+        # Базовые наречия
+        'very', 'too', 'so', 'just', 'now', 'then', 'here', 'there', 'where', 'when', 'why',
+        'how', 'also', 'well', 'back', 'only', 'even', 'still', 'already', 'yet', 'again',
+        'never', 'always', 'often', 'sometimes', 'usually', 'today', 'tomorrow', 'yesterday',
+        'soon', 'far', 'away', 'together', 'however', 'perhaps', 'maybe', 'quite', 'rather',
+        'almost', 'enough', 'too', 'nearly', 'probably', 'possibly', 'certainly', 'definitely',
+        # Базовые существительные
+        'time', 'year', 'day', 'way', 'man', 'woman', 'child', 'children', 'people', 'person',
+        'thing', 'things', 'life', 'world', 'hand', 'part', 'place', 'case', 'week', 'company',
+        'system', 'program', 'question', 'work', 'government', 'number', 'night', 'point', 'home',
+        'water', 'room', 'mother', 'father', 'area', 'money', 'story', 'fact', 'month', 'lot',
+        'right', 'study', 'book', 'eye', 'job', 'word', 'business', 'issue', 'side', 'kind',
+        'head', 'house', 'service', 'friend', 'problem', 'power', 'end', 'member', 'law', 'car',
+        'city', 'name', 'team', 'minute', 'idea', 'body', 'information', 'back', 'parent', 'face',
+        'others', 'level', 'office', 'door', 'health', 'art', 'war', 'history', 'party', 'result',
+        'change', 'morning', 'reason', 'research', 'girl', 'guy', 'moment', 'air', 'teacher', 'force',
+        'education',
+        # Союзы
+        'and', 'or', 'but', 'so', 'because', 'if', 'when', 'while', 'although', 'though',
+        'since', 'until', 'unless', 'than', 'whether', 'nor', 'yet',
+        # Другие служебные слова
+        'not', 'no', 'yes', 'ok', 'okay', 'please', 'thank', 'thanks', 'sorry', 'well',
+    }
+
     def __init__(self):
         self.folder_id = os.getenv('YANDEX_FOLDER_ID')
         self.iam_token = self._get_iam_token()
         self.gpt_url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
         self.translate_url = "https://translate.api.cloud.yandex.net/translate/v2/translate"
-        
+
     def _get_iam_token(self) -> str:
         """Получает IAM токен для Yandex Cloud"""
         # Попробуем получить токен из переменной окружения
@@ -280,42 +416,96 @@ JSON формат: [{{"highlight": "фраза", "context": "предложен�
         
         return highlights
     
-    def _get_dictionary_meanings(self, word: str) -> List[str]:
-        """Получает словарные значения слова через Free Dictionary API"""
-        try:            
+    def _is_primitive_word(self, word: str) -> bool:
+        """Проверяет является ли слово примитивным/базовым"""
+        clean_word = word.strip().lower()
+
+        # Проверяем в списке примитивных слов
+        if clean_word in self.PRIMITIVE_WORDS:
+            return True
+
+        # Слишком короткие слова (меньше 4 букв) - примитивные
+        if len(clean_word) < 4:
+            return True
+
+        return False
+
+    def _get_single_word_meanings(self, word: str) -> List[str]:
+        """Получает словарные значения для ОДНОГО слова через Free Dictionary API"""
+        try:
             # Очищаем слово от лишних символов
-            clean_word = re.sub(r'[^a-zA-Z\s-]', '', word.strip().lower())
+            clean_word = re.sub(r'[^a-zA-Z-]', '', word.strip().lower())
             if not clean_word:
                 return []
-            
-            # Не запрашиваем определения для фраз (больше одного слова)
-            if ' ' in clean_word:
+
+            # Проверяем на примитивность
+            if self._is_primitive_word(clean_word):
                 return []
-            
+
             url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{clean_word}"
-            
+
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 meanings = []
-                
+
                 # Извлекаем определения из API ответа
                 for entry in data[:2]:  # Первые 2 записи
                     for meaning in entry.get('meanings', [])[:2]:  # Первые 2 значения
-                        part_of_speech = meaning.get('partOfSpeech', '')
                         for definition in meaning.get('definitions', [])[:1]:  # Первое определение
                             def_text = definition.get('definition', '')
                             if def_text:
                                 # Переводим определение на русский
                                 russian_def = self._translate_definition_sync(def_text)
                                 meanings.append(russian_def)
-                
+
                 return meanings[:3] if meanings else []
             else:
                 return []
-                        
+
         except Exception as e:
             return []
+
+    def _get_dictionary_meanings(self, word: str) -> List[str]:
+        """Получает словарные значения слова или фразы через Free Dictionary API
+
+        Для фраз: разбивает на слова, фильтрует примитивные, возвращает значения сложных слов
+        Для одиночных слов: возвращает словарные значения
+        """
+        try:
+            # Очищаем от лишних символов
+            clean_text = re.sub(r'[^a-zA-Z\s-]', '', word.strip().lower())
+            if not clean_text:
+                return []
+
+            # Если фраза (несколько слов) - обрабатываем каждое слово
+            if ' ' in clean_text:
+                words = clean_text.split()
+                all_meanings = []
+
+                for w in words:
+                    # Пропускаем примитивные слова
+                    if self._is_primitive_word(w):
+                        continue
+
+                    # Получаем значения для сложного слова
+                    meanings = self._get_single_word_meanings(w)
+                    if meanings:
+                        # Форматируем: "слово: значение1, значение2"
+                        formatted = f"{w}: {', '.join(meanings)}"
+                        all_meanings.append(formatted)
+
+                return all_meanings
+            else:
+                # Одиночное слово
+                return self._get_single_word_meanings(clean_text)
+
+        except Exception as e:
+            return []
+
+    def get_dictionary_meanings(self, highlight_text: str) -> List[str]:
+        """Публичный метод для получения словарных значений (для новой архитектуры)"""
+        return self._get_dictionary_meanings(highlight_text)
 
     def _translate_definition_sync(self, definition: str) -> str:
         """Переводит английское определение на русский через Yandex Translate (синхронно)"""

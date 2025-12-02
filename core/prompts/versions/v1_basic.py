@@ -29,7 +29,7 @@ class BasicPromptV1(PromptStrategy):
     async def analyze_text(self, text: str, ai_client) -> List[Highlight]:
         """Анализ текста через единый промпт"""
         print(f"🎯 Анализ через v1_basic промпт...", flush=True)
-        
+
         try:
             # Определяем количество хайлайтов по длине текста
             word_count = len(text.split())
@@ -41,17 +41,26 @@ class BasicPromptV1(PromptStrategy):
                 target_count = "10-20"
             else:
                 target_count = "15-30"
-            
+
             prompt = self._create_prompt(text, target_count)
             response = await ai_client.request_gpt(prompt)
             highlights = self._parse_response(response)
-            
+
+            # Добавляем словарные значения для каждого хайлайта
+            print(f"📚 Получение словарных значений...", flush=True)
+            for highlight in highlights:
+                try:
+                    meanings = ai_client.get_dictionary_meanings(highlight.highlight)
+                    highlight.dictionary_meanings = meanings
+                except Exception as e:
+                    print(f"⚠️ Ошибка получения значений для '{highlight.highlight}': {e}", flush=True)
+
             # Добавляем переводы
             highlights = await self._add_translations(highlights, ai_client)
-            
+
             print(f"✅ v1_basic: найдено {len(highlights)} хайлайтов", flush=True)
             return highlights
-            
+
         except Exception as e:
             print(f"❌ Ошибка v1_basic промпта: {e}", flush=True)
             return []

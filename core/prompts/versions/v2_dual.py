@@ -29,33 +29,42 @@ class DualPromptV2(PromptStrategy):
     async def analyze_text(self, text: str, ai_client) -> List[Highlight]:
         """Анализ текста через два параллельных промпта"""
         print(f"🧪 Анализ через v2_dual промпт...", flush=True)
-        
+
         try:
             # Два параллельных запроса
             words_prompt = self._create_words_prompt(text)
             phrases_prompt = self._create_phrases_prompt(text)
-            
+
             print(f"🧪 Отправляем запрос для слов...", flush=True)
             words_response = await ai_client.request_gpt(words_prompt)
-            
+
             print(f"🧪 Отправляем запрос для фраз...", flush=True)
             phrases_response = await ai_client.request_gpt(phrases_prompt)
-            
+
             # Парсим оба ответа
             words = self._parse_response(words_response, "words")
             phrases = self._parse_response(phrases_response, "phrases")
-            
+
             print(f"🧪 Найдено {len(words)} слов и {len(phrases)} фраз", flush=True)
-            
+
             # Объединяем результаты
             all_highlights = words + phrases
-            
+
+            # Добавляем словарные значения для каждого хайлайта
+            print(f"📚 Получение словарных значений...", flush=True)
+            for highlight in all_highlights:
+                try:
+                    meanings = ai_client.get_dictionary_meanings(highlight.highlight)
+                    highlight.dictionary_meanings = meanings
+                except Exception as e:
+                    print(f"⚠️ Ошибка получения значений для '{highlight.highlight}': {e}", flush=True)
+
             # Добавляем переводы
             all_highlights = await self._add_translations(all_highlights, ai_client)
-            
+
             print(f"✅ v2_dual: итого {len(all_highlights)} хайлайтов", flush=True)
             return all_highlights
-            
+
         except Exception as e:
             print(f"❌ Ошибка v2_dual промпта: {e}", flush=True)
             return []
