@@ -31,6 +31,10 @@ class Highlight:
     importance_score: int = 85       # Важность 0-100
     dictionary_meanings: List[str] = field(default_factory=list)
     why_interesting: str = ""        # Почему интересен
+
+    # V3 новые поля (опциональные, не влияют на V1/V2):
+    type: str = "word"               # "word", "expression", "pattern"
+    pattern_template: str = ""       # Шаблон для patterns: "the way [subject] [verb] it"
     
     def to_dict(self) -> Dict[str, Any]:
         """Преобразование в словарь для JSON"""
@@ -43,7 +47,9 @@ class Highlight:
             'cefr_level': self.cefr_level,
             'importance_score': self.importance_score,
             'dictionary_meanings': self.dictionary_meanings,
-            'why_interesting': self.why_interesting
+            'why_interesting': self.why_interesting,
+            'type': self.type,
+            'pattern_template': self.pattern_template
         }
     
     @classmethod
@@ -58,7 +64,9 @@ class Highlight:
             cefr_level=data.get('cefr_level', 'C1'),
             importance_score=data.get('importance_score', 85),
             dictionary_meanings=data.get('dictionary_meanings', []),
-            why_interesting=data.get('why_interesting', '')
+            why_interesting=data.get('why_interesting', ''),
+            type=data.get('type', 'word'),
+            pattern_template=data.get('pattern_template', '')
         )
 
 

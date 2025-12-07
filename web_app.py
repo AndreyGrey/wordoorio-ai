@@ -3,7 +3,7 @@
 Простой веб-интерфейс для демонстрации AI анализа лексики
 """
 
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify, session, redirect
 import json
 import sys
 import os
@@ -173,6 +173,11 @@ def get_stats():
     except Exception as e:
         return jsonify({'error': f'Ошибка получения статистики: {str(e)}'})
 
+@app.route('/main')
+def main_page():
+    """Главная страница анализа (алиас для /)"""
+    return render_template('index.html')
+
 @app.route('/experimental')
 def experimental_page():
     """🧪 Экспериментальная страница для dual-prompt анализа"""
@@ -237,6 +242,10 @@ def experimental_analyze():
         try:
             highlights_dicts = [h.to_dict() for h in result.highlights]
 
+            # Разделяем на слова и фразы для dual-prompt интерфейса
+            words = [h for h in highlights_dicts if ' ' not in h['highlight'].strip()]
+            phrases = [h for h in highlights_dicts if ' ' in h['highlight'].strip()]
+
             analysis_id = db.save_analysis(
                 original_text=text,
                 highlights=highlights_dicts,
@@ -248,22 +257,118 @@ def experimental_analyze():
             return jsonify({
                 'success': True,
                 'experimental': True,
-                'stats': result.stats,
-                'highlights': highlights_dicts,
+                'stats': {
+                    'total_words': result.stats.get('total_words', 0),
+                    'total_highlights': len(highlights_dicts),
+                    'total_word_highlights': len(words),
+                    'total_phrase_highlights': len(phrases)
+                },
+                'words': words,
+                'phrases': phrases,
                 'performance': result.performance,
                 'analysis_id': analysis_id
             })
         except Exception as db_error:
             print(f"Database error: {db_error}")
 
+            highlights_dicts = [h.to_dict() for h in result.highlights]
+
+            # Разделяем на слова и фразы для dual-prompt интерфейса
+            words = [h for h in highlights_dicts if ' ' not in h['highlight'].strip()]
+            phrases = [h for h in highlights_dicts if ' ' in h['highlight'].strip()]
+
             return jsonify({
                 'success': True,
                 'experimental': True,
-                'stats': result.stats,
-                'highlights': [h.to_dict() for h in result.highlights],
+                'stats': {
+                    'total_words': result.stats.get('total_words', 0),
+                    'total_highlights': len(highlights_dicts),
+                    'total_word_highlights': len(words),
+                    'total_phrase_highlights': len(phrases)
+                },
+                'words': words,
+                'phrases': phrases,
                 'performance': result.performance,
                 'warning': 'Анализ выполнен, но не сохранен в историю'
             })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Критическая ошибка: {str(e)}'})
+
+
+# ============================================================================
+# 🚀 V3 ADAPTIVE PROMPT ROUTES
+# ============================================================================
+
+@app.route('/v3')
+def v3_page():
+    """🚀 V3 страница с adaptive prompt"""
+    return render_template('v3.html')
+
+@app.route('/v3/analyze', methods=['POST'])
+def v3_analyze():
+    """🚀 API для V3 adaptive prompt анализа"""
+    try:
+        data = request.get_json()
+        text = data.get('text', '').strip()
+
+        # Используем новую архитектуру
+        import asyncio
+        from contracts.analysis_contracts import AnalysisRequest
+        from core.analysis_service import get_analysis_service
+        from core.yandex_ai_client import YandexAIClient
+
+        # Создаем запрос для v3
+        analysis_request = AnalysisRequest(
+            text=text,
+            page_id='v3',
+            user_session=session.get('session_id')
+        )
+
+        # Валидация
+        error = analysis_request.validate()
+        if error:
+            return jsonify({'error': error})
+
+        # Генерируем session_id если его нет
+        if 'session_id' not in session:
+            session['session_id'] = str(uuid.uuid4())
+
+        # Получаем сервис и клиент
+        service = get_analysis_service()
+        ai_client = YandexAIClient()
+
+        # Анализируем
+        loop = None
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        result = loop.run_until_complete(
+            service.analyze_text(analysis_request, ai_client)
+        )
+
+        # Проверяем успех
+        if not result.success:
+            return jsonify({'error': result.error})
+
+        if not result.highlights:
+            return jsonify({
+                'success': True,
+                'highlights': [],
+                'message': 'Не найдено интересных слов'
+            })
+
+        # Возвращаем результат
+        return jsonify({
+            'success': True,
+            'highlights': [h.to_dict() for h in result.highlights],
+            'stats': result.get_stats()
+        })
 
     except Exception as e:
         import traceback
@@ -369,6 +474,49 @@ def analyze_v2():
 def history_page():
     """Страница истории анализов"""
     return render_template('history.html')
+
+# ===== YOUTUBE ROUTES =====
+
+@app.route('/youtube/analyze', methods=['POST'])
+def analyze_youtube():
+    """
+    Извлечение транскрипта из YouTube и редирект на /experimental
+    """
+    try:
+        data = request.get_json()
+        video_url = data.get('video_url', '').strip()
+
+        if not video_url:
+            return jsonify({
+                'success': False,
+                'error': 'URL видео не указан'
+            })
+
+        # Извлечение транскрипта через Agent 1
+        from agents.youtube_agent import YouTubeTranscriptAgent
+        agent = YouTubeTranscriptAgent()
+        transcript_result = agent.extract_transcript(video_url)
+
+        if not transcript_result['success']:
+            return jsonify(transcript_result)
+
+        # Возвращаем success с транскриптом для localStorage редиректа
+        return jsonify({
+            'success': True,
+            'redirect': '/experimental',
+            'transcript': transcript_result['transcript'],
+            'video_title': transcript_result.get('video_title'),
+            'video_url': video_url,
+            'word_count': transcript_result['word_count']
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Ошибка сервера: {str(e)}'
+        })
 
 if __name__ == '__main__':
     print("🚀 Запуск веб-интерфейса Wordoorio...")

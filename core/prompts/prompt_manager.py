@@ -22,13 +22,13 @@ class PromptManager:
         try:
             # Импортируем и регистрируем все версии
             from core.prompts.versions.v1_basic import BasicPromptV1
-            from core.prompts.versions.v2_dual import DualPromptV2
-            
+            from core.prompts.versions.v3_adaptive import AdaptivePromptV3
+
             self.register_prompt(BasicPromptV1())
-            self.register_prompt(DualPromptV2())
-            
+            self.register_prompt(AdaptivePromptV3())
+
             print(f"✅ Зарегистрировано {len(self._strategies)} версий промптов", flush=True)
-            
+
         except ImportError as e:
             print(f"⚠️ Ошибка импорта версий промптов: {e}", flush=True)
     

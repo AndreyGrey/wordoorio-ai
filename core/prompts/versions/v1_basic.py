@@ -31,32 +31,32 @@ class BasicPromptV1(PromptStrategy):
         print(f"🎯 Анализ через v1_basic промпт...", flush=True)
 
         try:
-            # Определяем количество хайлайтов по длине текста
-            word_count = len(text.split())
-            if word_count < 20:
-                target_count = "3-5"
-            elif word_count < 50:
-                target_count = "5-10"
-            elif word_count < 100:
-                target_count = "10-20"
-            else:
-                target_count = "15-30"
-
-            prompt = self._create_prompt(text, target_count)
+            # Убираем ограничения - находим ВСЕ достойные слова
+            prompt = self._create_prompt(text)
             response = await ai_client.request_gpt(prompt)
             highlights = self._parse_response(response)
 
-            # Добавляем словарные значения для каждого хайлайта
+            # Добавляем словарные значения только для одиночных слов
             print(f"📚 Получение словарных значений...", flush=True)
             for highlight in highlights:
                 try:
-                    meanings = ai_client.get_dictionary_meanings(highlight.highlight)
-                    highlight.dictionary_meanings = meanings
+                    # Проверяем что это одно слово (не фраза)
+                    if ' ' not in highlight.highlight.strip():
+                        meanings = ai_client.get_dictionary_meanings(highlight.highlight)
+
+                        # Фильтруем - убираем основной перевод из альтернативных
+                        context_translation = highlight.context_translation.lower().strip()
+                        filtered_meanings = [
+                            m for m in meanings
+                            if m.lower().strip() != context_translation
+                        ]
+
+                        highlight.dictionary_meanings = filtered_meanings
+                    else:
+                        # Для фраз не показываем альтернативные значения
+                        highlight.dictionary_meanings = []
                 except Exception as e:
                     print(f"⚠️ Ошибка получения значений для '{highlight.highlight}': {e}", flush=True)
-
-            # Добавляем переводы
-            highlights = await self._add_translations(highlights, ai_client)
 
             print(f"✅ v1_basic: найдено {len(highlights)} хайлайтов", flush=True)
             return highlights
@@ -65,10 +65,14 @@ class BasicPromptV1(PromptStrategy):
             print(f"❌ Ошибка v1_basic промпта: {e}", flush=True)
             return []
     
-    def _create_prompt(self, text: str, target_count: str) -> str:
+    def _create_prompt(self, text: str) -> str:
         """Создает промпт для анализа"""
         return f"""
-Ты — эксперт по продвинутой английской лексике, которая делает речь выразительной, натуральной и стильной. Найди {target_count} слов и выражений из текста, которые действительно стоят изучения.
+Ты — эксперт по продвинутой английской лексике, которая делает речь выразительной, натуральной и стильной.
+
+Твоя задача: найти ВСЕ слова и выражения из текста, которые действительно стоят изучения.
+
+ВАЖНО: НЕ ограничивай себя количеством! Бери абсолютно ВСЕ выражения, которые соответствуют критериям ниже. Если в тексте 5 достойных слов - бери 5. Если 50 - бери все 50.
 
 Проанализируй этот английский текст:
 "{text}"
@@ -92,9 +96,10 @@ class BasicPromptV1(PromptStrategy):
 ТРЕБОВАНИЯ:
 - Бери максимум потенциально полезных выражений. Если сомневаешься — бери.
 - "highlight" должен быть одним словом или короткой фразой.
-- "context" — только ОДНО предложение из текста, которое ОБЯЗАТЕЛЬНО содержит выбранное слово/фразу. 
+- "context" — ТОЛЬКО ОДНО ПОЛНОЕ предложение из текста (8-15 слов), которое ОБЯЗАТЕЛЬНО содержит выбранное слово/фразу.
+- НЕ используй несколько предложений подряд! Только ОДНО предложение с точкой в конце!
 - ВАЖНО: слово/фраза из "highlight" должно точно присутствовать в "context".
-- "context_translation" — это перевод ТОЛЬКО выбранного слова/выражения (кратко, без пояснений).
+- "context_translation" — это перевод ТОЛЬКО выбранного слова/выражения (НЕ перевод всего предложения! Только краткий перевод слова/фразы).
 
 Формат ответа — только массив JSON:
 [
@@ -133,12 +138,15 @@ class BasicPromptV1(PromptStrategy):
                 if not self._validate_highlight_data(item):
                     continue
                 
+                # Используем контекстный перевод от AI (он понимает контекст лучше словаря)
+                context_translation = item.get("context_translation", "")
+
                 highlight = Highlight(
                     highlight=item["highlight"],
                     context=item["context"],
-                    context_translation=item.get("context_translation", ""),
+                    context_translation=context_translation,
                     english_example=f"Example: {item['context']}",
-                    russian_example="",  # Будет заполнено через переводчик
+                    russian_example=context_translation,  # Используем контекстный перевод от AI
                     cefr_level="C1",
                     importance_score=85,
                     dictionary_meanings=[],
@@ -159,11 +167,24 @@ class BasicPromptV1(PromptStrategy):
         for field in required_fields:
             if field not in item or not item[field]:
                 return False
-        
+
+        # Проверка длины контекста (минимум 6 слов)
+        context_words = item["context"].split()
+        if len(context_words) < 6:
+            print(f"⚠️ v1_basic: пропускаю '{item['highlight']}' - контекст слишком короткий ({len(context_words)} слов, нужно минимум 6)", flush=True)
+            return False
+
+        # Проверка что это ОДНО предложение (не должно быть нескольких предложений)
+        # Подсчитываем количество предложений (по точкам, восклицательным и вопросительным знакам)
+        sentence_endings = re.findall(r'[.!?]', item["context"])
+        if len(sentence_endings) > 1:
+            print(f"⚠️ v1_basic: пропускаю '{item['highlight']}' - контекст содержит {len(sentence_endings)} предложений, нужно только 1", flush=True)
+            return False
+
         # Проверяем что хайлайт действительно есть в контексте
         highlight_text = item["highlight"].lower()
         context_text = item["context"].lower()
-        
+
         # Для фраз проверяем по частям
         if ' ' in highlight_text:
             for word in highlight_text.split():
@@ -175,18 +196,26 @@ class BasicPromptV1(PromptStrategy):
             if highlight_text not in context_text:
                 print(f"⚠️ v1_basic: пропускаю '{item['highlight']}' - не найдено в контексте", flush=True)
                 return False
-        
+
         return True
     
     async def _add_translations(self, highlights: List[Highlight], ai_client) -> List[Highlight]:
         """Добавляет переводы к хайлайтам"""
+        print(f"🔄 Начинаем перевод {len(highlights)} хайлайтов...", flush=True)
         for highlight in highlights:
             try:
                 if not highlight.russian_example:
                     # Переводим только само слово/фразу, а не весь контекст
+                    print(f"🔄 Переводим '{highlight.highlight}'...", flush=True)
                     translation = await ai_client.translate_text(highlight.highlight, "ru")
                     highlight.russian_example = translation
+                    print(f"✅ Перевод '{highlight.highlight}' -> '{translation}'", flush=True)
+                else:
+                    print(f"⏭️  Пропускаем '{highlight.highlight}' - перевод уже есть: '{highlight.russian_example}'", flush=True)
             except Exception as e:
                 print(f"⚠️ Ошибка перевода '{highlight.highlight}': {e}", flush=True)
-        
+                import traceback
+                traceback.print_exc()
+
+        print(f"✅ Перевод завершен", flush=True)
         return highlights

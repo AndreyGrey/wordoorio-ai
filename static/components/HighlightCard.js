@@ -26,8 +26,8 @@ function createHighlightCard(highlight, index, theme = 'green') {
             bg: '#FEE8BF',
             textDark: '#0A3A4D',
             textLight: '#ffffff',
-            highlightBg: '#1B7A94',
-            highlightText: '#FEE8BF'
+            highlightBg: '#FF7964',
+            highlightText: '#ffffff'
         }
     };
 
@@ -57,7 +57,7 @@ function createHighlightCard(highlight, index, theme = 'green') {
         <div class="highlight-card" data-theme="${theme}">
             <h1 class="highlight-title">${highlight.highlight}</h1>
 
-            <div class="highlight-subtitle">${highlight.context_translation || highlight.russian_example}</div>
+            <div class="highlight-subtitle">${highlight.russian_example || highlight.context_translation}</div>
 
             <div class="highlight-quote-container">
                 <div class="highlight-quote-icon">➤</div>
@@ -177,7 +177,7 @@ function getHighlightCardStyles() {
         .highlight-quote-container {
             display: flex;
             gap: 16px;
-            margin-bottom: 28px;
+            margin-bottom: 0;
         }
 
         .highlight-quote-icon {
@@ -208,6 +208,7 @@ function getHighlightCardStyles() {
             display: flex;
             flex-wrap: wrap;
             gap: 12px;
+            margin-top: 24px;
         }
 
         .highlight-tag {
@@ -276,7 +277,7 @@ function getHighlightCardStyles() {
 
             .highlight-quote-container {
                 gap: 12px;
-                margin-bottom: 24px;
+                margin-bottom: 0;
             }
 
             .highlight-quote-icon {

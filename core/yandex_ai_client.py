@@ -175,8 +175,10 @@ class YandexAIClient:
     def __init__(self):
         self.folder_id = os.getenv('YANDEX_FOLDER_ID')
         self.iam_token = self._get_iam_token()
+        self.dict_api_key = os.getenv('YANDEX_DICT_API_KEY', '')
         self.gpt_url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
         self.translate_url = "https://translate.api.cloud.yandex.net/translate/v2/translate"
+        self.dict_url = "https://dictionary.yandex.net/api/v1/dicservice.json/lookup"
 
     def _get_iam_token(self) -> str:
         """Получает IAM токен для Yandex Cloud"""
@@ -430,49 +432,57 @@ JSON формат: [{{"highlight": "фраза", "context": "предложен�
 
         return False
 
-    def _get_single_word_meanings(self, word: str) -> List[str]:
-        """Получает словарные значения для ОДНОГО слова через Free Dictionary API"""
+    # Старый метод Free Dictionary API удален - теперь используем Yandex Dictionary API
+
+    def _get_yandex_dict_translations(self, word: str) -> List[str]:
+        """Получает альтернативные русские переводы через Yandex Dictionary API"""
         try:
-            # Очищаем слово от лишних символов
+            # Очищаем слово
             clean_word = re.sub(r'[^a-zA-Z-]', '', word.strip().lower())
-            if not clean_word:
+            if not clean_word or self._is_primitive_word(clean_word):
                 return []
 
-            # Проверяем на примитивность
-            if self._is_primitive_word(clean_word):
-                return []
+            # Параметры запроса
+            params = {
+                'key': self.dict_api_key,
+                'lang': 'en-ru',
+                'text': clean_word
+            }
 
-            url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{clean_word}"
+            response = requests.get(self.dict_url, params=params, timeout=10)
 
-            response = requests.get(url, timeout=10)
             if response.status_code == 200:
                 data = response.json()
-                meanings = []
+                translations = []
 
-                # Извлекаем определения из API ответа
-                for entry in data[:2]:  # Первые 2 записи
-                    for meaning in entry.get('meanings', [])[:2]:  # Первые 2 значения
-                        for definition in meaning.get('definitions', [])[:1]:  # Первое определение
-                            def_text = definition.get('definition', '')
-                            if def_text:
-                                # Переводим определение на русский
-                                russian_def = self._translate_definition_sync(def_text)
-                                meanings.append(russian_def)
+                # Извлекаем переводы из ответа
+                for entry in data.get('def', [])[:3]:  # Первые 3 словарных статьи
+                    for translation in entry.get('tr', [])[:3]:  # Первые 3 перевода
+                        trans_text = translation.get('text', '')
+                        if trans_text and trans_text not in translations:
+                            translations.append(trans_text)
 
-                return meanings[:3] if meanings else []
+                return translations[:5]  # Максимум 5 уникальных переводов
             else:
+                print(f"⚠️ Yandex Dict API error: {response.status_code}", flush=True)
                 return []
 
         except Exception as e:
+            print(f"⚠️ Dictionary API error: {e}", flush=True)
             return []
 
     def _get_dictionary_meanings(self, word: str) -> List[str]:
-        """Получает словарные значения слова или фразы через Free Dictionary API
+        """Получает русские переводы слова через Yandex Dictionary API
 
-        Для фраз: разбивает на слова, фильтрует примитивные, возвращает значения сложных слов
-        Для одиночных слов: возвращает словарные значения
+        Для фраз: разбивает на слова, фильтрует примитивные, возвращает переводы сложных слов
+        Для одиночных слов: возвращает альтернативные переводы
         """
         try:
+            # Проверяем наличие API ключа
+            if not self.dict_api_key:
+                print("⚠️ YANDEX_DICT_API_KEY не найден в .env", flush=True)
+                return []
+
             # Очищаем от лишних символов
             clean_text = re.sub(r'[^a-zA-Z\s-]', '', word.strip().lower())
             if not clean_text:
@@ -481,26 +491,25 @@ JSON формат: [{{"highlight": "фраза", "context": "предложен�
             # Если фраза (несколько слов) - обрабатываем каждое слово
             if ' ' in clean_text:
                 words = clean_text.split()
-                all_meanings = []
+                all_translations = []
 
                 for w in words:
                     # Пропускаем примитивные слова
                     if self._is_primitive_word(w):
                         continue
 
-                    # Получаем значения для сложного слова
-                    meanings = self._get_single_word_meanings(w)
-                    if meanings:
-                        # Форматируем: "слово: значение1, значение2"
-                        formatted = f"{w}: {', '.join(meanings)}"
-                        all_meanings.append(formatted)
+                    # Получаем переводы для сложного слова
+                    translations = self._get_yandex_dict_translations(w)
+                    if translations:
+                        all_translations.extend(translations[:2])  # Максимум 2 перевода на слово
 
-                return all_meanings
+                return all_translations[:5]  # Всего максимум 5 переводов для фразы
             else:
                 # Одиночное слово
-                return self._get_single_word_meanings(clean_text)
+                return self._get_yandex_dict_translations(clean_text)[:5]  # Максимум 5 переводов
 
         except Exception as e:
+            print(f"⚠️ Ошибка получения переводов: {e}", flush=True)
             return []
 
     def get_dictionary_meanings(self, highlight_text: str) -> List[str]:
@@ -510,34 +519,45 @@ JSON формат: [{{"highlight": "фраза", "context": "предложен�
     def _translate_definition_sync(self, definition: str) -> str:
         """Переводит английское определение на русский через Yandex Translate (синхронно)"""
         try:
+            print(f"🔄 [TRANSLATE] Переводим: '{definition}'", flush=True)
+            print(f"🔄 [TRANSLATE] IAM token: {self.iam_token[:20]}...", flush=True)
+            print(f"🔄 [TRANSLATE] Folder ID: {self.folder_id}", flush=True)
+
             headers = {
                 "Authorization": f"Bearer {self.iam_token}",
                 "Content-Type": "application/json"
             }
-            
+
             data = {
                 "folderId": self.folder_id,
                 "texts": [definition],
                 "sourceLanguageCode": "en",
                 "targetLanguageCode": "ru"
             }
-            
+
             response = requests.post(
                 "https://translate.api.cloud.yandex.net/translate/v2/translate",
-                headers=headers, 
-                json=data, 
+                headers=headers,
+                json=data,
                 timeout=10
             )
-            
+
+            print(f"🔄 [TRANSLATE] Status: {response.status_code}", flush=True)
+
             if response.status_code == 200:
                 result = response.json()
+                print(f"🔄 [TRANSLATE] Response: {result}", flush=True)
                 translation = result["translations"][0]["text"]
+                print(f"✅ [TRANSLATE] Получен перевод: '{translation}'", flush=True)
                 return translation
             else:
+                print(f"❌ [TRANSLATE] Ошибка: {response.status_code} - {response.text}", flush=True)
                 return definition  # Возвращаем оригинал если перевод не удался
-                
+
         except Exception as e:
-            print(f"⚠️ Ошибка перевода определения: {e}", flush=True)
+            print(f"❌ [TRANSLATE] Exception: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
             return definition  # Возвращаем оригинал
 
     async def _translate_definition(self, definition: str) -> str:
@@ -576,30 +596,13 @@ JSON формат: [{{"highlight": "фраза", "context": "предложен�
 
     async def _translate_text(self, text: str) -> str:
         """Переводит текст через Yandex Translate"""
-        headers = {
-            "Authorization": f"Bearer {self.iam_token}",
-            "Content-Type": "application/json"
-        }
-        
-        data = {
-            "folderId": self.folder_id,
-            "texts": [text],
-            "sourceLanguageCode": "en",
-            "targetLanguageCode": "ru"
-        }
-        
         try:
-            # TODO: Заменить на реальный запрос
-            # response = requests.post(self.translate_url, headers=headers, json=data)
-            # result = response.json()
-            # return result["translations"][0]["text"]
-            
-            # Пока возвращаем заглушку
-            return f"[ПЕРЕВОД: {text}]"
-            
+            # Используем синхронный метод в асинхронной обертке
+            translation = self._translate_definition_sync(text)
+            return translation
         except Exception as e:
-            print(f"⚠️ Ошибка Yandex Translate: {e}", flush=True)
-            return f"[ПЕРЕВОД: {text}]"
+            print(f"⚠️ Ошибка перевода текста: {e}", flush=True)
+            return text  # Возвращаем оригинал при ошибке
     
     def _fallback_analysis(self, text: str) -> List[LinguisticHighlight]:
         """Fallback анализ если GPT недоступен"""

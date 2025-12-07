@@ -34,7 +34,8 @@ class AnalysisService:
         # Маппинг page_id -> prompt_version
         self.page_to_prompt = {
             'main': 'v1_basic',
-            'experimental': 'v2_dual',
+            'experimental': 'v1_basic',
+            'v3': 'v3_adaptive',
         }
 
     async def analyze_text(self, request: AnalysisRequest, ai_client) -> AnalysisResult:
