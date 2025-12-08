@@ -45,10 +45,10 @@ class BasicPromptV1(PromptStrategy):
                         meanings = ai_client.get_dictionary_meanings(highlight.highlight)
 
                         # Фильтруем - убираем основной перевод из альтернативных
-                        context_translation = highlight.context_translation.lower().strip()
+                        main_translation = highlight.highlight_translation.lower().strip()
                         filtered_meanings = [
                             m for m in meanings
-                            if m.lower().strip() != context_translation
+                            if m.lower().strip() != main_translation
                         ]
 
                         highlight.dictionary_meanings = filtered_meanings
@@ -99,14 +99,14 @@ class BasicPromptV1(PromptStrategy):
 - "context" — ТОЛЬКО ОДНО ПОЛНОЕ предложение из текста (8-15 слов), которое ОБЯЗАТЕЛЬНО содержит выбранное слово/фразу.
 - НЕ используй несколько предложений подряд! Только ОДНО предложение с точкой в конце!
 - ВАЖНО: слово/фраза из "highlight" должно точно присутствовать в "context".
-- "context_translation" — это перевод ТОЛЬКО выбранного слова/выражения (НЕ перевод всего предложения! Только краткий перевод слова/фразы).
+- "highlight_translation" — это перевод ТОЛЬКО выбранного слова/выражения (НЕ перевод всего предложения! Только краткий перевод слова/фразы).
 
 Формат ответа — только массив JSON:
 [
   {{
     "highlight": "слово или выражение",
     "context": "одно предложение из текста",
-    "context_translation": "перевод слова/выражения"
+    "highlight_translation": "перевод слова/выражения"
   }}
 ]
 
@@ -137,16 +137,14 @@ class BasicPromptV1(PromptStrategy):
                 # Валидация данных
                 if not self._validate_highlight_data(item):
                     continue
-                
+
                 # Используем контекстный перевод от AI (он понимает контекст лучше словаря)
-                context_translation = item.get("context_translation", "")
+                highlight_translation = item.get("highlight_translation", "")
 
                 highlight = Highlight(
                     highlight=item["highlight"],
                     context=item["context"],
-                    context_translation=context_translation,
-                    english_example=f"Example: {item['context']}",
-                    russian_example=context_translation,  # Используем контекстный перевод от AI
+                    highlight_translation=highlight_translation,
                     cefr_level="C1",
                     importance_score=85,
                     dictionary_meanings=[],
@@ -198,24 +196,3 @@ class BasicPromptV1(PromptStrategy):
                 return False
 
         return True
-    
-    async def _add_translations(self, highlights: List[Highlight], ai_client) -> List[Highlight]:
-        """Добавляет переводы к хайлайтам"""
-        print(f"🔄 Начинаем перевод {len(highlights)} хайлайтов...", flush=True)
-        for highlight in highlights:
-            try:
-                if not highlight.russian_example:
-                    # Переводим только само слово/фразу, а не весь контекст
-                    print(f"🔄 Переводим '{highlight.highlight}'...", flush=True)
-                    translation = await ai_client.translate_text(highlight.highlight, "ru")
-                    highlight.russian_example = translation
-                    print(f"✅ Перевод '{highlight.highlight}' -> '{translation}'", flush=True)
-                else:
-                    print(f"⏭️  Пропускаем '{highlight.highlight}' - перевод уже есть: '{highlight.russian_example}'", flush=True)
-            except Exception as e:
-                print(f"⚠️ Ошибка перевода '{highlight.highlight}': {e}", flush=True)
-                import traceback
-                traceback.print_exc()
-
-        print(f"✅ Перевод завершен", flush=True)
-        return highlights

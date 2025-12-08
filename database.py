@@ -39,7 +39,7 @@ class WordoorioDatabase:
                     analysis_id INTEGER,
                     highlight_word TEXT NOT NULL,
                     context TEXT NOT NULL,
-                    context_translation TEXT NOT NULL,
+                    highlight_translation TEXT NOT NULL,
                     dictionary_meanings TEXT,
                     FOREIGN KEY (analysis_id) REFERENCES analyses (id)
                 )
@@ -97,14 +97,14 @@ class WordoorioDatabase:
             # Сохраняем каждый хайлайт
             for highlight in highlights:
                 cursor.execute("""
-                    INSERT INTO highlights 
-                    (analysis_id, highlight_word, context, context_translation, dictionary_meanings)
+                    INSERT INTO highlights
+                    (analysis_id, highlight_word, context, highlight_translation, dictionary_meanings)
                     VALUES (?, ?, ?, ?, ?)
                 """, (
                     analysis_id,
                     highlight['highlight'],
                     highlight['context'],
-                    highlight['context_translation'],
+                    highlight['highlight_translation'],
                     json.dumps(highlight.get('dictionary_meanings', []))
                 ))
             
@@ -152,17 +152,17 @@ class WordoorioDatabase:
             
             # Получаем хайлайты
             cursor.execute("""
-                SELECT highlight_word, context, context_translation, dictionary_meanings
-                FROM highlights 
+                SELECT highlight_word, context, highlight_translation, dictionary_meanings
+                FROM highlights
                 WHERE analysis_id = ?
             """, (analysis_id,))
-            
+
             highlights = []
             for row in cursor.fetchall():
                 highlights.append({
                     'highlight': row[0],
                     'context': row[1],
-                    'context_translation': row[2],
+                    'highlight_translation': row[2],
                     'dictionary_meanings': json.loads(row[3]) if row[3] else []
                 })
             

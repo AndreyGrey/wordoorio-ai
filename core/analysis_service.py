@@ -192,7 +192,7 @@ async def example_usage():
     if result.success:
         print(f"Найдено хайлайтов: {len(result.highlights)}")
         for h in result.highlights:
-            print(f"  - {h.highlight}: {h.context_translation}")
+            print(f"  - {h.highlight}: {h.highlight_translation}")
     else:
         print(f"Ошибка: {result.error}")
 

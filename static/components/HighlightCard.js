@@ -57,7 +57,7 @@ function createHighlightCard(highlight, index, theme = 'green') {
         <div class="highlight-card" data-theme="${theme}">
             <h1 class="highlight-title">${highlight.highlight}</h1>
 
-            <div class="highlight-subtitle">${highlight.russian_example || highlight.context_translation}</div>
+            <div class="highlight-subtitle">${highlight.highlight_translation}</div>
 
             <div class="highlight-quote-container">
                 <div class="highlight-quote-icon">➤</div>

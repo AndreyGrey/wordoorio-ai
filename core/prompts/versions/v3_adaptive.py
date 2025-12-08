@@ -154,7 +154,7 @@ class AdaptivePromptV3(PromptStrategy):
 ОБЯЗАТЕЛЬНО:
 • Используй ТОЛЬКО лексику которая ТОЧНО есть в тексте!
 • "context" = ОДНО предложение (8-15 слов) содержащее слово/выражение
-• "context_translation" = перевод ТОЛЬКО самого слова/выражения (НЕ всего предложения!)
+• "highlight_translation" = перевод ТОЛЬКО самого слова/выражения (НЕ всего предложения!)
 • "why_interesting" = конкретное объяснение почему это круче простых альтернатив
 
 JSON формат (без markdown разметки):
@@ -163,7 +163,7 @@ JSON формат (без markdown разметки):
     "highlight": "слово или выражение из текста",
     "type": "word" или "expression",
     "context": "Одно предложение из текста.",
-    "context_translation": "перевод только highlight",
+    "highlight_translation": "перевод только highlight",
     "why_interesting": "конкретное объяснение"
   }}
 ]
@@ -276,7 +276,7 @@ PATTERNS - БРАТЬ:
 • "type" - "word" или "expression"
 • "context" - ТОЛЬКО ОДНО ПОЛНОЕ предложение из текста (8-15 слов) с точкой в конце
   НЕ используй несколько предложений! Только ОДНО!
-• "context_translation" - перевод ТОЛЬКО самого highlight (НЕ всего предложения!)
+• "highlight_translation" - перевод ТОЛЬКО самого highlight (НЕ всего предложения!)
 • "why_interesting" - КОНКРЕТНОЕ объяснение минимум 40 символов
   НЕ пиши generic флуф: "полезное слово", "стоит выучить", "важное слово"
   ПИШИ конкретику: "Мощнее чем слабое X. Используется в контексте Y. Добавляет эффект Z."
@@ -327,7 +327,7 @@ PATTERNS - БРАТЬ:
       "highlight": "слово или выражение",
       "type": "word" или "expression",
       "context": "одно предложение из текста.",
-      "context_translation": "перевод только highlight",
+      "highlight_translation": "перевод только highlight",
       "why_interesting": "конкретное объяснение, почему это слово/выражение интересное"
     }}
   ],
@@ -379,9 +379,7 @@ PATTERNS - БРАТЬ:
                             highlight=item["example"],
                             type="pattern",
                             context=item["context"],
-                            context_translation="",
-                            english_example=f"Example: {item['context']}",
-                            russian_example="",
+                            highlight_translation="",
                             cefr_level="C1",
                             importance_score=95,
                             dictionary_meanings=[],
@@ -397,9 +395,7 @@ PATTERNS - БРАТЬ:
                             highlight=item["highlight"],
                             type=item.get("type", "word"),
                             context=item["context"],
-                            context_translation=item.get("context_translation", ""),
-                            english_example=f"Example: {item['context']}",
-                            russian_example="",  # Заполнится через Translate API
+                            highlight_translation=item.get("highlight_translation", item.get("context_translation", "")),
                             cefr_level="C1",
                             importance_score=90,
                             dictionary_meanings=[],
@@ -421,9 +417,7 @@ PATTERNS - БРАТЬ:
                     highlight=item["highlight"],
                     type=item.get("type", "word"),
                     context=item["context"],
-                    context_translation=item.get("context_translation", ""),
-                    english_example=f"Example: {item['context']}",
-                    russian_example="",  # Заполнится через Translate API
+                    highlight_translation=item.get("highlight_translation", item.get("context_translation", "")),
                     cefr_level="C1",
                     importance_score=90,
                     dictionary_meanings=[],
@@ -441,9 +435,7 @@ PATTERNS - БРАТЬ:
                     highlight=item["example"],  # Пример из текста
                     type="pattern",
                     context=item["context"],
-                    context_translation="",  # Patterns не переводим
-                    english_example=f"Example: {item['context']}",
-                    russian_example="",  # Patterns не переводим
+                    highlight_translation="",  # Patterns не переводим
                     cefr_level="C1",
                     importance_score=95,
                     dictionary_meanings=[],  # Patterns не имеют словарных значений
@@ -531,26 +523,26 @@ PATTERNS - БРАТЬ:
         return True
 
     async def _add_translations(self, highlights: List[Highlight], ai_client) -> List[Highlight]:
-        """Добавляет переводы к хайлайтам (НЕ для patterns!)"""
-        print(f"🔄 Начинаем перевод хайлайтов...", flush=True)
+        """Добавляет переводы к хайлайтам (НЕ для patterns!) - legacy, обычно перевод уже есть от AI"""
+        print(f"🔄 Проверяем переводы хайлайтов...", flush=True)
         for highlight in highlights:
             # Пропускаем patterns
             if highlight.type == "pattern":
                 continue
 
             try:
-                if not highlight.russian_example:
+                if not highlight.highlight_translation:
                     # Переводим только само слово/фразу через Translate API
                     print(f"🔄 Переводим '{highlight.highlight}'...", flush=True)
                     translation = await ai_client.translate_text(highlight.highlight, "ru")
-                    highlight.russian_example = translation
+                    highlight.highlight_translation = translation
                     print(f"✅ Перевод '{highlight.highlight}' -> '{translation}'", flush=True)
                 else:
                     print(f"⏭️  Пропускаем '{highlight.highlight}' - перевод уже есть", flush=True)
             except Exception as e:
                 print(f"⚠️ Ошибка перевода '{highlight.highlight}': {e}", flush=True)
 
-        print(f"✅ Перевод завершен", flush=True)
+        print(f"✅ Проверка переводов завершена", flush=True)
         return highlights
 
     async def _add_dictionary_meanings(self, highlights: List[Highlight], ai_client) -> List[Highlight]:
@@ -570,10 +562,10 @@ PATTERNS - БРАТЬ:
                 meanings = ai_client.get_dictionary_meanings(highlight.highlight)
 
                 # Фильтруем - убираем основной перевод
-                context_translation = highlight.context_translation.lower().strip()
+                main_translation = highlight.highlight_translation.lower().strip()
                 filtered_meanings = [
                     m for m in meanings
-                    if m.lower().strip() != context_translation
+                    if m.lower().strip() != main_translation
                 ]
 
                 highlight.dictionary_meanings = filtered_meanings

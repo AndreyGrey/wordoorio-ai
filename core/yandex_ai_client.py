@@ -9,7 +9,7 @@ import re
 import requests
 import json
 from typing import Dict, List, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
 # Загружаем переменные из .env файла
@@ -17,16 +17,14 @@ load_dotenv()
 
 @dataclass
 class LinguisticHighlight:
-    """Лингвистический хайлайт"""
+    """Лингвистический хайлайт (legacy - используйте Highlight из contracts)"""
     highlight: str              # Слово или фраза
     context: str               # Контекст из текста
-    context_translation: str   # Перевод контекста
-    english_example: str       # Пример на английском
-    russian_example: str       # Пример на русском
+    highlight_translation: str  # Перевод слова/фразы
     cefr_level: str           # A1-C2
     importance_score: int      # 0-100
-    dictionary_meanings: List[str]  # Словарные значения
-    why_interesting: str       # Почему интересен для изучения
+    dictionary_meanings: List[str] = field(default_factory=list)  # Словарные значения
+    why_interesting: str = ""  # Почему интересен для изучения
     
     def to_dict(self) -> Dict[str, Any]:
         """Преобразование в словарь для JSON"""
@@ -245,7 +243,7 @@ class YandexAIClient:
 
 Ищи фразы, которые изучающие английский захотели бы запомнить и использовать.
 
-JSON формат: [{{"highlight": "фраза", "context": "предложение", "context_translation": "перевод фразы"}}]
+JSON формат: [{{"highlight": "фраза", "context": "предложение", "highlight_translation": "перевод фразы"}}]
 """
     
     def _create_highlights_prompt(self, text: str, target_count: str) -> str:
@@ -272,16 +270,16 @@ JSON формат: [{{"highlight": "фраза", "context": "предложен�
 ТРЕБОВАНИЯ:
 - Бери максимум потенциально полезных выражений. Если сомневаешься — бери.
 - "highlight" должен быть одним словом или короткой фразой.
-- "context" — только ОДНО предложение из текста, которое ОБЯЗАТЕЛЬНО содержит выбранное слово/фразу. 
+- "context" — только ОДНО предложение из текста, которое ОБЯЗАТЕЛЬНО содержит выбранное слово/фразу.
 - ВАЖНО: слово/фраза из "highlight" должно точно присутствовать в "context".
-- "context_translation" — это перевод ТОЛЬКО выбранного слова/выражения (кратко, без пояснений).
+- "highlight_translation" — это перевод ТОЛЬКО выбранного слова/выражения (кратко, без пояснений).
 
 Формат ответа — только массив JSON:
 [
   {{
     "highlight": "слово или выражение",
     "context": "одно предложение из текста",
-    "context_translation": "перевод слова/выражения"
+    "highlight_translation": "перевод слова/выражения"
   }}
 ]
 
@@ -384,9 +382,7 @@ JSON формат: [{{"highlight": "фраза", "context": "предложен�
                 highlight = LinguisticHighlight(
                     highlight=item["highlight"],
                     context=item["context"],
-                    context_translation=item.get("context_translation", ""),
-                    english_example=f"Example: {item['context']}",
-                    russian_example="",  # Будет заполнено через Yandex Translate
+                    highlight_translation=item.get("highlight_translation", item.get("context_translation", "")),
                     cefr_level="C1",  # Фиксированное значение - все слова продвинутые
                     importance_score=85,  # Фиксированное значение
                     dictionary_meanings=[],  # Будет заполнено через Yandex Translate
@@ -401,21 +397,17 @@ JSON формат: [{{"highlight": "фраза", "context": "предложен�
             return []
     
     async def _add_translations(self, highlights: List[LinguisticHighlight]) -> List[LinguisticHighlight]:
-        """Добавляет словарные значения через Yandex Translate"""
+        """Добавляет словарные значения через Yandex Translate (legacy method)"""
         for highlight in highlights:
             try:
                 # Получаем словарные значения для слова
                 dictionary_meanings = self._get_dictionary_meanings(highlight.highlight)
                 highlight.dictionary_meanings = dictionary_meanings
-                
-                # Переводим пример
-                highlight.russian_example = await self._translate_text(highlight.english_example)
-                
+
             except Exception as e:
                 print(f"⚠️ Ошибка получения словарных значений для '{highlight.highlight}': {e}", flush=True)
                 highlight.dictionary_meanings = [f"Значение: {highlight.highlight}"]
-                highlight.russian_example = f"Пример: {highlight.english_example}"
-        
+
         return highlights
     
     def _is_primitive_word(self, word: str) -> bool:
@@ -617,9 +609,7 @@ JSON формат: [{{"highlight": "фраза", "context": "предложен�
             highlight = LinguisticHighlight(
                 highlight=word.lower(),
                 context=f"Found in: ...{word}...",
-                context_translation=f"Найдено в: ...{word}...",
-                english_example=f"Example with {word}",
-                russian_example=f"Пример с {word}",
+                highlight_translation=f"Найдено в: ...{word}...",
                 cefr_level="B2",
                 importance_score=70,
                 dictionary_meanings=[f"Значение слова {word}"],
@@ -662,7 +652,7 @@ def test_yandex_ai_client():
         for i, h in enumerate(highlights):
             print(f"\n{i+1}. {h.highlight} ({h.cefr_level})")
             print(f"   📝 Контекст: {h.context}")
-            print(f"   🇷🇺 Перевод: {h.context_translation}")
+            print(f"   🇷🇺 Перевод: {h.highlight_translation}")
             print(f"   💡 Почему интересен: {h.why_interesting}")
             print(f"   📊 Важность: {h.importance_score}/100")
         

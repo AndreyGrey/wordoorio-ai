@@ -24,9 +24,7 @@ class Highlight:
     """Стандартный хайлайт во всей системе"""
     highlight: str                    # Найденное слово/фраза
     context: str                     # Контекст из текста
-    context_translation: str         # Перевод слова/фразы
-    english_example: str = ""        # Пример на английском
-    russian_example: str = ""        # Пример на русском
+    highlight_translation: str       # Перевод слова/фразы (контекстный)
     cefr_level: str = "C1"          # Уровень сложности
     importance_score: int = 85       # Важность 0-100
     dictionary_meanings: List[str] = field(default_factory=list)
@@ -41,12 +39,10 @@ class Highlight:
         return {
             'highlight': self.highlight,
             'context': self.context,
-            'context_translation': self.context_translation,
-            'english_example': self.english_example,
-            'russian_example': self.russian_example,
+            'highlight_translation': self.highlight_translation,
+            'dictionary_meanings': self.dictionary_meanings,
             'cefr_level': self.cefr_level,
             'importance_score': self.importance_score,
-            'dictionary_meanings': self.dictionary_meanings,
             'why_interesting': self.why_interesting,
             'type': self.type,
             'pattern_template': self.pattern_template
@@ -58,9 +54,7 @@ class Highlight:
         return cls(
             highlight=data['highlight'],
             context=data['context'],
-            context_translation=data.get('context_translation', ''),
-            english_example=data.get('english_example', ''),
-            russian_example=data.get('russian_example', ''),
+            highlight_translation=data.get('highlight_translation', ''),
             cefr_level=data.get('cefr_level', 'C1'),
             importance_score=data.get('importance_score', 85),
             dictionary_meanings=data.get('dictionary_meanings', []),
