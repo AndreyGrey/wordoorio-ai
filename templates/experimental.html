@@ -8,10 +8,8 @@
     <link rel="shortcut icon" href="/static/favicon.ico">
 
     <!-- Компоненты -->
-    <script src="/static/components/Header.js"></script>
-    <script src="/static/components/AnalysisForm.js"></script>
     <script src="/static/components/HighlightCard.js?v=6.0"></script>
-    <script src="/static/js/HighlightsStorage.js"></script>
+    <script src="/static/components/LoadingAnimation.js?v=1.1"></script>
     <script>
         // Инъекция стилей HighlightCard
         document.addEventListener('DOMContentLoaded', function() {
@@ -19,17 +17,10 @@
             highlightStyles.innerHTML = getHighlightCardStyles();
             document.head.appendChild(highlightStyles);
 
-            // Инициализация унифицированного header
-            initUnifiedHeader('header-container');
-
-            // ВСЕГДА инициализируем форму (нужна для analyzeText)
-            initAnalysisForm('form-container', {
-                placeholder: 'Enter English text for analysis...',
-                subtitle: 'Paste your English text to discover expressive vocabulary and phrases'
-            });
-
             // После инициализации формы проверяем YouTube данные
-            checkYouTubeData();
+            if (typeof checkYouTubeData === 'function') {
+                checkYouTubeData();
+            }
         });
     </script>
 
