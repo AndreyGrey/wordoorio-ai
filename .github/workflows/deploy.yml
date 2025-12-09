@@ -1,53 +1,68 @@
-name: Deploy Wordoorio to Yandex Cloud
+name: Deploy to Yandex Cloud Serverless Container
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  REGISTRY_ID: crp1mj4p9ro0clhe5t61
+  IMAGE_NAME: wordoorio-ai
+  CONTAINER_NAME: wordoorio
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
-    
+
     - name: Setup Yandex Cloud CLI
       run: |
         curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
         echo "$HOME/yandex-cloud/bin" >> $GITHUB_PATH
-        
+
     - name: Authenticate with Yandex Cloud
       run: |
         echo '${{ secrets.YANDEX_CLOUD_KEY }}' | base64 -d > key.json
         yc config set service-account-key key.json
         yc config set cloud-id ${{ secrets.YANDEX_CLOUD_ID }}
         yc config set folder-id ${{ secrets.YANDEX_FOLDER_ID }}
-        
-    - name: Create deployment package
+
+    - name: Configure Docker for Yandex Container Registry
       run: |
-        cd mini-deploy
-        zip -r ../wordoorio-deploy.zip . -x "*.pyc" "__pycache__/*"
-        cd ..
-        
-    - name: Deploy to Cloud Function
+        yc container registry configure-docker
+
+    - name: Build Docker image
       run: |
-        # Получаем IAM токен для функции
+        docker build -t cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest .
+        docker tag cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest \
+                   cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+    - name: Push Docker image to Container Registry
+      run: |
+        docker push cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest
+        docker push cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+    - name: Update Serverless Container
+      run: |
+        # Получаем IAM токен
         IAM_TOKEN=$(yc iam create-token)
-        
-        yc serverless function version create \
-          --function-name wordoorio-function \
-          --runtime python39 \
-          --entrypoint index.handler \
-          --memory 256m \
-          --execution-timeout 60s \
-          --source-path wordoorio-deploy.zip \
+
+        # Обновляем контейнер с новым образом
+        yc serverless container revision deploy \
+          --container-name ${{ env.CONTAINER_NAME }} \
+          --image cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest \
+          --cores 1 \
+          --memory 1GB \
+          --execution-timeout 180s \
+          --service-account-id aje3bsioau9v6s0n5b6s \
           --environment YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }} \
           --environment YANDEX_IAM_TOKEN=$IAM_TOKEN
-          
-    - name: Get function URL
+
+    - name: Get Container URL
       run: |
-        FUNCTION_ID=$(yc serverless function get wordoorio-function --format json | jq -r '.id')
-        echo "🚀 Function deployed successfully!"
-        echo "📱 URL: https://functions.yandexcloud.net/$FUNCTION_ID"
+        CONTAINER_ID=$(yc serverless container get ${{ env.CONTAINER_NAME }} --format json | jq -r '.id')
+        echo "🚀 Container deployed successfully!"
+        echo "📱 Container ID: $CONTAINER_ID"
