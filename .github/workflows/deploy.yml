@@ -9,6 +9,7 @@ env:
   REGISTRY_ID: crp1mj4p9ro0clhe5t61
   IMAGE_NAME: wordoorio-ai
   CONTAINER_NAME: wordoorio
+  SERVICE_ACCOUNT_ID: aje3bsioau9v6s0n5b6s
 
 jobs:
   deploy:
@@ -57,7 +58,7 @@ jobs:
           --cores 1 \
           --memory 1GB \
           --execution-timeout 180s \
-          --service-account-id ajetorbok30ucvg88kqn \
+          --service-account-id ${{ env.SERVICE_ACCOUNT_ID }} \
           --environment YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }} \
           --environment YANDEX_IAM_TOKEN=$IAM_TOKEN
 
