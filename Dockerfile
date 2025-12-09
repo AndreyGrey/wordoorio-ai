@@ -6,12 +6,15 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Устанавливаем spacy модель для лемматизации
+RUN python -m spacy download en_core_web_sm
+
 # Копируем исходный код
 COPY . .
 
 # Порт для Yandex Cloud
 ENV PORT=8080
 
-# Запускаем приложение
+# Запускаем приложение с увеличенным timeout для dual-prompt
 EXPOSE 8080
-CMD gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 web_app:app
+CMD gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 180 web_app:app
