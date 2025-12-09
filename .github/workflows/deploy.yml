@@ -47,7 +47,7 @@ jobs:
 
     - name: Update Serverless Container
       run: |
-        # Получаем IAM токен
+        # Получаем IAM токен для приложения
         IAM_TOKEN=$(yc iam create-token)
 
         # Обновляем контейнер с новым образом
@@ -57,7 +57,6 @@ jobs:
           --cores 1 \
           --memory 1GB \
           --execution-timeout 180s \
-          --service-account-id aje3bsioau9v6s0n5b6s \
           --environment YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }} \
           --environment YANDEX_IAM_TOKEN=$IAM_TOKEN
 
