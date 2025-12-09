@@ -196,7 +196,7 @@ def experimental_analyze():
         from core.analysis_service import get_analysis_service
         from core.yandex_ai_client import YandexAIClient
 
-        # Создаем запрос для experimental (использует v2_dual)
+        # Создаем запрос для experimental (использует v2_dual - dual prompt)
         analysis_request = AnalysisRequest(
             text=text,
             page_id='experimental',
@@ -242,9 +242,9 @@ def experimental_analyze():
         try:
             highlights_dicts = [h.to_dict() for h in result.highlights]
 
-            # Разделяем на слова и фразы для dual-prompt интерфейса
-            words = [h for h in highlights_dicts if ' ' not in h['highlight'].strip()]
-            phrases = [h for h in highlights_dicts if ' ' in h['highlight'].strip()]
+            # Разделяем на слова и фразы для dual-prompt интерфейса (по типу)
+            words = [h for h in highlights_dicts if h.get('type') == 'word']
+            phrases = [h for h in highlights_dicts if h.get('type') == 'expression']
 
             analysis_id = db.save_analysis(
                 original_text=text,
@@ -273,9 +273,9 @@ def experimental_analyze():
 
             highlights_dicts = [h.to_dict() for h in result.highlights]
 
-            # Разделяем на слова и фразы для dual-prompt интерфейса
-            words = [h for h in highlights_dicts if ' ' not in h['highlight'].strip()]
-            phrases = [h for h in highlights_dicts if ' ' in h['highlight'].strip()]
+            # Разделяем на слова и фразы для dual-prompt интерфейса (по типу)
+            words = [h for h in highlights_dicts if h.get('type') == 'word']
+            phrases = [h for h in highlights_dicts if h.get('type') == 'expression']
 
             return jsonify({
                 'success': True,
