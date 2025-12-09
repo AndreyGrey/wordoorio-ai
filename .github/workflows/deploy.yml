@@ -57,6 +57,7 @@ jobs:
           --cores 1 \
           --memory 1GB \
           --execution-timeout 180s \
+          --service-account-id ajetorbok30ucvg88kqn \
           --environment YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }} \
           --environment YANDEX_IAM_TOKEN=$IAM_TOKEN
 
