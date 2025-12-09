@@ -333,7 +333,6 @@
                 }
 
                 const data = await response.json();
-                console.log('Received data from server:', data);
 
                 if (data.success) {
                     showResults(data);
@@ -341,7 +340,6 @@
                     showError(data.error || 'Неизвестная ошибка');
                 }
             } catch (error) {
-                console.error('Error during analysis:', error);
                 if (error.name === 'AbortError') {
                     showError('⏱️ Анализ занял слишком много времени. Попробуйте текст покороче или повторите позже.');
                 } else if (error.message.includes('HTTP 504')) {
@@ -382,13 +380,6 @@
         function showResults(data) {
             console.log('Dual analysis results:', data);
 
-            // Валидация данных
-            if (!data.words || !data.phrases) {
-                console.error('Missing words or phrases in response:', data);
-                showError('Ошибка формата данных. Обновите страницу и попробуйте снова.');
-                return;
-            }
-
             const resultsSummary = document.getElementById('resultsSummary');
             const highlightsWord = pluralizeHighlights(data.stats.total_highlights);
 
@@ -417,6 +408,9 @@
             fillHighlightsList('wordsList', data.words, false);
             fillHighlightsList('phrasesList', data.phrases, true);
             fillHighlightsList('allList', allHighlights, false);
+
+            // Инициализируем интеракции для кнопок
+            initHighlightCardInteractions();
 
             document.getElementById('results').style.display = 'block';
         }

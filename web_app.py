@@ -183,6 +183,11 @@ def experimental_page():
     """🧪 Экспериментальная страница для dual-prompt анализа"""
     return render_template('experimental.html')
 
+@app.route('/my-highlights')
+def my_highlights_page():
+    """📚 Страница с сохраненными хайлайтами"""
+    return render_template('my-highlights.html')
+
 @app.route('/experimental/analyze', methods=['POST'])
 def experimental_analyze():
     """🧪 API для экспериментального dual-prompt анализа - использует новую архитектуру"""
