@@ -327,16 +327,25 @@ async function loadTelegramLoginWidget() {
             return;
         }
 
-        // Получаем bot_username из API
-        const response = await fetch('/api/auth/config');
-        const data = await response.json();
+        // Получаем bot_username из API с timeout и fallback
+        let botUsername = 'wordoorio_bot'; // Fallback значение
 
-        if (!data.success || !data.bot_username) {
-            console.error('Bot username not configured');
-            return;
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 сек timeout
+
+            const response = await fetch('/api/auth/config', {
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            const data = await response.json();
+            if (data.success && data.bot_username) {
+                botUsername = data.bot_username;
+            }
+        } catch (error) {
+            console.warn('Failed to fetch bot config, using fallback:', error.message);
         }
-
-        const botUsername = data.bot_username;
         const container = document.getElementById('telegram-login-container');
 
         if (!container) {
