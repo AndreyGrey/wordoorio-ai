@@ -40,9 +40,11 @@ cd wordoorio
 
 ### 2. Настроить локальное окружение
 
+**Требования:** Python 3.9 (pymorphy2 несовместим с 3.11+)
+
 ```bash
-# Создать виртуальное окружение
-python3 -m venv venv
+# Создать виртуальное окружение (используйте python3.9)
+python3.9 -m venv venv
 source venv/bin/activate
 
 # Установить зависимости
@@ -233,6 +235,22 @@ curl -I https://wordoorio.ru
 yc logging read --folder-id=b1gcdpfvt5vkfn3o9nm1 --limit 50
 ```
 
+### Проблема: "module 'inspect' has no attribute 'getargspec'"
+
+**Причина:** pymorphy2 несовместим с Python 3.11+ (использует устаревший API).
+
+**Симптомы:**
+- Анализ возвращает 0 хайлайтов
+- В логах: `❌ Ошибка парсинга v2_dual ответа: module 'inspect' has no attribute 'getargspec'`
+- Yandex GPT работает, но результаты не парсятся
+
+**Решение:** Использовать Python 3.9 в Dockerfile:
+```dockerfile
+FROM python:3.9-slim  # НЕ 3.11!
+```
+
+**ВАЖНО:** Python 3.9 обязателен для совместимости с pymorphy2. Не обновляйте до 3.11+!
+
 ## 🔐 Безопасность
 
 ### GitHub Secrets
@@ -247,6 +265,20 @@ yc logging read --folder-id=b1gcdpfvt5vkfn3o9nm1 --limit 50
 - `container-registry.images.pusher` - загрузка образов
 - `serverless.containers.admin` - управление контейнерами
 - `iam.serviceAccounts.user` - использование себя как SA контейнера
+- `ai.languageModels.user` - доступ к Yandex GPT API
+- `ai.translate.user` - доступ к Yandex Translate API
+
+Команды для добавления прав (если нужно):
+```bash
+# Права для GPT и Translate
+yc resource-manager folder add-access-binding b1gcdpfvt5vkfn3o9nm1 \
+  --service-account-id aje3bsioau9v6s0n5b6s \
+  --role ai.languageModels.user
+
+yc resource-manager folder add-access-binding b1gcdpfvt5vkfn3o9nm1 \
+  --service-account-id aje3bsioau9v6s0n5b6s \
+  --role ai.translate.user
+```
 
 ### IAM Токены
 
@@ -316,7 +348,7 @@ wordoorio/
 ## ✅ Чеклист для нового разработчика
 
 - [ ] Склонировать репозиторий
-- [ ] Установить Python 3.9+
+- [ ] Установить Python 3.9 (НЕ 3.11+, pymorphy2 несовместим!)
 - [ ] Создать venv и установить зависимости
 - [ ] Создать .env файл
 - [ ] Запустить локально и проверить
