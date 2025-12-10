@@ -179,10 +179,36 @@ class YandexAIClient:
         self.dict_url = "https://dictionary.yandex.net/api/v1/dicservice.json/lookup"
 
     def _get_iam_token(self) -> str:
-        """Получает IAM токен для Yandex Cloud"""
-        # Попробуем получить токен из переменной окружения
-        # Пока используем заглушку
-        return os.getenv('YANDEX_IAM_TOKEN', '')
+        """Получает IAM токен для Yandex Cloud
+
+        Приоритет:
+        1. Environment variable (для локальной разработки)
+        2. Metadata Service (для Serverless Container с Service Account)
+        """
+        # Сначала проверяем переменную окружения (для локальной разработки)
+        env_token = os.getenv('YANDEX_IAM_TOKEN', '')
+        if env_token:
+            return env_token
+
+        # Получаем токен через Metadata Service (для Serverless Container)
+        try:
+            metadata_url = 'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token'
+            headers = {'Metadata-Flavor': 'Google'}  # Yandex Cloud использует совместимый с GCP формат
+
+            response = requests.get(metadata_url, headers=headers, timeout=5)
+
+            if response.status_code == 200:
+                token_data = response.json()
+                iam_token = token_data.get('access_token', '')
+                print(f"✅ IAM токен получен через Metadata Service", flush=True)
+                return iam_token
+            else:
+                print(f"⚠️ Metadata Service недоступен: {response.status_code}", flush=True)
+                return ''
+
+        except Exception as e:
+            print(f"⚠️ Не удалось получить токен через Metadata Service: {e}", flush=True)
+            return ''
     
     async def analyze_linguistic_highlights(self, text: str) -> List[LinguisticHighlight]:
         """

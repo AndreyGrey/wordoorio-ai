@@ -48,10 +48,8 @@ jobs:
 
     - name: Update Serverless Container
       run: |
-        # Получаем IAM токен для приложения
-        IAM_TOKEN=$(yc iam create-token)
-
         # Обновляем контейнер с новым образом
+        # IAM токен получается автоматически через Metadata Service
         yc serverless container revision deploy \
           --container-name ${{ env.CONTAINER_NAME }} \
           --image cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest \
@@ -59,8 +57,7 @@ jobs:
           --memory 1GB \
           --execution-timeout 180s \
           --service-account-id ${{ env.SERVICE_ACCOUNT_ID }} \
-          --environment YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }} \
-          --environment YANDEX_IAM_TOKEN=$IAM_TOKEN
+          --environment YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }}
 
     - name: Get Container URL
       run: |

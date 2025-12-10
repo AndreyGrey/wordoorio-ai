@@ -1,0 +1,18 @@
+openapi: 3.0.0
+info:
+  title: Wordoorio API Gateway
+  version: 1.0.0
+
+paths:
+  /{path+}:
+    x-yc-apigateway-any-method:
+      x-yc-apigateway-integration:
+        type: serverless_containers
+        container_id: bbaktbcb9dkuurcp862u
+        service_account_id: ajetorbok30ucvg88kqn
+      parameters:
+      - name: path
+        in: path
+        required: false
+        schema:
+          type: string
