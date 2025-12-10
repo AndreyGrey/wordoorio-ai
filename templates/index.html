@@ -7,14 +7,28 @@
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="shortcut icon" href="/static/favicon.ico">
 
-    <!-- Компонент HighlightCard -->
-    <script src="/static/components/HighlightCard.js?v=5.3"></script>
+    <!-- Компоненты -->
+    <script src="/static/js/Auth.js"></script>
+    <script src="/static/components/Header.js"></script>
+    <script src="/static/components/AnalysisForm.js"></script>
+    <script src="/static/components/HighlightCard.js?v=6.0"></script>
+    <script src="/static/js/HighlightsStorage.js"></script>
+    <script src="/static/js/DictionaryAPI.js"></script>
     <script>
         // Инъекция стилей HighlightCard
         document.addEventListener('DOMContentLoaded', function() {
             const highlightStyles = document.createElement('style');
             highlightStyles.innerHTML = getHighlightCardStyles();
             document.head.appendChild(highlightStyles);
+
+            // Инициализация унифицированного header
+            initUnifiedHeader('header-container');
+
+            // Инициализация формы анализа
+            initAnalysisForm('form-container', {
+                placeholder: 'Paste your English text here for analysis...',
+                subtitle: 'AI-powered analysis discovers expressive vocabulary and linguistic patterns'
+            });
         });
     </script>
 
@@ -30,98 +44,25 @@
             color: #2d3748;
         }
         
-        .container { 
-            max-width: 1000px; 
-            margin: 0 auto; 
-            padding: 40px 20px; 
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
         }
-        
-        .header { 
-            text-align: center; 
-            margin-bottom: 40px; 
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        
-        .logo {
-            width: 192px;
-            height: 192px;
-            margin-bottom: 25px;
-            filter: drop-shadow(0 6px 12px rgba(0,0,0,0.12));
-        }
-        
-        .header h1 { 
-            color: #2d3748; 
-            font-size: 2.5rem; 
-            font-weight: 700; 
-            margin-bottom: 10px; 
-            text-shadow: 0 2px 4px rgba(255,255,255,0.3);
-        }
-        
-        .header p { 
-            color: #4a5568; 
-            font-size: 1.1rem;
-            font-weight: 500;
-        }
-        
-        .input-section { 
-            background: white; 
-            padding: 40px; 
-            border-radius: 16px; 
-            box-shadow: 0 20px 40px rgba(0,0,0,0.15); 
-            margin-bottom: 30px; 
-        }
-        
-        textarea { 
-            width: 100%; 
-            height: 320px; 
-            padding: 20px; 
-            border: 2px solid #e2e8f0; 
-            border-radius: 12px; 
-            font-size: 16px; 
-            font-family: inherit;
-            resize: vertical; 
-            transition: all 0.2s ease;
-            line-height: 1.6;
-        }
-        
-        textarea:focus { 
-            outline: none; 
-            border-color: #4CAF50; 
-            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
-        }
-        
-        .button { 
-            background: linear-gradient(135deg, #4CAF50 0%, #45A049 100%); 
-            color: white; 
-            padding: 16px 32px; 
-            border: none; 
-            border-radius: 12px; 
-            font-size: 16px; 
-            font-weight: 600;
-            cursor: pointer; 
-            margin-top: 20px; 
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
-        }
-        
-        .button:hover { 
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(76, 175, 80, 0.4);
-        }
-        
-        .button:disabled { 
-            background: #cbd5e0; 
-            cursor: not-allowed; 
-            transform: none;
-            box-shadow: none;
-        }
-        
+
         .results {
             background: transparent;
             padding: 40px 20px;
             display: none;
+        }
+
+        .results h2 {
+            color: white;
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 24px;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         
         .highlight-item { 
@@ -202,63 +143,41 @@
             font-size: 13px;
             color: #6b7280;
         }
-        
-        .error { 
-            background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%); 
-            color: #c53030; 
-            padding: 20px; 
-            border-radius: 12px; 
-            margin-top: 20px; 
-            font-weight: 500;
-        }
 
         /* ===== НОВЫЙ ДИЗАЙН HIGHLIGHT CARD ===== */
         /* Стили компонента HighlightCard подключены через /static/components/HighlightCard.js */
+
+        /* ===== УВЕДОМЛЕНИЯ ===== */
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <svg class="logo" viewBox="0 0 694 700" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M46.8948 79.2285C58.0378 65.4675 70.7668 53.0715 84.8178 42.2965C111.08 22.1415 143.443 8.81249 175.948 3.08349C198.505 -0.891508 227.139 0.116486 250.525 0.108486L442.413 0.123485C464.872 0.0914851 489.768 -0.68651 511.862 2.19749C561.182 8.63349 614.947 39.0545 645.206 78.7255C693.905 139.994 692.901 182.274 693.036 256.165L693.04 459.32C693.041 476.08 693.748 493.705 692.012 510.136C682.139 603.533 610.965 677.987 519.386 696.13C492.594 701.438 469.52 699.547 442.382 699.491L349.562 699.462L249.155 699.568C229.574 699.564 204.676 700.404 185.815 698.12C130.951 691.477 79.9688 661.983 45.8698 618.796C25.1558 592.636 10.8089 562.018 3.96085 529.361C-1.38715 503.041 0.234853 476.024 0.219853 449.188L0.609853 334.896L0.602849 245.674C0.602849 228.878 -0.0831524 205.819 1.88285 189.618C6.50785 149.398 22.0768 111.215 46.8948 79.2285Z" fill="#1B7A94"/>
-<path d="M46.8948 79.2285C58.0378 65.4675 70.7668 53.0715 84.8178 42.2965C111.08 22.1415 143.443 8.81249 175.948 3.08349C198.505 -0.891508 227.139 0.116486 250.525 0.108486L442.413 0.123485C464.872 0.0914851 489.768 -0.68651 511.862 2.19749C561.182 8.63349 614.947 39.0545 645.206 78.7255C643.773 83.6035 639.801 88.9965 636.97 93.3055C620.637 118.164 600.5 138.083 577.008 156.144C571.832 160.124 565.137 163.16 560.66 166.687C545.526 121.543 502.084 92.0845 454.544 94.7305C407.005 97.3765 367.1 131.474 357.07 178.018C355.692 176.506 339.947 176.484 338.212 177.502C336.667 170.191 334.22 163.1 330.927 156.393C288.156 68.6385 165.457 75.0275 134.195 168.688C124.035 161.836 114.74 155.923 105.193 147.842C83.3098 129.318 61.8698 103.594 46.8948 79.2285Z" fill="#39A0B3"/>
-<path d="M134.195 168.688C165.457 75.0275 288.156 68.6385 330.927 156.393C334.22 163.1 336.667 170.191 338.212 177.502C342.271 196.109 341.903 213.252 336.434 231.595C328.524 257.573 310.791 279.441 287.006 292.548C202.866 337.907 105.639 259.497 134.195 168.688Z" fill="#C8E3BF"/>
-<path d="M230.496 132.32C268.022 129.69 300.564 158.003 303.151 195.532C305.738 233.061 277.389 265.572 239.857 268.116C202.384 270.657 169.937 242.362 167.354 204.893C164.772 167.424 193.029 134.945 230.496 132.32Z" fill="#1B7A94"/>
-<path d="M231.993 151.26C253.521 148.534 256.027 176.377 239.171 183.161C219.329 186.329 214.234 159.006 231.993 151.26Z" fill="#F8F9F6"/>
-<path d="M357.07 178.018C367.1 131.474 407.005 97.3765 454.544 94.7305C502.084 92.0845 545.526 121.543 560.66 166.687C574.836 208.976 560.948 255.613 525.947 283.257C490.945 310.901 442.359 313.606 404.506 290.017C366.652 266.428 347.674 221.619 357.07 178.018Z" fill="#C8E3BF"/>
-<path d="M456.379 132.186C493.937 129.579 526.466 157.979 528.951 195.544C531.437 233.109 502.932 265.547 465.359 267.911C427.957 270.264 395.7 241.917 393.226 204.524C390.752 167.13 418.994 134.781 456.379 132.186Z" fill="#1B7A94"/>
-<path d="M456.318 149.681C471.354 149.11 476.131 161.352 471.756 174.873C470.369 179.159 465.862 182.089 461.72 183.583C442.786 185.908 437.069 156.523 456.318 149.681Z" fill="#F8F9F6"/>
-<path d="M157.329 415.281C171.611 414.514 183.79 425.512 184.479 439.797C185.169 454.082 174.105 466.202 159.816 466.813C145.637 467.42 133.63 456.46 132.946 442.284C132.262 428.108 143.157 416.042 157.329 415.281Z" fill="#1B7A94"/>
-<path d="M274.99 416.752C284.184 416.736 294.524 416.176 301.889 422.551C313.167 432.312 311.814 448.216 303.024 458.842C294.079 465.991 285.658 465.706 274.846 465.534C275.747 451.781 275.006 431.192 274.99 416.752Z" fill="#1B7A94"/>
-<path d="M221.563 416.347C227.314 416.165 232.551 415.76 237.05 420.07C242.038 424.848 239.651 431.278 235.079 435.238C229.83 437.514 225.405 437.168 219.887 436.726C219.891 433.208 219.272 419.21 220.165 416.73L221.563 416.347Z" fill="#1B7A94"/>
-<path d="M508.678 416.168C514.167 416.187 520.107 416.074 524.676 419.641C529.317 423.264 527.505 429.123 524.274 433.034C519.1 436.037 514.464 435.56 508.653 435.414C508.764 429.088 508.676 422.515 508.678 416.168Z" fill="#1B7A94"/>
-<path d="M368.875 422.083C391.161 420.242 402.238 434.678 407.262 454.49C408.225 449.181 409.218 446.078 411.62 441.128C417.418 426.012 443.436 416.678 457.051 425.88C486.269 445.625 477.375 487.069 443.918 495.95C421.604 497.597 411.935 484.052 407.144 464.15C403.777 479.205 396.936 491.477 380.971 496.089C373.23 498.325 365.122 496.628 358.271 492.553C349.59 487.364 343.342 478.926 340.915 469.113C335.901 448.451 347.674 427.042 368.875 422.083Z" fill="#F8F9F6"/>
-<path d="M438.996 439.875C464.394 437.56 465.871 473.209 442.508 479.338C437.497 479.466 434.436 479.212 430.101 476.264C425.68 473.213 422.659 468.525 421.707 463.24C419.703 451.729 427.716 441.818 438.996 439.875Z" fill="#1B7A94"/>
-<path d="M370.006 440.928C380.526 439.022 390.593 446.021 392.464 456.541C394.335 467.06 387.298 477.097 376.765 478.931C366.283 480.757 356.298 473.765 354.436 463.296C352.574 452.826 359.536 442.824 370.006 440.928Z" fill="#1B7A94"/>
-<path d="M157.359 388.789C158.422 388.535 157.904 388.516 158.963 388.885C159.109 390.36 155.172 401.767 154.462 403.865C143.728 435.57 135.87 468.101 126.525 500.153C121.635 500.077 116.661 500.102 111.762 500.078C108.982 493.495 105.06 480.004 102.791 472.873C98.4369 480.466 94.2747 491.316 91.0275 499.61C85.7141 499.653 80.3222 499.577 75.0026 499.548C69.016 476.191 63.465 442.262 60.0156 418.507C59.7141 417.184 59.2605 412.58 59.0618 411.001C66.2371 408.669 71.2232 406.724 77.3987 402.2C78.8209 422.919 83.0894 449.251 86.9709 469.768C94.1726 456.637 100.599 442.44 107.9 428.848C110.429 444.284 111.834 458.278 118.832 472.374C120.325 467.942 123.106 453.89 124.452 448.367C129.103 429.981 133.52 411.536 137.703 393.039C144.294 391.806 150.848 390.389 157.359 388.789Z" fill="#F8F9F6"/>
-<path d="M488.718 401.911C492.417 401.337 498.817 401.707 502.61 402.148C532.4 405.606 541.689 440.273 521.611 460.781C518.144 464.322 515.094 466.525 511.095 469.419C516.79 478.185 526.975 492.773 533.276 501.005C528.704 504.999 523.681 508.835 518.895 512.603C518.068 511.32 517.116 509.526 516.331 508.165C513.698 503.252 500.646 478.335 497.096 477.124C495.499 477.503 494.858 477.491 493.72 478.57C493.615 482.372 496.447 497.715 497.223 502.477L477.155 502.65C477.548 469.887 477.16 436.839 477.173 404.049C481.315 402.825 484.498 402.43 488.718 401.911Z" fill="#F8F9F6"/>
-<path d="M493.823 419.408C494.793 419.391 495.763 419.393 496.734 419.412C515.734 419.821 524.196 437.651 508.858 452C503.534 456.009 499.179 457.818 493.046 459.869L493.823 419.408Z" fill="#1B7A94"/>
-<path d="M235.265 401.934C257.51 400.86 275.674 412.6 274.619 436.419C273.826 454.326 265.122 458.372 253.887 468.617L253.603 468.879C261.408 480.24 268.4 490.55 275.785 502.212C271.01 505.65 266.133 508.944 261.16 512.091L257.611 505.675C251.362 494.838 243.744 481.402 236.615 471.134C235.832 483.662 237.197 489.064 239.947 501.072L220.597 500.861C221.107 468.539 221.134 436.212 220.68 403.89C225.281 402.681 230.533 402.27 235.265 401.934Z" fill="#F8F9F6"/>
-<path d="M237.181 419.538C237.616 419.537 238.051 419.549 238.486 419.572C244.76 419.876 250.473 421.382 254.785 426.264C257.71 429.532 259.195 433.839 258.903 438.214C258.525 444.03 255.525 448.162 251.286 451.864C245.99 455.622 242.061 456.444 235.937 457.678L235.854 433.357C235.839 429.457 235.698 425.058 236.018 421.203C236.119 419.991 236.161 420.297 237.181 419.538Z" fill="#1B7A94"/>
-<path d="M179.816 422.66C188.292 422.207 194.411 422.993 201.674 428.125C209.161 433.355 214.181 441.417 215.572 450.439C217.34 461.291 215.651 473.3 208.976 482.308C203.379 489.889 194.992 494.931 185.668 496.324C142.099 498.182 134.391 431.062 179.816 422.66Z" fill="#F8F9F6"/>
-<path d="M180.124 440.054C190.751 438.644 200.525 446.069 202.01 456.679C203.493 467.289 196.133 477.108 185.526 478.665C174.815 480.237 164.872 472.792 163.373 462.077C161.874 451.362 169.393 441.477 180.124 440.054Z" fill="#1B7A94"/>
-<path d="M599.895 423.23C639.397 419.551 653.014 484.694 607.467 496.165C563.469 503.856 555.521 428.817 599.895 423.23Z" fill="#F8F9F6"/>
-<path d="M603.41 439.385C625.836 440.098 628.837 477.225 602.02 480.33C597.609 480.011 594.67 479.65 591.064 476.992C578.656 467.84 582.269 446.112 596.539 440.8C598.859 439.937 601.006 439.689 603.41 439.385Z" fill="#1B7A94"/>
-<path d="M283.71 403.627C297.509 406.102 308.142 410.44 318.966 419.782C336.054 434.531 341.331 460.647 328.325 479.72C326.857 481.872 324.751 484.073 322.934 486.043C310.948 497.439 299.141 498.059 283.826 497.859L283.71 403.627Z" fill="#F8F9F6"/>
-<path d="M297.856 426.856C300.6 427.807 304.6 430.854 306.816 432.755C319.853 443.939 323.484 461.879 311.665 475.394C306.969 479.452 303.41 480.948 297.363 481.905C297.327 475.911 297.848 468.976 298.02 462.859C298.419 450.861 298.365 438.85 297.856 426.856Z" fill="#1B7A94"/>
-<path d="M542.836 429.608C548.588 429.683 554.34 429.729 560.093 429.744C560.051 432.937 559.912 436.199 559.683 439.386C558.426 457.106 558.356 475.137 556.821 492.812C551.02 492.889 545.218 492.82 539.424 492.608C540.369 472.048 542.516 449.876 542.836 429.608Z" fill="#F8F9F6"/>
-<path d="M549.22 390.042C556.821 388.1 564.567 392.631 566.589 400.204C568.617 407.776 564.171 415.568 556.612 417.675C551.652 419.058 546.33 417.672 542.676 414.044C539.021 410.416 537.604 405.106 538.959 400.14C540.307 395.174 544.232 391.318 549.22 390.042Z" fill="#F8F9F6"/>
-</svg>
-            <p>AI-powered анализ выразительной английской лексики</p>
-        </div>
+    <!-- Unified Header -->
+    <div id="header-container"></div>
 
-        <div class="input-section">
-            <h2>📝 Анализ текста</h2>
-            <p style="color: #718096; margin-bottom: 15px;">Вставьте английский текст для получения лингвистических хайлайтов:</p>
-            <textarea id="textInput"></textarea>
-            <button class="button" onclick="analyzeText()">🔍 Анализировать</button>
-            <div id="error" class="error" style="display: none;"></div>
-        </div>
+    <div class="container">
+        <!-- Универсальная форма анализа -->
+        <div id="form-container"></div>
 
         <div id="results" class="results">
             <h2>📊 Результаты анализа</h2>
@@ -273,7 +192,7 @@
         async function analyzeText() {
             const textInput = document.getElementById('textInput');
             const text = textInput.value.trim();
-            const button = document.querySelector('.button');
+            const button = document.querySelector('.form-button');
             const errorDiv = document.getElementById('error');
             const resultsDiv = document.getElementById('results');
 
@@ -283,7 +202,7 @@
             }
 
             button.disabled = true;
-            button.textContent = '🔄 Анализирую...';
+            button.textContent = 'ANALYZING...';
             errorDiv.style.display = 'none';
             resultsDiv.style.display = 'none';
             
@@ -309,9 +228,9 @@
             } finally {
                 // Скрываем анимацию загрузки
                 hideLoadingAnimation();
-                
+
                 button.disabled = false;
-                button.textContent = '🔍 Анализировать';
+                button.textContent = 'WORDOORIO!';
             }
         }
 
@@ -325,13 +244,23 @@
             console.log('Full response data:', JSON.stringify(data, null, 2));
 
             const highlightsList = document.getElementById('highlightsList');
-            highlightsList.innerHTML = `<p style="color:#718096;margin-bottom:24px">Найдено ${data.stats.total_highlights} хайлайтов из ${data.stats.total_words} слов</p>`;
+            highlightsList.innerHTML = `<p style="color:rgba(255,255,255,0.9);margin-bottom:24px;text-align:center;font-size:1rem;font-weight:500;">Найдено ${data.stats.total_highlights} хайлайтов из ${data.stats.total_words} слов</p>`;
+
+            // Инициализируем хранилище и создаем/получаем сессию
+            const storage = new HighlightsStorage();
+            const textInput = document.getElementById('textInput').value.trim();
+
+            // Создаем новую сессию для этого анализа
+            const sessionId = storage.createSession(textInput, 'main');
+
+            // Сохраняем результаты в кеш
+            storage.saveLastAnalysis(sessionId, 'main', data.highlights);
 
             data.highlights.forEach((highlight, index) => {
                 console.log(`Processing highlight ${index + 1}:`, highlight);
 
-                // Используем компонент HighlightCard
-                const cardHTML = createHighlightCard(highlight, index, 'orange');
+                // Используем компонент HighlightCard v6 с кнопками
+                const cardHTML = createHighlightCard(highlight, index, 'orange', true);
 
                 // Создаем div и вставляем HTML карточки
                 const tempDiv = document.createElement('div');
@@ -339,15 +268,82 @@
                 highlightsList.appendChild(tempDiv.firstElementChild);
             });
 
+            // Инициализируем интеракции (hover/click для кнопок)
+            initHighlightCardInteractions();
+
             document.getElementById('results').style.display = 'block';
         }
 
-        // Анализ по Ctrl+Enter
-        document.getElementById('textInput').addEventListener('keypress', function(e) {
-            if (e.ctrlKey && e.key === 'Enter') {
-                analyzeText();
+        // Callback для сохранения карточки
+        window.onHighlightSaved = async function(index) {
+            const storage = new HighlightsStorage();
+            const analysis = storage.getLastAnalysis();
+
+            if (!analysis) {
+                console.error('No active analysis session');
+                showNotification('Ошибка: нет активной сессии', 'error');
+                return;
             }
-        });
+
+            const highlight = analysis.highlights[index];
+
+            // Сохраняем в Dictionary через API
+            const result = await addToDictionary(highlight);
+
+            if (result.success) {
+                showNotification(result.is_new ? 'Добавлено в словарь ✓' : 'Обновлено в словаре ✓');
+
+                // Также сохраняем в localStorage для совместимости
+                storage.saveHighlight(analysis.session_id, highlight);
+            } else {
+                showNotification(result.error || 'Ошибка сохранения', 'error');
+            }
+        };
+
+        // Callback для удаления карточки
+        window.onHighlightDeleted = function(index) {
+            const storage = new HighlightsStorage();
+            storage.markAsDeleted(index);
+            console.log(`Карточка ${index} удалена из текущей сессии`);
+        };
+
+        // Функция показа уведомлений
+        function showNotification(message, type = 'success') {
+            // Создаем элемент уведомления
+            const notification = document.createElement('div');
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 16px 24px;
+                background: ${type === 'error' ? '#fed7d7' : '#c6f6d5'};
+                color: ${type === 'error' ? '#c53030' : '#22543d'};
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                font-weight: 600;
+                z-index: 10000;
+                animation: slideIn 0.3s ease;
+            `;
+
+            document.body.appendChild(notification);
+
+            // Удаляем через 1.5 сек
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notification.remove(), 300);
+            }, 1500);
+        }
+
+        // Анализ по Ctrl+Enter (добавляем обработчик после загрузки формы)
+        const textInput = document.getElementById('textInput');
+        if (textInput) {
+            textInput.addEventListener('keypress', function(e) {
+                if (e.ctrlKey && e.key === 'Enter') {
+                    analyzeText();
+                }
+            });
+        }
     </script>
 
     <!-- Компонент LoadingAnimation - загружается в конце для правильной инициализации -->

@@ -523,6 +523,388 @@ def analyze_youtube():
             'error': f'Ошибка сервера: {str(e)}'
         })
 
+# ===== DICTIONARY ROUTES =====
+
+@app.route('/api/dictionary/add', methods=['POST'])
+def api_dictionary_add():
+    """
+    API для добавления слова в словарь
+
+    Принимает:
+    {
+        "highlight": "give up",  # Уже лемматизировано!
+        "type": "expression",
+        "highlight_translation": "сдаться",
+        "context": "Never give up...",
+        "dictionary_meanings": ["бросить"]
+    }
+    """
+    try:
+        from core.dictionary_manager import DictionaryManager
+
+        data = request.get_json()
+
+        # Валидация
+        required_fields = ['highlight', 'type', 'highlight_translation', 'context']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Отсутствует поле: {field}'
+                }), 400
+
+        # Получаем session_id и user_id
+        session_id = session.get('session_id', 'unknown')
+        user_id = session.get('user_id')  # None если не авторизован
+
+        # Если пользователь не авторизован, не сохраняем в базу
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': 'Authorization required. Please login with Telegram to save words.',
+                'require_auth': True
+            }), 401
+
+        # Добавляем в словарь
+        dict_manager = DictionaryManager()
+        result = dict_manager.add_word(
+            highlight_dict=data,
+            session_id=session_id,
+            user_id=user_id
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Ошибка добавления в словарь: {str(e)}'
+        }), 500
+
+
+@app.route('/api/dictionary/words', methods=['GET'])
+def api_dictionary_words():
+    """
+    API для получения всех слов из словаря
+
+    Query параметры:
+    - type: "word" или "expression" (опционально)
+    - status: "new", "learning", "learned" (опционально)
+    """
+    try:
+        from core.dictionary_manager import DictionaryManager
+
+        # Получаем фильтры из query parameters
+        filters = {}
+
+        word_type = request.args.get('type')
+        if word_type:
+            filters['type'] = word_type
+
+        status = request.args.get('status')
+        if status:
+            filters['status'] = status
+
+        # Получаем user_id
+        user_id = session.get('user_id')
+
+        # Если пользователь не авторизован, возвращаем пустой список
+        if not user_id:
+            return jsonify({
+                'success': True,
+                'words': [],
+                'count': 0
+            })
+
+        # Получаем слова
+        dict_manager = DictionaryManager()
+        words = dict_manager.get_all_words(
+            user_id=user_id,
+            filters=filters if filters else None
+        )
+
+        return jsonify({
+            'success': True,
+            'words': words,
+            'count': len(words)
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Ошибка получения слов: {str(e)}'
+        }), 500
+
+
+@app.route('/api/dictionary/word/<lemma>', methods=['GET'])
+def api_dictionary_word(lemma):
+    """
+    API для получения детальной информации о слове
+
+    Возвращает:
+    - Все переводы
+    - Все примеры использования
+    - Статус изучения
+    """
+    try:
+        from core.dictionary_manager import DictionaryManager
+
+        # Получаем user_id
+        user_id = session.get('user_id')
+
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': 'Authorization required'
+            }), 401
+
+        dict_manager = DictionaryManager()
+        word = dict_manager.get_word(
+            lemma=lemma,
+            user_id=user_id
+        )
+
+        if not word:
+            return jsonify({
+                'success': False,
+                'error': 'Слово не найдено'
+            }), 404
+
+        return jsonify({
+            'success': True,
+            'word': word
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Ошибка получения слова: {str(e)}'
+        }), 500
+
+
+@app.route('/api/dictionary/word/<lemma>', methods=['DELETE'])
+def api_dictionary_delete(lemma):
+    """
+    API для удаления слова из словаря
+    """
+    try:
+        from core.dictionary_manager import DictionaryManager
+
+        # Получаем user_id
+        user_id = session.get('user_id')
+
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': 'Authorization required'
+            }), 401
+
+        dict_manager = DictionaryManager()
+        result = dict_manager.delete_word(
+            lemma=lemma,
+            user_id=user_id
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Ошибка удаления слова: {str(e)}'
+        }), 500
+
+
+@app.route('/api/dictionary/stats', methods=['GET'])
+def api_dictionary_stats():
+    """
+    API для получения статистики словаря
+
+    Возвращает:
+    - total_words: количество слов
+    - total_phrases: количество фраз
+    - total_count: всего записей
+    - status_breakdown: разбивка по статусам
+    """
+    try:
+        from core.dictionary_manager import DictionaryManager
+
+        # Получаем user_id
+        user_id = session.get('user_id')
+
+        # Если пользователь не авторизован, возвращаем пустую статистику
+        if not user_id:
+            return jsonify({
+                'success': True,
+                'stats': {
+                    'total_count': 0,
+                    'total_words': 0,
+                    'total_phrases': 0,
+                    'status_breakdown': {'new': 0, 'learning': 0, 'learned': 0}
+                }
+            })
+
+        dict_manager = DictionaryManager()
+        stats = dict_manager.get_stats(user_id=user_id)
+
+        return jsonify({
+            'success': True,
+            'stats': stats
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Ошибка получения статистики: {str(e)}'
+        }), 500
+
+
+# ===== AUTH API =====
+
+@app.route('/api/auth/telegram', methods=['POST'])
+def auth_telegram():
+    """
+    🔐 Обработка авторизации через Telegram Login Widget
+
+    Принимает данные от Telegram, проверяет подпись и создает сессию
+    """
+    try:
+        from core.auth_manager import AuthManager
+
+        data = request.get_json()
+
+        # Создаем AuthManager
+        auth = AuthManager()
+
+        # Проверяем подпись Telegram
+        if not auth.verify_telegram_auth(data):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid Telegram signature'
+            }), 403
+
+        # Создаем или обновляем пользователя
+        user_id = auth.create_or_update_user(data)
+
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to create user'
+            }), 500
+
+        # Сохраняем user_id в сессии
+        session['user_id'] = user_id
+        session['telegram_id'] = data.get('id')
+
+        # Получаем данные пользователя
+        user = auth.get_user_by_id(user_id)
+
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': user['id'],
+                'telegram_id': user['telegram_id'],
+                'first_name': user['first_name'],
+                'last_name': user['last_name'],
+                'username': user['username'],
+                'photo_url': user['photo_url']
+            }
+        })
+
+    except Exception as e:
+        print(f"❌ Ошибка авторизации: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Ошибка авторизации: {str(e)}'
+        }), 500
+
+
+@app.route('/api/auth/current', methods=['GET'])
+def get_current_user():
+    """
+    👤 Получить текущего авторизованного пользователя
+    """
+    try:
+        user_id = session.get('user_id')
+
+        if not user_id:
+            return jsonify({
+                'success': True,
+                'user': None
+            })
+
+        from core.auth_manager import AuthManager
+        auth = AuthManager()
+        user = auth.get_user_by_id(user_id)
+
+        if not user:
+            # Пользователь удален из базы, чистим сессию
+            session.pop('user_id', None)
+            session.pop('telegram_id', None)
+            return jsonify({
+                'success': True,
+                'user': None
+            })
+
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': user['id'],
+                'telegram_id': user['telegram_id'],
+                'first_name': user['first_name'],
+                'last_name': user['last_name'],
+                'username': user['username'],
+                'photo_url': user['photo_url']
+            }
+        })
+
+    except Exception as e:
+        print(f"❌ Ошибка получения пользователя: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Ошибка: {str(e)}'
+        }), 500
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    """
+    🚪 Выход из системы
+    """
+    session.pop('user_id', None)
+    session.pop('telegram_id', None)
+    return jsonify({'success': True})
+
+
+@app.route('/api/auth/config', methods=['GET'])
+def auth_config():
+    """
+    ⚙️ Получить конфигурацию авторизации (bot_username)
+    """
+    bot_username = os.getenv('TELEGRAM_BOT_USERNAME', '')
+    return jsonify({
+        'success': True,
+        'bot_username': bot_username
+    })
+
+
+@app.route('/dictionary')
+def dictionary_page():
+    """📚 Страница личного словаря"""
+    return render_template('dictionary.html')
+
+
 if __name__ == '__main__':
     print("🚀 Запуск веб-интерфейса Wordoorio...")
     print("📱 Откройте http://localhost:8081 в браузере")

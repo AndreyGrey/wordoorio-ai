@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мой словарь - Wordoorio</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="shortcut icon" href="/static/favicon.ico">
+
+    <!-- Компоненты -->
+    <script src="/static/js/Auth.js"></script>
+    <script src="/static/components/Header.js"></script>
+    <script src="/static/components/DictionaryWordRow.js"></script>
+    <script src="/static/js/DictionaryAPI.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&family=Manrope:wght@400;600;700;800&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(90deg, #39A0B3 0%, #1B7A94 100%);
+            min-height: 100vh;
+            color: #2d3748;
+            padding-bottom: 60px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Mobile-first: компактная шапка */
+        .page-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .page-title {
+            color: #2d3748;
+            font-size: 1.875rem; /* 30px на мобиле */
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(255,255,255,0.3);
+        }
+
+        .page-subtitle {
+            color: #4a5568;
+            font-size: 0.875rem; /* 14px на мобиле */
+            font-weight: 500;
+            margin-bottom: 16px;
+        }
+
+        /* Статистика */
+        .stats-row {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .stat-badge {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #4a5568;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            color: #39A0B3;
+            font-weight: 700;
+            margin-left: 4px;
+        }
+
+        /* Фильтры (табы) */
+        .filters {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            background: rgba(255, 255, 255, 0.8);
+            border: 2px solid transparent;
+            padding: 10px 20px;
+            border-radius: 24px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #4a5568;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: translateY(-2px);
+        }
+
+        .filter-btn.active {
+            background: white;
+            border-color: #39A0B3;
+            color: #39A0B3;
+            box-shadow: 0 4px 12px rgba(57, 160, 179, 0.2);
+        }
+
+        .filter-count {
+            font-weight: 700;
+            margin-left: 4px;
+        }
+
+        /* Список слов */
+        .words-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px; /* Компактно - 8px между карточками */
+        }
+
+        /* Пустое состояние */
+        .empty-state {
+            background: white;
+            padding: 60px 30px;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+
+        .empty-state h2 {
+            color: #2d3748;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .empty-state p {
+            color: #718096;
+            font-size: 1rem;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .empty-state-btn {
+            display: inline-block;
+            background: #4CAF50;
+            color: white;
+            padding: 14px 32px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        }
+
+        .empty-state-btn:hover {
+            background: #45A049;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(76, 175, 80, 0.4);
+        }
+
+        /* Лоадер */
+        .loader {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Desktop адаптация */
+        @media (min-width: 768px) {
+            .container {
+                padding: 40px 40px;
+            }
+
+            .page-title {
+                font-size: 2.5rem; /* 40px на десктопе */
+            }
+
+            .page-subtitle {
+                font-size: 1.125rem; /* 18px на десктопе */
+            }
+
+            .words-list {
+                gap: 12px; /* Чуть больше на десктопе */
+            }
+
+            .empty-state {
+                padding: 80px 60px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div id="header-container"></div>
+
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">Мой словарь</h1>
+            <p class="page-subtitle">Ваши сохраненные слова и фразы для изучения</p>
+
+        </div>
+
+        <!-- Фильтры с числами (объединили статистику и табы) -->
+        <div class="filters">
+            <button class="filter-btn active" data-filter="all">
+                Все <span class="filter-count" id="stat-total">0</span>
+            </button>
+            <button class="filter-btn" data-filter="word">
+                💬 Слова <span class="filter-count" id="stat-words">0</span>
+            </button>
+            <button class="filter-btn" data-filter="expression">
+                📝 Фразы <span class="filter-count" id="stat-phrases">0</span>
+            </button>
+        </div>
+
+        <!-- Лоадер -->
+        <div class="loader" id="loader">
+            <div class="spinner"></div>
+            <p>Загрузка словаря...</p>
+        </div>
+
+        <!-- Список слов -->
+        <div class="words-list" id="words-list" style="display: none;">
+            <!-- Сюда будут добавлены DictionaryWordRow компоненты -->
+        </div>
+
+        <!-- Пустое состояние -->
+        <div class="empty-state" id="empty-state" style="display: none;">
+            <div class="empty-state-icon">📚</div>
+            <h2>Ваш словарь пока пуст</h2>
+            <p>
+                Начните добавлять слова и фразы из анализов текстов.<br>
+                Нажимайте кнопку ➕ рядом с интересными словами.
+            </p>
+            <a href="/experimental" class="empty-state-btn">Анализировать текст</a>
+        </div>
+    </div>
+
+    <script>
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Инициализация header
+            initUnifiedHeader('header-container');
+
+            // Инжекция стилей DictionaryWordRow (когда компонент будет создан)
+            if (typeof getDictionaryWordRowStyles === 'function') {
+                const styles = document.createElement('style');
+                styles.innerHTML = getDictionaryWordRowStyles();
+                document.head.appendChild(styles);
+            }
+
+            // Загрузка словаря
+            await loadDictionary();
+
+            // Обработка фильтров
+            setupFilters();
+        });
+
+        let currentFilter = 'all';
+        let allWords = [];
+
+        async function loadDictionary() {
+            const loader = document.getElementById('loader');
+            const wordsList = document.getElementById('words-list');
+            const emptyState = document.getElementById('empty-state');
+
+            try {
+                // Загружаем слова через API
+                const response = await fetch('/api/dictionary/words');
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Ошибка загрузки словаря');
+                }
+
+                allWords = data.words || [];
+
+                // Загружаем статистику
+                await loadStats();
+
+                // Скрываем лоадер
+                loader.style.display = 'none';
+
+                // Показываем результат
+                if (allWords.length === 0) {
+                    emptyState.style.display = 'block';
+                } else {
+                    wordsList.style.display = 'flex';
+                    renderWords(allWords);
+                }
+
+            } catch (error) {
+                console.error('Ошибка загрузки словаря:', error);
+                loader.innerHTML = `
+                    <div style="color: #f56565; background: white; padding: 20px; border-radius: 12px;">
+                        <strong>Ошибка:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/dictionary/stats');
+                const data = await response.json();
+
+                if (data.success) {
+                    const stats = data.stats;
+                    document.getElementById('stat-total').textContent = stats.total_count || 0;
+                    document.getElementById('stat-words').textContent = stats.total_words || 0;
+                    document.getElementById('stat-phrases').textContent = stats.total_phrases || 0;
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки статистики:', error);
+            }
+        }
+
+        function renderWords(words) {
+            const wordsList = document.getElementById('words-list');
+
+            if (words.length === 0) {
+                wordsList.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: white;">
+                        <p style="font-size: 1.2rem;">Нет слов для отображения</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Генерируем HTML для каждого слова используя DictionaryWordRow компонент
+            const wordsHTML = words.map(word => {
+                // Проверяем есть ли функция createDictionaryWordRow
+                if (typeof createDictionaryWordRow === 'function') {
+                    return createDictionaryWordRow(word);
+                } else {
+                    // Fallback если компонент еще не создан
+                    return `
+                        <div style="background: white; padding: 16px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            <div style="font-weight: 600; color: #2d3748; margin-bottom: 4px;">
+                                ${word.type === 'word' ? '💬' : '📝'} ${word.lemma}
+                            </div>
+                            <div style="color: #718096; font-size: 0.875rem;">
+                                ${word.translations.join(', ')}
+                            </div>
+                            <div style="color: #a0aec0; font-size: 0.75rem; margin-top: 8px;">
+                                ${word.examples_count} примеров • ${formatDate(word.added_at)}
+                            </div>
+                        </div>
+                    `;
+                }
+            }).join('');
+
+            wordsList.innerHTML = wordsHTML;
+        }
+
+        function setupFilters() {
+            const filterButtons = document.querySelectorAll('.filter-btn');
+
+            filterButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // Убираем active со всех кнопок
+                    filterButtons.forEach(b => b.classList.remove('active'));
+
+                    // Добавляем active на текущую
+                    btn.classList.add('active');
+
+                    // Фильтруем слова
+                    const filter = btn.dataset.filter;
+                    currentFilter = filter;
+
+                    let filteredWords = allWords;
+                    if (filter === 'word') {
+                        filteredWords = allWords.filter(w => w.type === 'word');
+                    } else if (filter === 'expression') {
+                        filteredWords = allWords.filter(w => w.type === 'expression');
+                    }
+
+                    renderWords(filteredWords);
+                });
+            });
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const options = { day: '2-digit', month: 'short', year: 'numeric' };
+            return date.toLocaleDateString('ru-RU', options);
+        }
+
+        // Обработка клика по слову (откроет modal с деталями)
+        document.addEventListener('click', async function(e) {
+            const wordRow = e.target.closest('.dictionary-word-row');
+            if (wordRow) {
+                const lemma = wordRow.dataset.lemma;
+                if (lemma) {
+                    await openWordModal(lemma);
+                }
+            }
+        });
+
+        async function openWordModal(lemma) {
+            // TODO: Реализовать modal с деталями слова и примерами
+            // Пока просто логируем
+            console.log('Открываем modal для слова:', lemma);
+
+            try {
+                const response = await fetch(`/api/dictionary/word/${encodeURIComponent(lemma)}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    console.log('Детали слова:', data.word);
+                    // TODO: Показать modal с data.word
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки деталей слова:', error);
+            }
+        }
+    </script>
+</body>
+</html>
