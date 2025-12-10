@@ -287,16 +287,17 @@
 
             const highlight = analysis.highlights[index];
 
-            // Сохраняем в Dictionary через API
+            // ВСЕГДА сохраняем локально в localStorage
+            storage.saveHighlight(analysis.session_id, highlight);
+            showNotification('Добавлено в словарь ✓');
+
+            // Пытаемся синхронизировать с сервером (опционально)
             const result = await addToDictionary(highlight);
 
             if (result.success) {
-                showNotification(result.is_new ? 'Добавлено в словарь ✓' : 'Обновлено в словаре ✓');
-
-                // Также сохраняем в localStorage для совместимости
-                storage.saveHighlight(analysis.session_id, highlight);
+                console.log('Слово синхронизировано с сервером');
             } else {
-                showNotification(result.error || 'Ошибка сохранения', 'error');
+                console.warn('Слово сохранено локально, синхронизация с сервером не удалась:', result.error);
             }
         };
 
