@@ -360,7 +360,7 @@
         function convertHighlightToWord(highlight) {
             return {
                 lemma: highlight.highlight || highlight.lemma || 'Unknown',
-                translations: [highlight.translation || 'No translation'],
+                translations: [highlight.highlight_translation || highlight.translation || 'No translation'],
                 type: (highlight.highlight && highlight.highlight.includes(' ')) ? 'phrase' : 'word',
                 examples_count: highlight.context ? 1 : 0,
                 added_at: new Date().toISOString(), // localStorage не хранит дату, используем текущую
