@@ -313,17 +313,25 @@
                     const storage = new HighlightsStorage();
                     const savedData = storage._getAllSaved();
 
+                    console.log('📦 Raw localStorage data:', savedData);
+                    console.log('📦 Sessions found:', Object.keys(savedData).length);
+
                     // Преобразуем сохраненные хайлайты в формат словаря
                     for (const sessionId in savedData) {
                         const highlights = savedData[sessionId];
-                        highlights.forEach(h => {
+                        console.log(`   Session ${sessionId}: ${highlights.length} highlights`);
+
+                        highlights.forEach((h, index) => {
+                            console.log(`      [${index}] Converting:`, h);
                             const word = convertHighlightToWord(h);
+                            console.log(`      [${index}] Result:`, word);
                             localWords.push(word);
                         });
                     }
                     console.log(`💾 Загружено ${localWords.length} слов из localStorage`);
                 } catch (error) {
-                    console.warn('Не удалось загрузить слова из localStorage:', error);
+                    console.error('❌ Не удалось загрузить слова из localStorage:', error);
+                    console.error('Error stack:', error.stack);
                 }
 
                 // 3. Объединяем и дедуплицируем
