@@ -125,6 +125,11 @@ window.onTelegramAuth = async function(user) {
 
     if (result.success) {
         showNotification('Вы успешно авторизованы! ✓');
+
+        // Перезагружаем страницу для обновления header
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
     } else {
         showNotification('Ошибка авторизации: ' + result.error, 'error');
     }

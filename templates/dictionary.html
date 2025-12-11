@@ -370,7 +370,7 @@
             return {
                 lemma: highlight.highlight || highlight.lemma || 'Unknown',
                 translations: [highlight.highlight_translation || highlight.translation || 'No translation'],
-                type: (highlight.highlight && highlight.highlight.includes(' ')) ? 'phrase' : 'word',
+                type: (highlight.highlight && highlight.highlight.includes(' ')) ? 'expression' : 'word',
                 examples_count: highlight.context ? 1 : 0,
                 added_at: new Date().toISOString(), // localStorage не хранит дату, используем текущую
                 source: 'local' // Помечаем что из localStorage
@@ -420,7 +420,7 @@
                 // Подсчитываем статистику из allWords (уже содержит объединенные данные)
                 const totalCount = allWords.length;
                 const totalWords = allWords.filter(w => w.type === 'word').length;
-                const totalPhrases = allWords.filter(w => w.type === 'phrase').length;
+                const totalPhrases = allWords.filter(w => w.type === 'expression').length;
 
                 document.getElementById('stat-total').textContent = totalCount;
                 document.getElementById('stat-words').textContent = totalWords;
