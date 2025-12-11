@@ -292,15 +292,43 @@
             const emptyState = document.getElementById('empty-state');
 
             try {
-                // Загружаем слова через API
-                const response = await fetch('/api/dictionary/words');
-                const data = await response.json();
+                let serverWords = [];
+                let localWords = [];
 
-                if (!data.success) {
-                    throw new Error(data.error || 'Ошибка загрузки словаря');
+                // 1. Пытаемся загрузить слова с сервера (если авторизован)
+                try {
+                    const response = await fetch('/api/dictionary/words');
+                    const data = await response.json();
+
+                    if (data.success) {
+                        serverWords = data.words || [];
+                        console.log(`📥 Загружено ${serverWords.length} слов с сервера`);
+                    }
+                } catch (error) {
+                    console.warn('Не удалось загрузить слова с сервера:', error);
                 }
 
-                allWords = data.words || [];
+                // 2. Загружаем слова из localStorage
+                try {
+                    const storage = new HighlightsStorage();
+                    const savedData = storage._getAllSaved();
+
+                    // Преобразуем сохраненные хайлайты в формат словаря
+                    for (const sessionId in savedData) {
+                        const highlights = savedData[sessionId];
+                        highlights.forEach(h => {
+                            const word = convertHighlightToWord(h);
+                            localWords.push(word);
+                        });
+                    }
+                    console.log(`💾 Загружено ${localWords.length} слов из localStorage`);
+                } catch (error) {
+                    console.warn('Не удалось загрузить слова из localStorage:', error);
+                }
+
+                // 3. Объединяем и дедуплицируем
+                allWords = mergeWords(serverWords, localWords);
+                console.log(`✅ Итого: ${allWords.length} уникальных слов`);
 
                 // Загружаем статистику
                 await loadStats();
@@ -326,17 +354,69 @@
             }
         }
 
+        /**
+         * Конвертировать highlight из localStorage в формат словаря
+         */
+        function convertHighlightToWord(highlight) {
+            return {
+                lemma: highlight.highlight || highlight.lemma || 'Unknown',
+                translations: [highlight.translation || 'No translation'],
+                type: (highlight.highlight && highlight.highlight.includes(' ')) ? 'phrase' : 'word',
+                examples_count: highlight.context ? 1 : 0,
+                added_at: new Date().toISOString(), // localStorage не хранит дату, используем текущую
+                source: 'local' // Помечаем что из localStorage
+            };
+        }
+
+        /**
+         * Объединить и дедуплицировать слова с сервера и localStorage
+         */
+        function mergeWords(serverWords, localWords) {
+            const wordMap = new Map();
+
+            // Сначала добавляем серверные слова (приоритет)
+            serverWords.forEach(word => {
+                const key = word.lemma.toLowerCase();
+                wordMap.set(key, word);
+            });
+
+            // Затем добавляем локальные, если их еще нет
+            localWords.forEach(word => {
+                const key = word.lemma.toLowerCase();
+                if (!wordMap.has(key)) {
+                    wordMap.set(key, word);
+                }
+            });
+
+            // Возвращаем массив уникальных слов
+            return Array.from(wordMap.values());
+        }
+
         async function loadStats() {
             try {
-                const response = await fetch('/api/dictionary/stats');
-                const data = await response.json();
+                let serverStats = { total_count: 0, total_words: 0, total_phrases: 0 };
 
-                if (data.success) {
-                    const stats = data.stats;
-                    document.getElementById('stat-total').textContent = stats.total_count || 0;
-                    document.getElementById('stat-words').textContent = stats.total_words || 0;
-                    document.getElementById('stat-phrases').textContent = stats.total_phrases || 0;
+                // Пытаемся загрузить статистику с сервера
+                try {
+                    const response = await fetch('/api/dictionary/stats');
+                    const data = await response.json();
+
+                    if (data.success) {
+                        serverStats = data.stats;
+                    }
+                } catch (error) {
+                    console.warn('Не удалось загрузить статистику с сервера:', error);
                 }
+
+                // Подсчитываем статистику из allWords (уже содержит объединенные данные)
+                const totalCount = allWords.length;
+                const totalWords = allWords.filter(w => w.type === 'word').length;
+                const totalPhrases = allWords.filter(w => w.type === 'phrase').length;
+
+                document.getElementById('stat-total').textContent = totalCount;
+                document.getElementById('stat-words').textContent = totalWords;
+                document.getElementById('stat-phrases').textContent = totalPhrases;
+
             } catch (error) {
                 console.error('Ошибка загрузки статистики:', error);
             }
