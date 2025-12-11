@@ -29,17 +29,26 @@ pip install -r requirements.txt
 
 ### Настройка Yandex AI
 
+**Для локальной разработки:**
+
 1. Получите токены Yandex Cloud:
 ```bash
-yc iam create-token
+yc iam create-token  # Токен действует 12 часов
 yc config get folder-id
 ```
 
 2. Создайте `.env` файл:
 ```env
-YANDEX_IAM_TOKEN=ваш_yandex_iam_токен  
+# ⚠️ YANDEX_IAM_TOKEN нужен ТОЛЬКО для локальной разработки
+# В продакшн (Serverless Container) токены получаются автоматически через Metadata Service
+YANDEX_IAM_TOKEN=ваш_yandex_iam_токен
 YANDEX_FOLDER_ID=ваш_folder_id
 ```
+
+**Для продакшн (Yandex Cloud Serverless Container):**
+- IAM токены обновляются автоматически через Metadata Service
+- Нужен только `YANDEX_FOLDER_ID` в переменных окружения
+- См. `SERVERLESS_DEPLOYMENT.md` для полной инструкции
 
 ### Запуск
 
