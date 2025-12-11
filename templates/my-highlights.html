@@ -8,18 +8,19 @@
     <link rel="shortcut icon" href="/static/favicon.ico">
 
     <!-- Компоненты -->
+    <script src="/static/js/Auth.js"></script>
     <script src="/static/components/Header.js"></script>
     <script src="/static/components/HighlightCard.js?v=6.0"></script>
     <script src="/static/js/HighlightsStorage.js"></script>
     <script>
         // Инъекция стилей HighlightCard
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             const highlightStyles = document.createElement('style');
             highlightStyles.innerHTML = getHighlightCardStyles();
             document.head.appendChild(highlightStyles);
 
             // Инициализация унифицированного header
-            initUnifiedHeader('header-container');
+            await initUnifiedHeader('header-container');
 
             // Загрузка сохраненных хайлайтов
             loadSavedHighlights();
