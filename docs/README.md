@@ -22,6 +22,7 @@
 
 ## ⚙️ Настройка
 
+- [Telegram аутентификация](setup/telegram-auth.md) — настройка Telegram Login Widget
 - [Yandex Dictionary API](setup/yandex-dict.md) — настройка интеграции со словарем
 - [Руководство по интеграции](setup/integration.md) — интеграция компонентов системы
 
