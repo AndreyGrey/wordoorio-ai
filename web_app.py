@@ -35,10 +35,10 @@ def analyze_text():
         data = request.get_json()
         text = data.get('text', '').strip()
 
-        # Используем новую архитектуру
+        # Используем новую архитектуру с AnalysisOrchestrator
         import asyncio
         from contracts.analysis_contracts import AnalysisRequest
-        from core.analysis_service import get_analysis_service
+        from core.analysis_orchestrator import AnalysisOrchestrator
         from core.yandex_ai_client import YandexAIClient
 
         # Создаем запрос
@@ -57,9 +57,9 @@ def analyze_text():
         if 'session_id' not in session:
             session['session_id'] = str(uuid.uuid4())
 
-        # Получаем сервис и клиент
-        service = get_analysis_service()
+        # Создаем клиент и оркестратор
         ai_client = YandexAIClient()
+        orchestrator = AnalysisOrchestrator(ai_client)
 
         # Анализируем
         loop = None
@@ -70,7 +70,7 @@ def analyze_text():
             asyncio.set_event_loop(loop)
 
         result = loop.run_until_complete(
-            service.analyze_text(analysis_request, ai_client)
+            orchestrator.analyze_text(analysis_request)
         )
 
         # Проверяем успех
@@ -388,10 +388,10 @@ def analyze_v2():
         text = data.get('text', '').strip()
         page_id = data.get('page_id', 'main')  # "main" или "experimental"
 
-        # Импортируем новую архитектуру
+        # Импортируем новую архитектуру с AnalysisOrchestrator
         import asyncio
         from contracts.analysis_contracts import AnalysisRequest
-        from core.analysis_service import get_analysis_service
+        from core.analysis_orchestrator import AnalysisOrchestrator
         from core.yandex_ai_client import YandexAIClient
 
         # Создаем запрос
@@ -410,11 +410,11 @@ def analyze_v2():
         if 'session_id' not in session:
             session['session_id'] = str(uuid.uuid4())
 
-        # Получаем сервис и клиент
-        service = get_analysis_service()
+        # Создаем клиент и оркестратор
         ai_client = YandexAIClient()
+        orchestrator = AnalysisOrchestrator(ai_client)
 
-        # Анализируем (сервис сам выберет промпт и применит дедупликацию)
+        # Анализируем через оркестратор
         loop = None
         try:
             loop = asyncio.get_event_loop()
@@ -423,7 +423,7 @@ def analyze_v2():
             asyncio.set_event_loop(loop)
 
         result = loop.run_until_complete(
-            service.analyze_text(analysis_request, ai_client)
+            orchestrator.analyze_text(analysis_request)
         )
 
         # Проверяем успех
@@ -482,46 +482,17 @@ def history_page():
 
 # ===== YOUTUBE ROUTES =====
 
-@app.route('/youtube/analyze', methods=['POST'])
-def analyze_youtube():
-    """
-    Извлечение транскрипта из YouTube и редирект на /experimental
-    """
-    try:
-        data = request.get_json()
-        video_url = data.get('video_url', '').strip()
-
-        if not video_url:
-            return jsonify({
-                'success': False,
-                'error': 'URL видео не указан'
-            })
-
-        # Извлечение транскрипта через Agent 1
-        from agents.youtube_agent import YouTubeTranscriptAgent
-        agent = YouTubeTranscriptAgent()
-        transcript_result = agent.extract_transcript(video_url)
-
-        if not transcript_result['success']:
-            return jsonify(transcript_result)
-
-        # Возвращаем success с транскриптом для localStorage редиректа
-        return jsonify({
-            'success': True,
-            'redirect': '/experimental',
-            'transcript': transcript_result['transcript'],
-            'video_title': transcript_result.get('video_title'),
-            'video_url': video_url,
-            'word_count': transcript_result['word_count']
-        })
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': f'Ошибка сервера: {str(e)}'
-        })
+# ===== YOUTUBE ENDPOINT (DEPRECATED - будет удален) =====
+# @app.route('/youtube/analyze', methods=['POST'])
+# def analyze_youtube():
+#     """
+#     Извлечение транскрипта из YouTube и редирект на /experimental
+#     DEPRECATED: YouTube функциональность удалена в Agent Refactoring v2.0
+#     """
+#     return jsonify({
+#         'success': False,
+#         'error': 'YouTube функциональность временно недоступна'
+#     })
 
 # ===== DICTIONARY ROUTES =====
 
