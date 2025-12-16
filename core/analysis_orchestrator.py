@@ -196,17 +196,17 @@ class AnalysisOrchestrator:
         """
         try:
             # Извлекаем контекст из оригинального текста
-            # Ищем предложение, содержащее highlight
-            context = self._extract_context(agent_response.translation, original_text)
+            # Ищем предложение, содержащее английское слово
+            context = self._extract_context(agent_response.highlight, original_text)
 
-            # Получаем словарные значения
-            dictionary_meanings = self.ai_client.get_dictionary_meanings(agent_response.translation)
+            # Получаем словарные значения для английского слова
+            dictionary_meanings = self.ai_client.get_dictionary_meanings(agent_response.highlight)
 
             # Создаем Highlight
             highlight = Highlight(
-                highlight=agent_response.translation,  # Само слово/фраза
+                highlight=agent_response.highlight,  # Английское слово/фраза
                 context=context,
-                highlight_translation=agent_response.translation,  # Контекстный перевод
+                highlight_translation=agent_response.translation,  # Русский перевод
                 cefr_level="C1",  # Пока фиксированное значение (можно улучшить)
                 importance_score=85,  # Пока фиксированное значение (можно улучшить)
                 dictionary_meanings=dictionary_meanings

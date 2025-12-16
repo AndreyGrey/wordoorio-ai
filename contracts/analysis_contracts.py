@@ -48,8 +48,9 @@ class Highlight:
 @dataclass
 class AgentResponse:
     """Ответ от агента в Yandex AI Studio"""
+    highlight: str                   # Английское слово/фраза
     category: str                    # "word" | "expression"
-    translation: str                 # Контекстный перевод
+    translation: str                 # Контекстный перевод (русский)
     examples: List[str]              # Примеры использования
     collocations: List[str]          # Устойчивые выражения
 
@@ -57,6 +58,7 @@ class AgentResponse:
     def from_dict(cls, data: Dict[str, Any]) -> 'AgentResponse':
         """Создание из словаря (парсинг JSON от AI Studio)"""
         return cls(
+            highlight=data.get('highlight', ''),
             category=data.get('category', 'word'),
             translation=data.get('translation', ''),
             examples=data.get('examples', []),
