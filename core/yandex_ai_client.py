@@ -8,12 +8,16 @@ import os
 import re
 import requests
 import json
+import aiohttp
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
 # Загружаем переменные из .env файла
 load_dotenv()
+
+# Импортируем контракты
+from contracts.analysis_contracts import AgentResponse
 
 @dataclass
 class LinguisticHighlight:
@@ -656,6 +660,71 @@ JSON формат: [{{"highlight": "фраза", "context": "предложен�
     async def translate_text(self, text: str, target_lang: str = "ru") -> str:
         """Публичный метод для перевода (для новой архитектуры)"""
         return await self._translate_text(text)
+
+    async def call_agent(self, agent_id: str, user_input: str) -> AgentResponse:
+        """
+        Вызов агента в Yandex AI Studio (новая архитектура)
+
+        Args:
+            agent_id: ID агента в AI Studio (например, "fvt3bjtu1ehmg0v8tss3")
+            user_input: Входные данные для агента (обычно JSON строка)
+
+        Returns:
+            AgentResponse: Распарсенный ответ от агента
+
+        Raises:
+            Exception: При ошибках сети или парсинга
+        """
+        print(f"🤖 Вызов агента {agent_id[:10]}...", flush=True)
+
+        headers = {
+            "Authorization": f"Bearer {self.iam_token}",
+            "Content-Type": "application/json"
+        }
+
+        data = {
+            "modelUri": f"gpt://{self.folder_id}/{agent_id}",
+            "completionOptions": {
+                "stream": False,
+                "temperature": 0.6,
+                "maxTokens": 2000
+            },
+            "messages": [
+                {
+                    "role": "user",
+                    "text": user_input
+                }
+            ]
+        }
+
+        # Используем aiohttp для async HTTP запроса
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                self.gpt_url,
+                headers=headers,
+                json=data,
+                timeout=aiohttp.ClientTimeout(total=60)
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise Exception(f"Yandex AI Studio error {response.status}: {error_text[:200]}")
+
+                result = await response.json()
+
+                # Извлекаем текст ответа
+                response_text = result.get("result", {}).get("alternatives", [{}])[0].get("message", {}).get("text", "")
+
+                if not response_text:
+                    raise Exception("Пустой ответ от агента")
+
+                print(f"✅ Агент ответил: {len(response_text)} символов", flush=True)
+
+                # Парсим JSON ответ агента в AgentResponse
+                try:
+                    agent_data = json.loads(response_text)
+                    return AgentResponse.from_dict(agent_data)
+                except json.JSONDecodeError as e:
+                    raise Exception(f"Не удалось распарсить JSON от агента: {e}. Ответ: {response_text[:200]}")
 
 def test_yandex_ai_client():
     """Тест клиента Yandex AI"""
