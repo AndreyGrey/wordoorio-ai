@@ -49,7 +49,77 @@ class WordoorioDatabase:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_analysis_date ON analyses(analysis_date)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_highlight_word ON highlights(highlight_word)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_analysis_id ON highlights(analysis_id)")
-            
+
+            # ===== ЛИЧНЫЙ СЛОВАРЬ =====
+
+            # Таблица слов в словаре
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS dictionary_words (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER DEFAULT NULL,
+                    lemma TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    status TEXT DEFAULT 'new',
+                    added_at TEXT NOT NULL,
+                    last_reviewed_at TEXT,
+                    review_count INTEGER DEFAULT 0,
+                    correct_streak INTEGER DEFAULT 0,
+                    UNIQUE(user_id, lemma)
+                )
+            """)
+
+            # Таблица переводов
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS dictionary_translations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    word_id INTEGER NOT NULL,
+                    translation TEXT NOT NULL,
+                    source_session_id TEXT,
+                    added_at TEXT NOT NULL,
+                    FOREIGN KEY (word_id) REFERENCES dictionary_words(id) ON DELETE CASCADE
+                )
+            """)
+
+            # Таблица примеров использования
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS dictionary_examples (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    word_id INTEGER NOT NULL,
+                    original_form TEXT NOT NULL,
+                    context TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    added_at TEXT NOT NULL,
+                    FOREIGN KEY (word_id) REFERENCES dictionary_words(id) ON DELETE CASCADE
+                )
+            """)
+
+            # Индексы для словаря
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_lemma ON dictionary_words(lemma)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_user ON dictionary_words(user_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_status ON dictionary_words(status)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_word_id ON dictionary_translations(word_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_examples_word_id ON dictionary_examples(word_id)")
+
+            # ===== TELEGRAM USERS =====
+
+            # Таблица пользователей Telegram
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY,
+                    telegram_id INTEGER UNIQUE NOT NULL,
+                    first_name TEXT,
+                    last_name TEXT,
+                    username TEXT,
+                    photo_url TEXT,
+                    auth_date INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    last_login_at TEXT NOT NULL
+                )
+            """)
+
+            # Индекс для быстрого поиска по telegram_id
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)")
+
             conn.commit()
     
     def save_analysis(self, 

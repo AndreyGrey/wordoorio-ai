@@ -25,8 +25,13 @@ def _get_morph():
     global _morph
     if _morph is None:
         print("📚 Загружаем pymorphy2 для русского...", flush=True)
-        _morph = pymorphy2.MorphAnalyzer()
-        print("✅ Морфоанализатор загружен", flush=True)
+        try:
+            _morph = pymorphy2.MorphAnalyzer()
+            print("✅ Морфоанализатор загружен", flush=True)
+        except Exception as e:
+            print(f"⚠️  Ошибка загрузки pymorphy2 (Python 3.13 несовместимость): {e}", flush=True)
+            print("⚠️  Используем fallback - возврат текста без лемматизации", flush=True)
+            _morph = None
     return _morph
 
 
@@ -102,6 +107,10 @@ def lemmatize_russian(text: str) -> str:
         return text
 
     morph = _get_morph()
+
+    # Если морфоанализатор не загрузился, возвращаем текст как есть
+    if morph is None:
+        return text
 
     # Разбиваем на слова
     words = text.strip().split()

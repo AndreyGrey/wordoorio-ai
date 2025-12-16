@@ -12,6 +12,7 @@
     <script src="/static/components/AnalysisForm.js"></script>
     <script src="/static/components/HighlightCard.js?v=6.0"></script>
     <script src="/static/js/HighlightsStorage.js"></script>
+    <script src="/static/js/DictionaryAPI.js"></script>
     <script>
         // Инъекция стилей HighlightCard
         document.addEventListener('DOMContentLoaded', function() {
@@ -437,7 +438,7 @@
         }
 
         // Callback для сохранения карточки
-        window.onHighlightSaved = function(index) {
+        window.onHighlightSaved = async function(index) {
             const storage = new HighlightsStorage();
             const analysis = storage.getLastAnalysis();
 
@@ -449,18 +450,35 @@
 
             const highlight = analysis.highlights[index];
 
-            // Проверяем не сохранена ли уже
+            // Проверяем не сохранена ли уже в localStorage
             if (storage.isHighlightSaved(analysis.session_id, highlight)) {
                 showNotification('Уже сохранено ✓');
                 return;
             }
 
-            // Сохраняем
+            // Сохраняем в localStorage
             const success = storage.saveHighlight(analysis.session_id, highlight);
-            if (success) {
-                showNotification('Сохранено ✓');
-            } else {
+            if (!success) {
                 showNotification('Ошибка сохранения', 'error');
+                return;
+            }
+
+            // Добавляем в словарь через API
+            try {
+                const result = await addToDictionary(highlight);
+
+                if (result.success) {
+                    if (result.is_new) {
+                        showNotification('✅ Добавлено в словарь!', 'success');
+                    } else {
+                        showNotification('✅ Пример добавлен к слову в словаре', 'success');
+                    }
+                } else {
+                    showNotification('Сохранено локально (словарь недоступен)', 'info');
+                }
+            } catch (error) {
+                console.error('Ошибка добавления в словарь:', error);
+                showNotification('Сохранено локально', 'info');
             }
         };
 

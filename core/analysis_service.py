@@ -33,7 +33,7 @@ class AnalysisService:
 
         # Маппинг page_id -> prompt_version
         self.page_to_prompt = {
-            'main': 'v1_basic',
+            'main': 'v2_dual',
             'experimental': 'v2_dual',
             'v3': 'v3_adaptive',
         }
