@@ -57,7 +57,7 @@ jobs:
           --memory 1GB \
           --execution-timeout 180s \
           --service-account-id ${{ env.SERVICE_ACCOUNT_ID }} \
-          --environment YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }},TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+          --environment YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }},TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }},YANDEX_DICT_API_KEY=${{ secrets.YANDEX_DICT_API_KEY }}
 
     - name: Get Container URL
       run: |
