@@ -226,12 +226,19 @@ class YandexAIClient:
         # Если есть отдельный YANDEX_CLOUD_API_KEY в .env, используем его
         api_key = os.getenv('YANDEX_CLOUD_API_KEY', self.iam_token)
 
+        # Диагностика
+        print(f"DEBUG: YANDEX_CLOUD_API_KEY present: {'YANDEX_CLOUD_API_KEY' in os.environ}", flush=True)
+        print(f"DEBUG: api_key starts with: {api_key[:10] if api_key else 'None'}...", flush=True)
+        print(f"DEBUG: folder_id: {self.folder_id}", flush=True)
+
         # Yandex Cloud требует формат "Api-Key" вместо "Bearer" для API ключей
         # Для IAM токенов используется "Bearer"
         if api_key and api_key.startswith('AQVN'):  # API ключ начинается с AQVN
             auth_header = f"Api-Key {api_key}"
+            print(f"DEBUG: Using Api-Key authentication", flush=True)
         else:  # IAM токен
             auth_header = f"Bearer {api_key}"
+            print(f"DEBUG: Using Bearer authentication", flush=True)
 
         # Создаем клиент OpenAI для Yandex Assistant API
         client = AsyncOpenAI(
@@ -276,6 +283,9 @@ class YandexAIClient:
                 raise Exception(f"Не удалось распарсить JSON от агента: {e}. Ответ: {response_text[:200]}")
 
         except Exception as e:
+            print(f"❌ ERROR in call_agent: {type(e).__name__}: {str(e)}", flush=True)
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}", flush=True)
             raise Exception(f"Ошибка вызова агента: {str(e)}")
 
     async def get_dictionary_meanings(self, word: str) -> List[str]:
