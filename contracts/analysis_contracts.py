@@ -17,8 +17,6 @@ class Highlight:
     highlight: str                    # Найденное слово/фраза
     context: str                     # Контекст из текста
     highlight_translation: str       # Перевод слова/фразы (контекстный)
-    cefr_level: str = "C1"          # Уровень сложности
-    importance_score: int = 85       # Важность 0-100
     dictionary_meanings: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -27,9 +25,7 @@ class Highlight:
             'highlight': self.highlight,
             'context': self.context,
             'highlight_translation': self.highlight_translation,
-            'dictionary_meanings': self.dictionary_meanings,
-            'cefr_level': self.cefr_level,
-            'importance_score': self.importance_score
+            'dictionary_meanings': self.dictionary_meanings
         }
 
     @classmethod
@@ -39,8 +35,6 @@ class Highlight:
             highlight=data['highlight'],
             context=data['context'],
             highlight_translation=data.get('highlight_translation', ''),
-            cefr_level=data.get('cefr_level', 'C1'),
-            importance_score=data.get('importance_score', 85),
             dictionary_meanings=data.get('dictionary_meanings', [])
         )
 
@@ -48,21 +42,13 @@ class Highlight:
 @dataclass
 class AgentResponse:
     """Ответ от агента в Yandex AI Studio"""
-    highlight: str                   # Английское слово/фраза
-    category: str                    # "word" | "expression"
-    translation: str                 # Контекстный перевод (русский)
-    examples: List[str]              # Примеры использования
-    collocations: List[str]          # Устойчивые выражения
+    highlights: List[Dict[str, Any]]  # Массив найденных хайлайтов
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'AgentResponse':
         """Создание из словаря (парсинг JSON от AI Studio)"""
         return cls(
-            highlight=data.get('highlight', ''),
-            category=data.get('category', 'word'),
-            translation=data.get('translation', ''),
-            examples=data.get('examples', []),
-            collocations=data.get('collocations', [])
+            highlights=data.get('highlights', [])
         )
 
 

@@ -21,6 +21,7 @@ from contracts.analysis_contracts import (
     create_error_result
 )
 from core.yandex_ai_client import YandexAIClient
+from utils.lemmatizer import lemmatize
 
 
 class AnalysisOrchestrator:
@@ -28,12 +29,12 @@ class AnalysisOrchestrator:
     Координатор анализа текста
 
     Использует Yandex AI Studio агентов:
-    - Agent #1 (fvt3bjtu1ehmg0v8tss3): Анализ слов
+    - Agent #1 (fvt3bjtulehmg0v8tss3): Анализ слов
     - Agent #2 (fvt6j0ev2cgf1q2itfr6): Анализ фраз
     """
 
     # ID агентов в Yandex AI Studio
-    AGENT_WORDS_ID = "fvt3bjtu1ehmg0v8tss3"      # Агент #1: Анализ слов
+    AGENT_WORDS_ID = "fvt3bjtulehmg0v8tss3"      # Агент #1: Анализ слов
     AGENT_PHRASES_ID = "fvt6j0ev2cgf1q2itfr6"    # Агент #2: Анализ фраз
 
     def __init__(self, ai_client: YandexAIClient):
@@ -64,6 +65,8 @@ class AnalysisOrchestrator:
         Returns:
             AnalysisResult: Результат анализа с хайлайтами
         """
+        import time
+        start_time = time.time()
         print(f"🎭 [ORCHESTRATOR] Начало анализа текста ({len(request.text)} символов)", flush=True)
 
         # Валидация запроса
@@ -73,6 +76,7 @@ class AnalysisOrchestrator:
 
         try:
             # Параллельный вызов двух агентов
+            agents_start = time.time()
             words_task = self._call_words_agent(request.text)
             phrases_task = self._call_phrases_agent(request.text)
 
@@ -82,6 +86,8 @@ class AnalysisOrchestrator:
                 phrases_task,
                 return_exceptions=True
             )
+            agents_time = time.time() - agents_start
+            print(f"⏱️  Время вызова агентов: {agents_time:.2f}s", flush=True)
 
             # Проверяем ошибки
             if isinstance(words_responses, Exception):
@@ -92,18 +98,33 @@ class AnalysisOrchestrator:
                 print(f"❌ Ошибка Agent #2 (phrases): {phrases_responses}", flush=True)
                 phrases_responses = []
 
-            # Преобразуем AgentResponse → Highlight
-            highlights = []
+            # Преобразуем AgentResponse → Highlight (параллельно!)
+            processing_start = time.time()
 
+            # Собираем все задачи преобразования для параллельного выполнения
+            tasks = []
             for agent_response in words_responses:
-                highlight = await self._agent_response_to_highlight(agent_response, request.text)
-                if highlight:
-                    highlights.append(highlight)
+                for highlight_dict in agent_response.highlights:
+                    tasks.append(self._dict_to_highlight(highlight_dict, request.text))
 
             for agent_response in phrases_responses:
-                highlight = await self._agent_response_to_highlight(agent_response, request.text)
-                if highlight:
-                    highlights.append(highlight)
+                for highlight_dict in agent_response.highlights:
+                    tasks.append(self._dict_to_highlight(highlight_dict, request.text))
+
+            # Запускаем все преобразования параллельно
+            print(f"🚀 Запуск {len(tasks)} задач обработки параллельно...", flush=True)
+            highlights_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Фильтруем результаты
+            highlights = []
+            for result in highlights_results:
+                if isinstance(result, Exception):
+                    print(f"⚠️ Ошибка обработки highlight: {result}", flush=True)
+                elif result:
+                    highlights.append(result)
+
+            processing_time = time.time() - processing_start
+            print(f"⏱️  Время обработки хайлайтов (параллельно): {processing_time:.2f}s", flush=True)
 
             # Удаляем дубликаты
             highlights = self._remove_duplicates(highlights)
@@ -111,6 +132,8 @@ class AnalysisOrchestrator:
             # Подсчет слов
             word_count = len(request.text.split())
 
+            total_time = time.time() - start_time
+            print(f"⏱️  ОБЩЕЕ ВРЕМЯ: {total_time:.2f}s", flush=True)
             print(f"✅ [ORCHESTRATOR] Анализ завершен: {len(highlights)} хайлайтов", flush=True)
 
             return create_success_result(
@@ -119,7 +142,10 @@ class AnalysisOrchestrator:
                 performance={
                     'words_agent_results': len(words_responses) if not isinstance(words_responses, Exception) else 0,
                     'phrases_agent_results': len(phrases_responses) if not isinstance(phrases_responses, Exception) else 0,
-                    'total_highlights': len(highlights)
+                    'total_highlights': len(highlights),
+                    'agents_time': f"{agents_time:.2f}s",
+                    'processing_time': f"{processing_time:.2f}s",
+                    'total_time': f"{total_time:.2f}s"
                 }
             )
 
@@ -139,14 +165,9 @@ class AnalysisOrchestrator:
         """
         print(f"📝 [AGENT #1] Анализ слов...", flush=True)
 
-        # Формируем входные данные для агента
-        user_input = json.dumps({
-            "text": text
-        }, ensure_ascii=False)
-
         try:
-            # Вызываем агента через AI Studio
-            response = await self.ai_client.call_agent(self.AGENT_WORDS_ID, user_input)
+            # Вызываем агента через AI Studio (передаем просто текст)
+            response = await self.ai_client.call_agent(self.AGENT_WORDS_ID, text)
 
             # Агент возвращает один AgentResponse, но мы возвращаем список для единообразия
             return [response]
@@ -167,14 +188,9 @@ class AnalysisOrchestrator:
         """
         print(f"💬 [AGENT #2] Анализ фраз...", flush=True)
 
-        # Формируем входные данные для агента
-        user_input = json.dumps({
-            "text": text
-        }, ensure_ascii=False)
-
         try:
-            # Вызываем агента через AI Studio
-            response = await self.ai_client.call_agent(self.AGENT_PHRASES_ID, user_input)
+            # Вызываем агента через AI Studio (передаем просто текст)
+            response = await self.ai_client.call_agent(self.AGENT_PHRASES_ID, text)
 
             # Агент возвращает один AgentResponse
             return [response]
@@ -183,39 +199,94 @@ class AnalysisOrchestrator:
             print(f"❌ [AGENT #2] Ошибка: {e}", flush=True)
             raise
 
-    async def _agent_response_to_highlight(self, agent_response: AgentResponse, original_text: str) -> Highlight:
+    async def _dict_to_highlight(self, highlight_dict: Dict[str, Any], original_text: str) -> Highlight:
         """
-        Преобразование AgentResponse → Highlight
+        Преобразование словаря из AgentResponse → Highlight
 
         Args:
-            agent_response: Ответ от агента
-            original_text: Оригинальный текст (для извлечения контекста)
+            highlight_dict: Словарь с данными хайлайта от агента
+            original_text: Оригинальный текст (не используется, т.к. контекст уже в highlight_dict)
 
         Returns:
             Highlight: Хайлайт для фронтенда
         """
         try:
-            # Извлекаем контекст из оригинального текста
-            # Ищем предложение, содержащее английское слово
-            context = self._extract_context(agent_response.highlight, original_text)
+            import time
+            word = highlight_dict.get('highlight', '')
 
-            # Получаем словарные значения для английского слова
-            dictionary_meanings = self.ai_client.get_dictionary_meanings(agent_response.highlight)
+            # Лемматизируем слово для запроса в словарь
+            lemma_start = time.time()
+            word_lemma = lemmatize(word)
+            lemma_time = time.time() - lemma_start
 
-            # Создаем Highlight
+            # Yandex Dictionary API поддерживает ТОЛЬКО отдельные слова, НЕ фразы
+            word_count = len(word_lemma.split())
+
+            if word_count > 1:
+                # Фраза (2+ слов) - словарь не нужен (возвращает мусор)
+                dictionary_meanings = []
+                dict_time = 0
+                print(f"🔄 {word} → {word_lemma} [фраза из {word_count} слов, словарь пропущен]", flush=True)
+            else:
+                # Отдельное слово (1 слово) - запрашиваем словарь
+                dict_start = time.time()
+
+                # СТРАТЕГИЯ: Сначала оригинал, потом лемма
+                # 1. Пробуем оригинал (implied)
+                dictionary_meanings = await self.ai_client.get_dictionary_meanings(word)
+                dict_query = word
+
+                # 2. Если пусто и оригинал != лемма, пробуем лемму (imply)
+                if not dictionary_meanings and word.lower() != word_lemma.lower():
+                    dictionary_meanings = await self.ai_client.get_dictionary_meanings(word_lemma)
+                    dict_query = f"{word}→{word_lemma}"
+
+                dict_time = time.time() - dict_start
+                print(f"🔄 {word} → {word_lemma} [лемма: {lemma_time*1000:.0f}ms, словарь '{dict_query}': {dict_time*1000:.0f}ms]", flush=True)
+
+            # Получаем основной перевод от агента
+            main_translation = highlight_dict.get('highlight_translation', '').lower().strip()
+
+            # Исключаем основной перевод из дополнительных значений (убираем дубликат)
+            if main_translation and dictionary_meanings:
+                # Нормализуем строки: нижний регистр, нормализуем пробелы (заменяем любые пробелы на обычные)
+                import re
+                def normalize(s):
+                    # Заменяем любые пробельные символы на обычный пробел
+                    normalized = re.sub(r'\s+', ' ', s.strip().lower())
+                    return normalized
+
+                main_normalized = normalize(main_translation)
+
+                filtered = []
+                duplicates_removed = 0
+                for meaning in dictionary_meanings:
+                    meaning_normalized = normalize(meaning)
+
+                    # Убираем точные совпадения: "усиливать" == "усиливать"
+                    if meaning_normalized == main_normalized:
+                        duplicates_removed += 1
+                        continue
+
+                    filtered.append(meaning)
+
+                dictionary_meanings = filtered
+                if duplicates_removed > 0:
+                    print(f"   🗑️ Убрано дубликатов: {duplicates_removed}", flush=True)
+                print(f"   📖 Дополнительных значений: {len(dictionary_meanings)}", flush=True)
+
+            # Создаем Highlight из данных агента
             highlight = Highlight(
-                highlight=agent_response.highlight,  # Английское слово/фраза
-                context=context,
-                highlight_translation=agent_response.translation,  # Русский перевод
-                cefr_level="C1",  # Пока фиксированное значение (можно улучшить)
-                importance_score=85,  # Пока фиксированное значение (можно улучшить)
+                highlight=word_lemma,  # Лемма для изучения
+                context=highlight_dict.get('context', ''),  # Контекст с оригинальной формой
+                highlight_translation=highlight_dict.get('highlight_translation', ''),
                 dictionary_meanings=dictionary_meanings
             )
 
             return highlight
 
         except Exception as e:
-            print(f"⚠️ Ошибка преобразования AgentResponse: {e}", flush=True)
+            print(f"⚠️ Ошибка преобразования highlight dict: {e}", flush=True)
             return None
 
     def _extract_context(self, word: str, text: str) -> str:
@@ -243,7 +314,7 @@ class AnalysisOrchestrator:
 
     def _remove_duplicates(self, highlights: List[Highlight]) -> List[Highlight]:
         """
-        Удаление дубликатов из списка хайлайтов
+        Удаление дубликатов из списка хайлайтов по леммам
 
         Args:
             highlights: Список хайлайтов
@@ -255,11 +326,12 @@ class AnalysisOrchestrator:
         unique_highlights = []
 
         for highlight in highlights:
-            # Используем lowercase версию highlight как ключ
-            key = highlight.highlight.lower()
+            # Используем лемму как ключ для удаления дубликатов
+            # amplify/amplifying/amplified = одна лемма "amplify"
+            lemma = lemmatize(highlight.highlight.lower())
 
-            if key not in seen:
-                seen.add(key)
+            if lemma not in seen:
+                seen.add(lemma)
                 unique_highlights.append(highlight)
 
         removed_count = len(highlights) - len(unique_highlights)

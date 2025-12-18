@@ -161,27 +161,12 @@ function highlightWordInContext(text, word, bgColor, textColor) {
 
 /**
  * Получает основной перевод хайлайта
- * Приоритет: первое значение из dictionary_meanings > highlight_translation > russian_example
  * @param {Object} highlight - Объект хайлайта
- * @returns {string} Перевод
+ * @returns {string} Перевод от агента
  */
 function getMainTranslation(highlight) {
-    // Приоритет 1: словарные значения (альтернативные переводы слова)
-    if (highlight.dictionary_meanings && highlight.dictionary_meanings.length > 0) {
-        return highlight.dictionary_meanings[0];
-    }
-
-    // Приоритет 2: highlight_translation (перевод именно этого слова/фразы, НЕ всего контекста!)
-    if (highlight.highlight_translation) {
-        return highlight.highlight_translation;
-    }
-
-    // Приоритет 3: русский пример (fallback если highlight_translation пустой)
-    if (highlight.russian_example) {
-        return highlight.russian_example;
-    }
-
-    return '';
+    // Агент всегда возвращает контекстный перевод
+    return highlight.highlight_translation || '';
 }
 
 /**
