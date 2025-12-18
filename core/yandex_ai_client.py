@@ -226,11 +226,21 @@ class YandexAIClient:
         # Если есть отдельный YANDEX_CLOUD_API_KEY в .env, используем его
         api_key = os.getenv('YANDEX_CLOUD_API_KEY', self.iam_token)
 
+        # Yandex Cloud требует формат "Api-Key" вместо "Bearer" для API ключей
+        # Для IAM токенов используется "Bearer"
+        if api_key and api_key.startswith('AQVN'):  # API ключ начинается с AQVN
+            auth_header = f"Api-Key {api_key}"
+        else:  # IAM токен
+            auth_header = f"Bearer {api_key}"
+
         # Создаем клиент OpenAI для Yandex Assistant API
         client = AsyncOpenAI(
-            api_key=api_key,
+            api_key="dummy",  # Не используется, передаем в headers
             base_url="https://rest-assistant.api.cloud.yandex.net/v1",
-            project=self.folder_id
+            project=self.folder_id,
+            default_headers={
+                "Authorization": auth_header
+            }
         )
 
         try:
