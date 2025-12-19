@@ -206,7 +206,10 @@ class YandexAIClient:
 
     async def call_agent(self, agent_id: str, user_input: str) -> AgentResponse:
         """
-        Вызов агента через Yandex AI Studio Assistant API (OpenAI-совместимый)
+        Вызов агента через Yandex AI Studio Assistant API
+
+        Использует официальный SDK yandex-cloud-ml-sdk, т.к. стандартная
+        библиотека openai не поддерживает Yandex AI Studio Assistants.
 
         Args:
             agent_id: ID ассистента/агента в AI Studio (например, "fvt3bjtu1ehmg0v8tss3")
@@ -218,61 +221,36 @@ class YandexAIClient:
         Raises:
             Exception: При ошибках сети или парсинга
         """
-        from openai import AsyncOpenAI
+        from yandex_cloud_ml_sdk import YCloudML
+        from yandex_cloud_ml_sdk.auth import APIKeyAuth
 
         print(f"🤖 Вызов агента {agent_id[:10]}...", flush=True)
 
-        # Используем IAM токен как API ключ для Assistant API
-        # Если есть отдельный YANDEX_CLOUD_API_KEY в .env, используем его
+        # Получаем API ключ (приоритет: YANDEX_CLOUD_API_KEY > IAM токен)
         api_key = os.getenv('YANDEX_CLOUD_API_KEY', self.iam_token)
 
+        if not api_key:
+            raise Exception("Для AI анализа нужны токены Yandex GPT")
+
         # Диагностика
-        print(f"DEBUG: YANDEX_CLOUD_API_KEY present: {'YANDEX_CLOUD_API_KEY' in os.environ}", flush=True)
         print(f"DEBUG: api_key starts with: {api_key[:10] if api_key else 'None'}...", flush=True)
         print(f"DEBUG: folder_id: {self.folder_id}", flush=True)
 
-        # Yandex Cloud требует формат "Api-Key" вместо "Bearer" для API ключей
-        # Для IAM токенов используется "Bearer"
-        if api_key and api_key.startswith('AQVN'):  # API ключ начинается с AQVN
-            auth_header = f"Api-Key {api_key}"
-            print(f"DEBUG: Using Api-Key authentication", flush=True)
-        else:  # IAM токен
-            auth_header = f"Bearer {api_key}"
-            print(f"DEBUG: Using Bearer authentication", flush=True)
-
-        # Создаем клиент OpenAI для Yandex Assistant API
-        # Используем правильный base_url согласно документации Yandex AI Studio
-        client = AsyncOpenAI(
-            api_key=api_key,  # Передаем API ключ напрямую
-            base_url="https://api.cloud.yandex.net/v1/assistant",
-            project=self.folder_id
-        )
-
         try:
-            # Вызываем ассистента через правильный метод assistants.runs.create
-            # Согласно документации Yandex AI Studio Assistant API
-            response = await client.assistants.runs.create(
-                assistant_id=agent_id,
-                input={"text": user_input}
+            # Инициализируем SDK с API ключом
+            sdk = YCloudML(
+                folder_id=self.folder_id,
+                auth=APIKeyAuth(api_key)
             )
 
-            # Извлекаем текст ответа из структуры response
-            # Структура может отличаться, пробуем разные варианты
-            response_text = None
+            # Получаем ассистента
+            assistant = await sdk.assistants.get(agent_id)
 
-            if hasattr(response, 'output') and response.output:
-                if isinstance(response.output, list) and len(response.output) > 0:
-                    content = response.output[0].content if hasattr(response.output[0], 'content') else None
-                    if content and isinstance(content, list) and len(content) > 0:
-                        response_text = content[0].text if hasattr(content[0], 'text') else str(content[0])
-                elif hasattr(response.output, 'text'):
-                    response_text = response.output.text
-                else:
-                    response_text = str(response.output)
-            elif hasattr(response, 'text'):
-                response_text = response.text
-            elif hasattr(response, 'output_text'):
-                response_text = response.output_text
+            # Вызываем агента с входными данными
+            result = await assistant.run(user_input)
+
+            # Получаем текст ответа
+            response_text = result.text if hasattr(result, 'text') else str(result)
 
             if not response_text:
                 raise Exception("Пустой ответ от агента")
