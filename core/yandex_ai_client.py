@@ -206,10 +206,10 @@ class YandexAIClient:
 
     async def call_agent(self, agent_id: str, user_input: str) -> AgentResponse:
         """
-        Вызов агента через Yandex AI Studio Assistant API
+        Вызов агента через Yandex AI Studio Assistant API (прямой REST API)
 
-        Использует официальный SDK yandex-cloud-ml-sdk, т.к. стандартная
-        библиотека openai не поддерживает Yandex AI Studio Assistants.
+        Использует прямой REST API вызов через aiohttp, без SDK.
+        Это избегает конфликтов зависимостей с другими пакетами.
 
         Args:
             agent_id: ID ассистента/агента в AI Studio (например, "fvt3bjtu1ehmg0v8tss3")
@@ -221,9 +221,6 @@ class YandexAIClient:
         Raises:
             Exception: При ошибках сети или парсинга
         """
-        from yandex_cloud_ml_sdk import YCloudML
-        from yandex_cloud_ml_sdk.auth import APIKeyAuth
-
         print(f"🤖 Вызов агента {agent_id[:10]}...", flush=True)
 
         # Получаем API ключ (приоритет: YANDEX_CLOUD_API_KEY > IAM токен)
@@ -236,33 +233,53 @@ class YandexAIClient:
         print(f"DEBUG: api_key starts with: {api_key[:10] if api_key else 'None'}...", flush=True)
         print(f"DEBUG: folder_id: {self.folder_id}", flush=True)
 
+        # API endpoint для Yandex AI Studio Assistants
+        url = "https://rest-assistant.api.cloud.yandex.net/v1/responses"
+
+        # Подготовка headers
+        headers = {
+            "Authorization": f"Api-Key {api_key}",
+            "x-folder-id": self.folder_id,
+            "Content-Type": "application/json"
+        }
+
+        # Тело запроса согласно документации Yandex AI Studio
+        payload = {
+            "prompt": {
+                "id": agent_id
+            },
+            "input": user_input
+        }
+
         try:
-            # Инициализируем SDK с API ключом
-            sdk = YCloudML(
-                folder_id=self.folder_id,
-                auth=APIKeyAuth(api_key)
-            )
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=60)) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise Exception(f"Yandex API returned {response.status}: {error_text}")
 
-            # Получаем ассистента
-            assistant = await sdk.assistants.get(agent_id)
+                    result = await response.json()
 
-            # Вызываем агента с входными данными
-            result = await assistant.run(user_input)
+                    # Извлекаем текст ответа из структуры
+                    # Формат: result.output[0].content[0].text
+                    response_text = None
+                    if 'output' in result and result['output']:
+                        if isinstance(result['output'], list) and len(result['output']) > 0:
+                            content = result['output'][0].get('content', [])
+                            if isinstance(content, list) and len(content) > 0:
+                                response_text = content[0].get('text', '')
 
-            # Получаем текст ответа
-            response_text = result.text if hasattr(result, 'text') else str(result)
+                    if not response_text:
+                        raise Exception(f"Пустой ответ от агента. Структура: {json.dumps(result)[:200]}")
 
-            if not response_text:
-                raise Exception("Пустой ответ от агента")
+                    print(f"✅ Агент ответил: {len(response_text)} символов", flush=True)
 
-            print(f"✅ Агент ответил: {len(response_text)} символов", flush=True)
-
-            # Парсим JSON ответ агента в AgentResponse
-            try:
-                agent_data = json.loads(response_text)
-                return AgentResponse.from_dict(agent_data)
-            except json.JSONDecodeError as e:
-                raise Exception(f"Не удалось распарсить JSON от агента: {e}. Ответ: {response_text[:200]}")
+                    # Парсим JSON ответ агента в AgentResponse
+                    try:
+                        agent_data = json.loads(response_text)
+                        return AgentResponse.from_dict(agent_data)
+                    except json.JSONDecodeError as e:
+                        raise Exception(f"Не удалось распарсить JSON от агента: {e}. Ответ: {response_text[:200]}")
 
         except Exception as e:
             print(f"❌ ERROR in call_agent: {type(e).__name__}: {str(e)}", flush=True)
