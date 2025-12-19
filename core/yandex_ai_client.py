@@ -253,7 +253,7 @@ class YandexAIClient:
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=60)) as response:
+                async with session.post(url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=120)) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         raise Exception(f"Yandex API returned {response.status}: {error_text}")
