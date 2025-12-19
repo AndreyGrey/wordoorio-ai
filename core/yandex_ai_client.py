@@ -251,17 +251,25 @@ class YandexAIClient:
         )
 
         try:
-            # Вызываем ассистента через стандартный OpenAI API
-            # Yandex AI Studio использует model=agent_id для вызова конкретного агента
-            response = await client.chat.completions.create(
-                model=agent_id,
-                messages=[
-                    {"role": "user", "content": user_input}
-                ]
+            # Вызываем ассистента через Yandex AI Studio Assistant API
+            # Используем специальный формат responses.create() с prompt и input
+            response = await client.responses.create(
+                prompt={
+                    "id": agent_id,
+                },
+                input=user_input,
             )
 
-            # Извлекаем текст ответа из стандартного OpenAI формата
-            response_text = response.choices[0].message.content
+            # Извлекаем текст ответа из структуры output
+            # response.output[0].content[0].text содержит ответ агента
+            if response.output and len(response.output) > 0:
+                content = response.output[0].content
+                if content and len(content) > 0:
+                    response_text = content[0].text
+                else:
+                    response_text = response.output_text
+            else:
+                response_text = response.output_text
 
             if not response_text:
                 raise Exception("Пустой ответ от агента")
