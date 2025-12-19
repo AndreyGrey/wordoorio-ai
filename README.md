@@ -28,22 +28,32 @@
 
 ### Подключение агентов
 
-Агенты вызываются через **Yandex AI Studio Assistant API** с использованием **OpenAI SDK**:
+⚠️ **Important:** Do NOT use `openai` or `yandex-cloud-ml-sdk` libraries (dependency conflicts).
+
+Агенты вызываются через **прямой REST API**:
 
 ```python
-from openai import AsyncOpenAI
+import aiohttp
 
-client = AsyncOpenAI(
-    api_key=iam_token,
-    base_url="https://rest-assistant.api.cloud.yandex.net/v1",
-    project=folder_id
-)
+url = "https://rest-assistant.api.cloud.yandex.net/v1/responses"
+headers = {
+    "Authorization": f"Api-Key {api_key}",
+    "x-folder-id": folder_id,
+    "Content-Type": "application/json"
+}
+payload = {
+    "prompt": {"id": agent_id},
+    "input": user_input
+}
 
-response = await client.responses.create(
-    prompt={"id": agent_id},
-    input=user_text
-)
+async with aiohttp.ClientSession() as session:
+    async with session.post(url, headers=headers, json=payload,
+                           timeout=aiohttp.ClientTimeout(total=120)) as response:
+        result = await response.json()
+        text = result['output'][0]['content'][0]['text']
 ```
+
+See full implementation: `core/yandex_ai_client.py:207-288`
 
 **Важно**: Агенты должны быть настроены с JSON Schema для возврата структурированных данных:
 
@@ -92,7 +102,8 @@ Highlights → Frontend
 ## Технологии
 
 - **Backend**: Python 3.9+, Flask, asyncio
-- **AI**: Yandex AI Studio (Assistant API), OpenAI SDK
+- **AI**: Yandex AI Studio (Assistant API via REST)
+- **HTTP Client**: aiohttp
 - **NLP**: spaCy (лемматизация), pymorphy2
 - **Dictionary**: Yandex Dictionary API
 - **Database**: SQLite
