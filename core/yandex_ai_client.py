@@ -241,34 +241,37 @@ class YandexAIClient:
             print(f"DEBUG: Using Bearer authentication", flush=True)
 
         # Создаем клиент OpenAI для Yandex Assistant API
+        # Используем правильный base_url согласно документации Yandex AI Studio
         client = AsyncOpenAI(
-            api_key="dummy",  # Не используется, передаем в headers
-            base_url="https://rest-assistant.api.cloud.yandex.net/v1",
-            project=self.folder_id,
-            default_headers={
-                "Authorization": auth_header
-            }
+            api_key=api_key,  # Передаем API ключ напрямую
+            base_url="https://api.cloud.yandex.net/v1/assistant",
+            project=self.folder_id
         )
 
         try:
-            # Вызываем ассистента через Yandex AI Studio Assistant API
-            # Используем специальный формат responses.create() с prompt и input
-            response = await client.responses.create(
-                prompt={
-                    "id": agent_id,
-                },
-                input=user_input,
+            # Вызываем ассистента через правильный метод assistants.runs.create
+            # Согласно документации Yandex AI Studio Assistant API
+            response = await client.assistants.runs.create(
+                assistant_id=agent_id,
+                input={"text": user_input}
             )
 
-            # Извлекаем текст ответа из структуры output
-            # response.output[0].content[0].text содержит ответ агента
-            if response.output and len(response.output) > 0:
-                content = response.output[0].content
-                if content and len(content) > 0:
-                    response_text = content[0].text
+            # Извлекаем текст ответа из структуры response
+            # Структура может отличаться, пробуем разные варианты
+            response_text = None
+
+            if hasattr(response, 'output') and response.output:
+                if isinstance(response.output, list) and len(response.output) > 0:
+                    content = response.output[0].content if hasattr(response.output[0], 'content') else None
+                    if content and isinstance(content, list) and len(content) > 0:
+                        response_text = content[0].text if hasattr(content[0], 'text') else str(content[0])
+                elif hasattr(response.output, 'text'):
+                    response_text = response.output.text
                 else:
-                    response_text = response.output_text
-            else:
+                    response_text = str(response.output)
+            elif hasattr(response, 'text'):
+                response_text = response.text
+            elif hasattr(response, 'output_text'):
                 response_text = response.output_text
 
             if not response_text:
