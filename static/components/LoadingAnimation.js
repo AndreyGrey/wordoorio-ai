@@ -1,22 +1,37 @@
 /**
- * 🎨 LOADING ANIMATION COMPONENT V1
+ * 🎨 LOADING ANIMATION COMPONENT V4
  *
- * Радостная анимация загрузки для всех страниц
- * Показывает процесс анализа и поиска интересных слов
+ * Wordoorio — AI-powered анализ выразительной английской лексики
+ * Анимация загрузки с динамическими статусами
  */
+
+// ========== СТАТУСЫ ==========
+const STATUS_MESSAGES = [
+    'LAUNCHING THE SYSTEM',
+    'CONNECTING TO AI-AGENTS',
+    'SCANNING YOUR TEXT',
+    'HUNTING FOR COOL EXPRESSIONS',
+    'AI-AGENTS ARE WORKING HARD',
+    'PICKING UP SOME GOOD STUFF',
+    'CHECKING WORD CONTEXTS',
+    'LEMMATIZING & CLEANING UP',
+    'CONSULTING DICTIONARIES',
+    'POLISHING THE RESULTS',
+    // После 10-й — цикл 11-14
+    'ALMOST THERE...',
+    'JUST A FEW MORE SECONDS',
+    'TAKING A BIT LONGER, HANG TIGHT',
+    'STILL CRUNCHING, WORTH THE WAIT'
+];
+
+let currentStatusIndex = 0;
+let statusInterval = null;
 
 /**
  * Создает HTML разметку анимации загрузки
- * @param {string} titleLine1 - Первая строка заголовка
- * @param {string} titleLine2 - Вторая строка заголовка (основная)
- * @param {string} message - Сообщение под анимацией
  * @returns {string} HTML разметка
  */
-function createLoadingAnimationHTML(
-    titleLine1 = 'АНАЛИЗИРУЮ И СОБИРАЮ',
-    titleLine2 = 'КРУТУЮ ЛЕКСИКУ',
-    message = 'Скоро откроем что-то интересное!'
-) {
+function createLoadingAnimationHTML() {
     return `
         <div id="loadingOverlay" class="loading-overlay">
             <div class="sparkles-bg" id="sparklesBg"></div>
@@ -24,40 +39,25 @@ function createLoadingAnimationHTML(
 
             <div class="loading-animation">
                 <div class="discovery-title">
-                    <span class="title-line-1">${titleLine1}</span><br>
-                    <span class="title-line-2">${titleLine2}</span>
+                    <span class="title-line-1">
+                        <span class="w-symbol w-left">
+                            <span class="slash-char" data-char="1">\\</span><span class="slash-char" data-char="2">/</span><span class="slash-char" data-char="3">\\</span><span class="slash-char" data-char="4">/</span>
+                        </span>
+                        <span class="title-text">Wordoorio loves you!</span>
+                        <span class="w-symbol w-right">
+                            <span class="slash-char" data-char="5">\\</span><span class="slash-char" data-char="6">/</span><span class="slash-char" data-char="7">\\</span><span class="slash-char" data-char="8">/</span>
+                        </span>
+                    </span>
+                    <span class="title-line-2">LET'S SPOT SOME JUICY WORDS</span>
                 </div>
 
                 <div class="word-discovery" id="wordDiscovery">
-                    <div class="mystery-cards" id="mysteryCards">
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                        <div class="mystery-card"></div>
-                    </div>
-                    <div class="book-pages">
-                        <div class="page"></div>
-                        <div class="page"></div>
-                        <div class="page"></div>
-                    </div>
-                    <div class="lightbulb">💡</div>
+                    <!-- Область для летающих слов -->
                 </div>
 
-                <div class="excitement-message">${message}</div>
+                <div class="excitement-message-container" id="statusContainer">
+                    <!-- Статусы добавляются динамически -->
+                </div>
 
                 <div class="discovery-dots">
                     <div class="discovery-dot"></div>
@@ -75,14 +75,14 @@ function createLoadingAnimationHTML(
  */
 function getLoadingAnimationStyles() {
     return `
-        /* ===== LOADING ANIMATION STYLES V1 ===== */
+        /* ===== LOADING ANIMATION STYLES V4 ===== */
         .loading-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(200, 227, 191, 0.95);
+            background: rgba(200, 227, 191, 0.80);
             backdrop-filter: blur(10px);
             display: none;
             justify-content: center;
@@ -102,7 +102,7 @@ function getLoadingAnimationStyles() {
 
         .sparkle {
             position: absolute;
-            color: #4CAF50;
+            color: #39A0B3;
             font-size: 20px;
             animation: sparkle-twinkle 3s ease-in-out infinite;
             opacity: 0;
@@ -130,26 +130,96 @@ function getLoadingAnimationStyles() {
             font-size: 2.4rem;
             font-weight: 600;
             margin-bottom: 30px;
-            color: #2d3748;
+            color: #0A3A4D;
             animation: happy-bounce 2s ease-in-out infinite;
-            text-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
+            text-shadow: 0 2px 8px rgba(57, 160, 179, 0.2);
             letter-spacing: 1px;
             line-height: 1.4;
             text-align: center;
         }
 
         .title-line-1 {
-            font-size: 2rem;
+            font-size: 1.6rem;
             font-weight: 500;
-            color: #4a5568;
+            color: #39A0B3;
             display: block;
             margin-bottom: 8px;
+        }
+
+        .title-text {
+            display: inline;
+            color: #39A0B3;
+        }
+
+        /* ===== W-SYMBOL ANIMATION ===== */
+        .w-symbol {
+            display: inline-block;
+            position: relative;
+            margin: 0 5px;
+        }
+
+        .slash-char {
+            display: inline-block;
+            font-weight: 700;
+            color: #39A0B3;
+            transition: all 0.3s ease;
+            animation: slash-dance 4s ease-in-out infinite;
+        }
+
+        .slash-char[data-char="1"] { animation-delay: 0s; }
+        .slash-char[data-char="2"] { animation-delay: 0.1s; }
+        .slash-char[data-char="3"] { animation-delay: 0.2s; }
+        .slash-char[data-char="4"] { animation-delay: 0.3s; }
+        .slash-char[data-char="5"] { animation-delay: 0s; }
+        .slash-char[data-char="6"] { animation-delay: 0.1s; }
+        .slash-char[data-char="7"] { animation-delay: 0.2s; }
+        .slash-char[data-char="8"] { animation-delay: 0.3s; }
+
+        @keyframes slash-dance {
+            0% {
+                transform: translateY(0) rotate(0deg) scale(1);
+                opacity: 1;
+            }
+            15% {
+                transform: translateY(-12px) rotate(-15deg) scale(1.2);
+            }
+            30% {
+                transform: translateY(5px) rotate(10deg) scale(0.9);
+            }
+            45%, 55% {
+                transform: translateY(0) rotate(0deg) scale(1.1);
+                opacity: 1;
+                text-shadow: 0 0 10px #39A0B3, 0 0 20px #39A0B3;
+            }
+            70% {
+                transform: translateY(-8px) rotate(12deg) scale(1.15);
+            }
+            85% {
+                transform: translateY(3px) rotate(-8deg) scale(0.95);
+            }
+            100% {
+                transform: translateY(0) rotate(0deg) scale(1);
+                opacity: 1;
+            }
+        }
+
+        .w-symbol {
+            animation: w-pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes w-pulse {
+            0%, 40%, 60%, 100% {
+                filter: drop-shadow(0 0 0 transparent);
+            }
+            45%, 55% {
+                filter: drop-shadow(0 0 15px rgba(57, 160, 179, 0.6));
+            }
         }
 
         .title-line-2 {
             font-size: 2.8rem;
             font-weight: 700;
-            color: #4CAF50;
+            color: #FF7964;
             display: block;
             position: relative;
             animation: title-glow 3s ease-in-out infinite;
@@ -157,11 +227,11 @@ function getLoadingAnimationStyles() {
 
         @keyframes title-glow {
             0%, 100% {
-                text-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+                text-shadow: 0 2px 8px rgba(255, 121, 100, 0.3);
                 transform: scale(1);
             }
             50% {
-                text-shadow: 0 4px 20px rgba(76, 175, 80, 0.6);
+                text-shadow: 0 4px 20px rgba(255, 121, 100, 0.6);
                 transform: scale(1.02);
             }
         }
@@ -188,9 +258,9 @@ function getLoadingAnimationStyles() {
             font-weight: 600;
             padding: 8px 16px;
             border-radius: 20px;
-            background: linear-gradient(135deg, #4CAF50, #81C784);
+            background: linear-gradient(135deg, #39A0B3, #1B7A94);
             color: white;
-            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+            box-shadow: 0 4px 15px rgba(57, 160, 179, 0.3);
             animation: word-discovery-dance 4s ease-in-out infinite;
             opacity: 0;
         }
@@ -225,7 +295,7 @@ function getLoadingAnimationStyles() {
             position: absolute;
             font-size: 2rem;
             font-weight: 600;
-            color: #4CAF50;
+            color: #A4CE96;
             opacity: 0.7;
             animation: letter-fall 5s linear infinite;
             font-family: 'Inter', sans-serif;
@@ -248,23 +318,65 @@ function getLoadingAnimationStyles() {
             }
         }
 
-        .excitement-message {
-            font-size: 1.3rem;
-            font-weight: 600;
-            color: #2d3748;
+        /* ===== EXCITEMENT MESSAGE — FERRARI EFFECT ===== */
+        .excitement-message-container {
+            position: relative;
+            height: 60px;
             margin-top: 40px;
-            animation: excitement-pulse 1.8s ease-in-out infinite;
+            overflow: hidden;
         }
 
-        @keyframes excitement-pulse {
-            0%, 100% {
-                transform: scale(1);
-                color: #2d3748;
+        .excitement-message {
+            position: absolute;
+            width: 100%;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #0A3A4D;
+            white-space: nowrap;
+            text-align: center;
+            left: 0;
+        }
+
+        @keyframes ferrari-enter {
+            0% {
+                transform: translateX(120%) scale(0.8);
+                opacity: 0;
             }
-            50% {
-                transform: scale(1.08);
-                color: #4CAF50;
+            8% {
+                transform: translateX(20%) scale(1);
+                opacity: 1;
             }
+            12% {
+                transform: translateX(-3%) scale(1.05);
+            }
+            16% {
+                transform: translateX(0) scale(1.15);
+            }
+            20% {
+                transform: translateX(0) scale(1.1);
+            }
+            22% { transform: translateX(2px) scale(1.1); }
+            24% { transform: translateX(-2px) scale(1.1); }
+            26% { transform: translateX(1px) scale(1.1); }
+            28% { transform: translateX(-1px) scale(1.1); }
+            30% { transform: translateX(0) scale(1.1); }
+            35% { transform: translateX(0) scale(1.08); color: #39A0B3; }
+            45% { transform: translateX(0) scale(1.12); color: #0A3A4D; }
+            55% { transform: translateX(0) scale(1.08); color: #39A0B3; }
+            65% { transform: translateX(0) scale(1.1); color: #0A3A4D; }
+            75% { transform: translateX(0) scale(1.08); color: #39A0B3; }
+            82% {
+                transform: translateX(0) scale(1.1);
+                opacity: 1;
+            }
+            100% {
+                transform: translateX(-120%) scale(0.9);
+                opacity: 0;
+            }
+        }
+
+        .excitement-message.ferrari {
+            animation: ferrari-enter 8s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
         }
 
         .discovery-dots {
@@ -278,7 +390,7 @@ function getLoadingAnimationStyles() {
             width: 12px;
             height: 12px;
             border-radius: 50%;
-            background: #4CAF50;
+            background: #39A0B3;
             margin: 0 8px;
             animation: dot-bounce 1.4s ease-in-out infinite;
         }
@@ -290,145 +402,15 @@ function getLoadingAnimationStyles() {
         @keyframes dot-bounce {
             0%, 80%, 100% {
                 transform: scale(0.8) translateY(0);
-                background: #4CAF50;
+                background: #39A0B3;
             }
             40% {
                 transform: scale(1.2) translateY(-10px);
-                background: #81C784;
-            }
-        }
-
-        .mystery-cards {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-            pointer-events: none;
-        }
-
-        .mystery-card {
-            position: absolute;
-            width: 25px;
-            height: 35px;
-            background: white;
-            border: 2px solid #4CAF50;
-            border-radius: 4px;
-            box-shadow: 0 3px 8px rgba(76, 175, 80, 0.3);
-            animation: mystery-reveal 5s ease-in-out infinite;
-            opacity: 0;
-        }
-
-        /* Первая группа карточек - как будто слово из 6 букв */
-        .mystery-card:nth-child(1) { animation-delay: 0s; top: 20%; left: 15%; }
-        .mystery-card:nth-child(2) { animation-delay: 0.2s; top: 20%; left: 18%; }
-        .mystery-card:nth-child(3) { animation-delay: 0.4s; top: 20%; left: 21%; }
-        .mystery-card:nth-child(4) { animation-delay: 0.6s; top: 20%; left: 24%; }
-        .mystery-card:nth-child(5) { animation-delay: 0.8s; top: 20%; left: 27%; }
-        .mystery-card:nth-child(6) { animation-delay: 1.0s; top: 20%; left: 30%; }
-
-        /* Вторая группа карточек - как будто слово из 8 букв */
-        .mystery-card:nth-child(7) { animation-delay: 2s; bottom: 25%; right: 20%; }
-        .mystery-card:nth-child(8) { animation-delay: 2.2s; bottom: 25%; right: 23%; }
-        .mystery-card:nth-child(9) { animation-delay: 2.4s; bottom: 25%; right: 26%; }
-        .mystery-card:nth-child(10) { animation-delay: 2.6s; bottom: 25%; right: 29%; }
-        .mystery-card:nth-child(11) { animation-delay: 2.8s; bottom: 25%; right: 32%; }
-        .mystery-card:nth-child(12) { animation-delay: 3.0s; bottom: 25%; right: 35%; }
-        .mystery-card:nth-child(13) { animation-delay: 3.2s; bottom: 25%; right: 38%; }
-        .mystery-card:nth-child(14) { animation-delay: 3.4s; bottom: 25%; right: 41%; }
-
-        /* Третья группа - короткое слово из 4 букв */
-        .mystery-card:nth-child(15) { animation-delay: 4.5s; top: 60%; left: 40%; }
-        .mystery-card:nth-child(16) { animation-delay: 4.7s; top: 60%; left: 43%; }
-        .mystery-card:nth-child(17) { animation-delay: 4.9s; top: 60%; left: 46%; }
-        .mystery-card:nth-child(18) { animation-delay: 5.1s; top: 60%; left: 49%; }
-
-        .book-pages {
-            position: absolute;
-            width: 80px;
-            height: 100px;
-            top: 50%;
-            left: 20%;
-            transform: translateY(-50%);
-            opacity: 0.6;
-        }
-
-        .page {
-            position: absolute;
-            width: 60px;
-            height: 80px;
-            background: white;
-            border: 2px solid #4CAF50;
-            border-radius: 4px;
-            animation: page-flip 3s ease-in-out infinite;
-            transform-origin: left center;
-        }
-
-        .page:nth-child(1) { animation-delay: 0s; z-index: 3; }
-        .page:nth-child(2) { animation-delay: 1s; z-index: 2; }
-        .page:nth-child(3) { animation-delay: 2s; z-index: 1; }
-
-        @keyframes mystery-reveal {
-            0% {
-                opacity: 0;
-                transform: translateY(10px) rotateX(90deg);
-                background: white;
-            }
-            20% {
-                opacity: 1;
-                transform: translateY(0) rotateX(0deg);
-                background: white;
-            }
-            40% {
-                transform: scale(1.1);
-                background: #f0f8f0;
-            }
-            60% {
-                transform: scale(1) rotateY(5deg);
-                background: white;
-                box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
-            }
-            80% {
-                transform: rotateY(0deg);
-                opacity: 1;
-            }
-            100% {
-                opacity: 0;
-                transform: translateY(-15px) rotateX(-90deg);
-            }
-        }
-
-        @keyframes page-flip {
-            0%, 80% {
-                transform: rotateY(0deg);
-            }
-            90%, 100% {
-                transform: rotateY(-180deg);
-            }
-        }
-
-        .lightbulb {
-            position: absolute;
-            top: 20%;
-            right: 20%;
-            font-size: 3rem;
-            animation: lightbulb-idea 2.5s ease-in-out infinite;
-        }
-
-        @keyframes lightbulb-idea {
-            0%, 70% {
-                transform: scale(1);
-                filter: brightness(1);
-            }
-            85%, 100% {
-                transform: scale(1.3);
-                filter: brightness(1.5);
+                background: #1B7A94;
             }
         }
 
         /* ===== АДАПТИВНОСТЬ ===== */
-
-        /* Планшеты (до 768px) */
         @media (max-width: 768px) {
             .discovery-title {
                 font-size: 1.8rem;
@@ -437,7 +419,7 @@ function getLoadingAnimationStyles() {
             }
 
             .title-line-1 {
-                font-size: 1.4rem;
+                font-size: 1.2rem;
             }
 
             .title-line-2 {
@@ -448,11 +430,6 @@ function getLoadingAnimationStyles() {
                 width: 95%;
                 height: 200px;
                 margin: 20px auto;
-            }
-
-            .mystery-card {
-                width: 18px;
-                height: 25px;
             }
 
             .flying-word {
@@ -466,35 +443,16 @@ function getLoadingAnimationStyles() {
 
             .excitement-message {
                 font-size: 1.1rem;
-                margin-top: 20px;
-                padding: 0 15px;
-            }
-
-            .book-pages {
-                width: 60px;
-                height: 80px;
-                left: 10%;
-            }
-
-            .page {
-                width: 45px;
-                height: 60px;
-            }
-
-            .lightbulb {
-                font-size: 2rem;
-                right: 15%;
             }
         }
 
-        /* Мобильные (до 480px) */
         @media (max-width: 480px) {
             .discovery-title {
                 font-size: 1.5rem;
             }
 
             .title-line-1 {
-                font-size: 1.2rem;
+                font-size: 1rem;
             }
 
             .title-line-2 {
@@ -503,11 +461,6 @@ function getLoadingAnimationStyles() {
 
             .word-discovery {
                 height: 150px;
-            }
-
-            .mystery-card {
-                width: 15px;
-                height: 20px;
             }
 
             .flying-word {
@@ -523,6 +476,62 @@ function getLoadingAnimationStyles() {
 }
 
 /**
+ * Показывает следующий статус с эффектом "Феррари"
+ */
+function showNextStatus() {
+    const container = document.getElementById('statusContainer');
+    if (!container) return;
+
+    let index;
+    if (currentStatusIndex < 10) {
+        index = currentStatusIndex;
+    } else {
+        index = 10 + ((currentStatusIndex - 10) % 4);
+    }
+
+    const newMessage = document.createElement('div');
+    newMessage.className = 'excitement-message ferrari';
+    newMessage.textContent = STATUS_MESSAGES[index];
+    
+    container.appendChild(newMessage);
+    currentStatusIndex++;
+
+    setTimeout(() => {
+        if (newMessage.parentNode) {
+            newMessage.remove();
+        }
+    }, 8000);
+}
+
+/**
+ * Запускает цикл статусов
+ */
+function startStatusCycle() {
+    currentStatusIndex = 0;
+    showNextStatus();
+    
+    statusInterval = setInterval(() => {
+        showNextStatus();
+    }, 6500);
+}
+
+/**
+ * Останавливает цикл статусов
+ */
+function stopStatusCycle() {
+    if (statusInterval) {
+        clearInterval(statusInterval);
+        statusInterval = null;
+    }
+    currentStatusIndex = 0;
+    
+    const container = document.getElementById('statusContainer');
+    if (container) {
+        container.innerHTML = '';
+    }
+}
+
+/**
  * Показывает анимацию загрузки
  * @param {string} inputText - Текст пользователя для извлечения интересных слов
  */
@@ -535,14 +544,10 @@ function showLoadingAnimation(inputText = '') {
 
     overlay.style.display = 'flex';
 
-    // Запускаем блестки
     startSparkles();
-
-    // Запускаем дождь из букв
     startLettersRain();
-
-    // Запускаем летающие слова открытий из реального текста
     startDiscoveryWords(inputText);
+    startStatusCycle();
 }
 
 /**
@@ -554,8 +559,8 @@ function hideLoadingAnimation() {
         overlay.style.display = 'none';
     }
 
-    // Очищаем все анимации
     clearDiscoveryAnimations();
+    stopStatusCycle();
 }
 
 /**
@@ -567,7 +572,6 @@ function startSparkles() {
 
     const sparkleChars = ['✨', '⭐', '💫', '🌟', '✦', '✧', '⋆'];
 
-    // Создаем блестки
     for (let i = 0; i < 30; i++) {
         setTimeout(() => {
             if (!document.getElementById('sparklesBg')) return;
@@ -582,7 +586,6 @@ function startSparkles() {
 
             sparklesBg.appendChild(sparkle);
 
-            // Удаляем блестку после анимации
             setTimeout(() => {
                 if (sparkle.parentNode) {
                     sparkle.parentNode.removeChild(sparkle);
@@ -615,7 +618,6 @@ function startLettersRain() {
         lettersRain.appendChild(letter);
         letterIndex++;
 
-        // Удаляем букву после анимации
         setTimeout(() => {
             if (letter.parentNode) {
                 letter.parentNode.removeChild(letter);
@@ -632,10 +634,8 @@ function startDiscoveryWords(inputText) {
     const wordDiscovery = document.getElementById('wordDiscovery');
     if (!wordDiscovery) return;
 
-    // Извлекаем интересные слова из текста пользователя
     let discoveryWords = extractInterestingWords(inputText);
 
-    // Добавляем более интересные и длинные слова
     const sophisticatedWords = [
         'orchestration', 'infrastructure', 'methodology', 'implementation',
         'sophisticated', 'comprehensive', 'extraordinary', 'revolutionary',
@@ -647,7 +647,6 @@ function startDiscoveryWords(inputText) {
         'conversation', 'information', 'explanation', 'demonstration'
     ];
 
-    // Если не нашли достаточно слов, добавляем дефолтные длинные слова
     if (discoveryWords.length < 12) {
         const shuffledSophisticated = sophisticatedWords.sort(() => Math.random() - 0.5);
         discoveryWords = [...discoveryWords, ...shuffledSophisticated].slice(0, 20);
@@ -657,7 +656,6 @@ function startDiscoveryWords(inputText) {
     window.discoveryWordsInterval = setInterval(() => {
         if (!wordDiscovery) return;
 
-        // Создаем 2-3 слова одновременно для более насыщенной анимации
         const wordsToCreate = Math.floor(Math.random() * 3) + 1;
 
         for (let i = 0; i < wordsToCreate; i++) {
@@ -665,7 +663,6 @@ function startDiscoveryWords(inputText) {
             wordElement.className = 'flying-word';
             wordElement.textContent = discoveryWords[wordIndex % discoveryWords.length];
 
-            // Адаптивные позиции в зависимости от размера экрана
             const isMobile = window.innerWidth <= 768;
             const positions = isMobile ? [
                 { left: '15%', top: '30%' },
@@ -692,7 +689,6 @@ function startDiscoveryWords(inputText) {
             wordElement.style.top = pos.top;
             wordElement.style.animationDelay = (Math.random() * 2 + i * 0.3) + 's';
 
-            // Адаптивный размер шрифта
             if (isMobile) {
                 wordElement.style.fontSize = '1.1rem';
                 wordElement.style.padding = '6px 12px';
@@ -701,14 +697,13 @@ function startDiscoveryWords(inputText) {
             wordDiscovery.appendChild(wordElement);
             wordIndex++;
 
-            // Удаляем слово после анимации
             setTimeout(() => {
                 if (wordElement.parentNode) {
                     wordElement.parentNode.removeChild(wordElement);
                 }
             }, 5000);
         }
-    }, 800); // Более частое появление слов
+    }, 800);
 }
 
 /**
@@ -719,7 +714,6 @@ function startDiscoveryWords(inputText) {
 function extractInterestingWords(text) {
     if (!text) return [];
 
-    // Простые слова, которые не интересны
     const boringWords = new Set([
         'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
         'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
@@ -732,24 +726,19 @@ function extractInterestingWords(text) {
         'first', 'last', 'long', 'great', 'little', 'right', 'old', 'try'
     ]);
 
-    // Извлекаем слова и фильтруем
     const words = text.toLowerCase()
-        .replace(/[^\w\s]/g, ' ') // убираем пунктуацию
+        .replace(/[^\w\s]/g, ' ')
         .split(/\s+/)
         .filter(word =>
-            word.length >= 6 && // минимум 6 букв для более интересных слов
-            word.length <= 16 && // максимум 16 букв
-            !boringWords.has(word) && // не скучные
-            /^[a-z]+$/.test(word) // только английские буквы
+            word.length >= 6 &&
+            word.length <= 16 &&
+            !boringWords.has(word) &&
+            /^[a-z]+$/.test(word)
         );
 
-    // Сортируем по длине (длинные слова интереснее)
     const sortedWords = words.sort((a, b) => b.length - a.length);
-
-    // Убираем дубликаты и берем самые длинные
     const uniqueWords = [...new Set(sortedWords)];
 
-    // Берем топ слова по длине и перемешиваем
     return uniqueWords.slice(0, 15);
 }
 
@@ -757,7 +746,6 @@ function extractInterestingWords(text) {
  * Очищает все анимации
  */
 function clearDiscoveryAnimations() {
-    // Очищаем все интервалы
     if (window.letterRainInterval) {
         clearInterval(window.letterRainInterval);
     }
@@ -765,7 +753,6 @@ function clearDiscoveryAnimations() {
         clearInterval(window.discoveryWordsInterval);
     }
 
-    // Очищаем контейнеры
     const sparklesBg = document.getElementById('sparklesBg');
     const lettersRain = document.getElementById('lettersRain');
     const wordDiscovery = document.getElementById('wordDiscovery');
@@ -773,28 +760,20 @@ function clearDiscoveryAnimations() {
     if (sparklesBg) sparklesBg.innerHTML = '';
     if (lettersRain) lettersRain.innerHTML = '';
 
-    // Очищаем только динамические элементы, сохраняя статичные
     if (wordDiscovery) {
         const dynamicWords = wordDiscovery.querySelectorAll('.flying-word');
         dynamicWords.forEach(word => word.remove());
     }
 }
 
-// Автоматическая инициализация при загрузке скрипта
+// ========== АВТОИНИЦИАЛИЗАЦИЯ ==========
 (function() {
-    // Инжектим стили сразу
     const styleTag = document.createElement('style');
     styleTag.innerHTML = getLoadingAnimationStyles();
     document.head.appendChild(styleTag);
 
-    // Инжектим HTML сразу (не ждем DOMContentLoaded)
-    const loadingHTML = createLoadingAnimationHTML(
-        'АНАЛИЗИРУЮ И СОБИРАЮ',
-        'КРУТУЮ ЛЕКСИКУ',
-        'Скоро откроем что-то интересное!'
-    );
+    const loadingHTML = createLoadingAnimationHTML();
 
-    // Если DOM еще не готов, ждем его
     if (document.body) {
         document.body.insertAdjacentHTML('beforeend', loadingHTML);
     } else {
@@ -804,7 +783,7 @@ function clearDiscoveryAnimations() {
     }
 })();
 
-// Экспортируем функции (если используется модульная система)
+// ========== ЭКСПОРТ ==========
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         createLoadingAnimationHTML,
