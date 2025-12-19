@@ -1,8 +1,8 @@
 # План разработки системы тренировки слов для Wordoorio
 
-**Дата:** 10 декабря 2024 (обновлено 16 декабря 2024)
+**Дата:** 10 декабря 2024 (обновлено 19 декабря 2024)
 **Статус:** Готов к реализации (после Agent Refactoring)
-**Версия:** 2.0 (синхронизирован с Agent Refactoring)
+**Версия:** 3.0 (актуализирован с учетом опыта Yandex AI Studio и деплоя)
 
 ---
 
@@ -22,32 +22,31 @@
 
 ---
 
-## 🚨 КЛЮЧЕВЫЕ ИЗМЕНЕНИЯ (версия 2.0)
+## 🚨 КЛЮЧЕВЫЕ ИЗМЕНЕНИЯ (версия 3.0)
 
-### ✅ Синхронизировано с Agent Refactoring:
+### ✅ Актуализировано с учетом опыта работы с Yandex AI Studio:
 
 1. **Агент #3 для генерации тестов**
    - ✅ УЖЕ создан в Yandex AI Studio (ID: `fvtludf1115lb39bei78`)
    - ✅ Промпт УЖЕ настроен в AI Studio (не нужно создавать)
-   - ✅ URI: `gpt://b1gcdpfvt5vkfn3o9nm1/gpt-oss-120b/latest`
-   - ✅ Модель: gpt-oss-120b (оптимальная для генерации вариантов)
+   - ⚠️ **ВАЖНО**: Используется Assistant API REST, НЕ foundationModels API
 
 2. **Метод генерации тестов**
-   - ❌ ~~`generate_wrong_options()`~~ (старое название)
-   - ✅ `generate_test_options()` (новое, из Agent Refactoring)
-   - ✅ Async метод с `aiohttp`
-   - ✅ Уже реализован в новом YandexAIClient
+   - ❌ ~~Метод `generate_test_options()` УЖЕ реализован~~ (НЕТ, нужно создать!)
+   - ✅ Использует Assistant API: `https://rest-assistant.api.cloud.yandex.net/v1/responses`
+   - ✅ Авторизация: `Authorization: Api-Key {api_key}` (НЕ Bearer IAM!)
+   - ✅ Async метод с `aiohttp`, timeout 120s
 
-3. **Зависимость от Agent Refactoring**
-   - ⚠️ Training System можно реализовывать ТОЛЬКО ПОСЛЕ Agent Refactoring
-   - ⚠️ Использует новый YandexAIClient с async методами
-   - ⚠️ Использует AnalysisOrchestrator (вместо PromptManager)
+3. **Переменные окружения (Production)**
+   - ✅ `YANDEX_FOLDER_ID` - folder ID
+   - ✅ `YANDEX_CLOUD_API_KEY` - API ключ (НЕ IAM токен!)
+   - ✅ `TELEGRAM_BOT_TOKEN` - токен Telegram бота
+   - ⚠️ Все передаются через `--environment` в GitHub Actions
 
-4. **Параллельная работа**
-   - ✅ Можно работать над Training System на другом компьютере
-   - ✅ БД изменения независимы от Agent Refactoring
-   - ✅ Bot код независим от Agent Refactoring
-   - ⚠️ Но TestManager зависит от нового YandexAIClient!
+4. **Деплоймент**
+   - ✅ GitHub Actions работает (проверено на production)
+   - ✅ Yandex Serverless Container (проверено)
+   - ⚠️ Telegram Bot нужен отдельный процесс (supervisord или отдельный контейнер)
 
 ---
 
@@ -480,14 +479,16 @@ word.last_reviewed_at = now()
 - **Модель:** gpt-oss-120b (оптимальная для генерации вариантов)
 - **Промпт:** Настроен в Yandex AI Studio (не в коде!)
 
-**Метод в `YandexAIClient` (уже реализован в Agent Refactoring):**
+**Метод в `YandexAIClient` (нужно создать):**
 ```python
 async def generate_test_options(
     self,
     words_with_translations: List[Dict]
 ) -> Dict:
     """
-    Вызов Агента #3 (генерация тестов) в Yandex AI Studio
+    Вызов Агента #3 (генерация тестов) через Assistant API
+
+    ⚠️ ВАЖНО: Используется Assistant API REST, НЕ foundationModels API!
 
     Args:
         words_with_translations: [
@@ -510,31 +511,38 @@ async def generate_test_options(
             ]
         }
     """
-    # Реализация с aiohttp (async)
+    # ID агента #3 для генерации тестов
+    agent_id = "fvtludf1115lb39bei78"
+
+    # Подготавливаем входные данные
+    user_input = json.dumps({"words": words_with_translations}, ensure_ascii=False)
+
+    # Реализация через Assistant API REST (aiohttp + async)
+    url = "https://rest-assistant.api.cloud.yandex.net/v1/responses"
+
     async with aiohttp.ClientSession() as session:
         async with session.post(
-            "https://llm.api.cloud.yandex.net/foundationModels/v1/completion",
+            url,
             headers={
-                "Authorization": f"Bearer {self.iam_token}",
+                "Authorization": f"Api-Key {self.api_key}",  # НЕ Bearer!
                 "x-folder-id": self.folder_id,
                 "Content-Type": "application/json"
             },
             json={
-                "modelUri": self.AGENT_TESTS_URI,
-                "completionOptions": {
-                    "stream": False,
-                    "temperature": 0.5,
-                    "maxTokens": 3000
-                },
-                "messages": [{
-                    "role": "user",
-                    "text": json.dumps({"words": words_with_translations}, ensure_ascii=False)
-                }]
+                "prompt": {"id": agent_id},  # ID агента
+                "input": user_input           # Входные данные
             },
-            timeout=aiohttp.ClientTimeout(total=180)
+            timeout=aiohttp.ClientTimeout(total=120)  # 120s для генерации
         ) as response:
+            if response.status != 200:
+                raise Exception(f"Agent API error: {response.status}")
+
             result = await response.json()
-            response_text = result['result']['alternatives'][0]['message']['text']
+
+            # Извлекаем текст ответа
+            response_text = result['output'][0]['content'][0]['text']
+
+            # Парсим JSON из ответа
             return json.loads(response_text)
 ```
 
@@ -941,13 +949,36 @@ python telegram_bot.py
 
 ### Production деплоймент (Serverless Container)
 
+**⚠️ ВАЖНО:** GitHub Actions УЖЕ настроен и работает! (`.github/workflows/deploy.yml`)
+
 **Архитектура:**
 ```
 Yandex Serverless Container
-├── gunicorn (Flask app)         # Процесс 1
-└── python telegram_bot.py       # Процесс 2
+├── gunicorn (Flask app)         # Процесс 1 (работает)
+└── python telegram_bot.py       # Процесс 2 (нужно добавить)
     └── wordoorio.db (shared)
 ```
+
+**GitHub Actions (актуальный):**
+```yaml
+# .github/workflows/deploy.yml
+- name: Update Serverless Container
+  run: |
+    yc serverless container revision deploy \
+      --container-name wordoorio \
+      --image cr.yandex/${{ env.REGISTRY_ID }}/wordoorio-ai:latest \
+      --cores 1 \
+      --memory 1GB \
+      --execution-timeout 180s \
+      --service-account-id ${{ env.SERVICE_ACCOUNT_ID }} \
+      --environment YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }} \
+      --environment YANDEX_CLOUD_API_KEY=${{ secrets.YANDEX_CLOUD_API_KEY }} \
+      --environment YANDEX_DICT_API_KEY=${{ secrets.YANDEX_DICT_API_KEY }} \
+      --environment TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}  # ДОБАВИТЬ!
+```
+
+**GitHub Secrets (нужно добавить):**
+- `TELEGRAM_BOT_TOKEN` - токен бота от @BotFather
 
 **Dockerfile (обновленный):**
 ```dockerfile
@@ -1392,6 +1423,30 @@ python telegram_bot.py
 
 ---
 
+## 📝 История изменений (v3.0)
+
+**19 декабря 2024** - Актуализация с учетом опыта работы:
+
+✅ **Yandex AI Studio:**
+- Обновлен формат API: Assistant API REST (`https://rest-assistant.api.cloud.yandex.net/v1/responses`)
+- Авторизация: `Api-Key` вместо `Bearer IAM`
+- Timeout: 120s для генерации тестов
+- Метод `generate_test_options()` нужно создать (еще не реализован)
+
+✅ **Деплоймент:**
+- GitHub Actions работает (проверено)
+- Переменные окружения через `--environment` флаги
+- Добавлено: `TELEGRAM_BOT_TOKEN` в secrets
+- Supervisord для двух процессов (Flask + Bot)
+
+✅ **Статус:**
+- Agent Refactoring завершен
+- REST API для агентов работает
+- Готов к началу реализации Training System
+
+---
+
 **Дата создания:** 10 декабря 2024
+**Дата актуализации:** 19 декабря 2024
 **Автор:** Claude Code + Andrew Kondakov
 **Контакт:** @wordoorio_bot
