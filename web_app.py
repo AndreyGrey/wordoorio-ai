@@ -689,20 +689,16 @@ def training_page():
 def api_training_start():
     """Начать новую тренировку - отобрать 8 слов и создать тесты"""
     try:
-        from core.auth_manager import AuthManager
         from core.training_service import TrainingService
         from core.test_manager import TestManager
         from core.yandex_ai_client import YandexAIClient
         import asyncio
 
         # Проверяем авторизацию
-        auth_manager = AuthManager(db.db_path)
-        user_data = auth_manager.verify_session(session)
+        user_id = session.get('user_id')
 
-        if not user_data:
+        if not user_id:
             return jsonify({'error': 'Требуется авторизация'}), 401
-
-        user_id = user_data['id']
 
         # Отбираем слова для тренировки
         training_service = TrainingService(db)
@@ -753,15 +749,13 @@ def api_training_start():
 def api_training_answer():
     """Отправить ответ на тест"""
     try:
-        from core.auth_manager import AuthManager
         from core.test_manager import TestManager
         from core.yandex_ai_client import YandexAIClient
 
         # Проверяем авторизацию
-        auth_manager = AuthManager(db.db_path)
-        user_data = auth_manager.verify_session(session)
+        user_id = session.get('user_id')
 
-        if not user_data:
+        if not user_id:
             return jsonify({'error': 'Требуется авторизация'}), 401
 
         data = request.get_json()
