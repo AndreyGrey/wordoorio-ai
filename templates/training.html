@@ -10,6 +10,10 @@
     <link rel="stylesheet" href="/static/css/global.css">
     <link rel="stylesheet" href="/static/css/components.css">
 
+    <!-- Компоненты -->
+    <script src="/static/js/Auth.js"></script>
+    <script src="/static/components/Header.js"></script>
+
     <style>
         /* Специфичные стили для тренировки */
         .training-header {
@@ -194,9 +198,12 @@
     </style>
 </head>
 <body>
+    <!-- Header -->
+    <div id="header-container"></div>
+
     <div class="container">
         <div class="training-header">
-            <h1>🎯 Тренировка слов</h1>
+            <h1>Тренировка слов</h1>
             <p>Проверьте свои знания английских слов</p>
         </div>
 
@@ -239,27 +246,33 @@
 
         <!-- Экран завершения -->
         <div id="completion-screen" class="card card-lg training-card completion-screen" style="display: none;">
-            <div class="completion-icon">🎉</div>
+            <div class="completion-icon">✓</div>
             <h2 class="completion-title">Отлично! Все тесты пройдены!</h2>
             <div class="completion-stats">
                 <p>Вы завершили тренировку!</p>
             </div>
-            <button id="restart-btn" class="btn btn-primary btn-lg">Начать ещё 8 слов 🚀</button>
+            <button id="restart-btn" class="btn btn-primary btn-lg">Начать ещё 8 слов</button>
         </div>
 
         <!-- Пустое состояние / Загрузка -->
         <div id="empty-state" class="card card-lg training-card empty-state">
-            <div class="empty-state-icon">📚</div>
+            <div class="empty-state-icon">?</div>
             <h2>Готовы к тренировке?</h2>
             <p style="color: var(--color-text-muted); margin: var(--spacing-6) 0;">
                 Мы выберем 8 слов из вашего словаря для тренировки
             </p>
-            <button id="start-btn" class="btn btn-primary btn-lg">Начать тренировку 🚀</button>
+            <button id="start-btn" class="btn btn-primary btn-lg">Начать тренировку</button>
         </div>
     </div>
 
-    <script src="/static/js/Auth.js"></script>
     <script>
+        // Инициализация хэдера
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof initUnifiedHeader === 'function') {
+                initUnifiedHeader('header-container');
+            }
+        });
+
         // Состояние тренировки
         let currentTraining = null;
         let currentTestIndex = 0;
@@ -286,7 +299,7 @@
             const user = await checkAuth();
             if (!user) {
                 emptyState.innerHTML = `
-                    <div class="empty-state-icon">🔐</div>
+                    <div class="empty-state-icon">!</div>
                     <h2>Требуется авторизация</h2>
                     <p style="color: var(--color-text-muted); margin: var(--spacing-6) 0;">
                         Войдите через Telegram, чтобы начать тренировку
@@ -392,11 +405,11 @@
                 if (result.is_correct) {
                     buttonElement.classList.add('correct');
                     resultFeedback.className = 'result-feedback correct';
-                    feedbackText.textContent = '✅ Правильно!';
+                    feedbackText.textContent = 'Правильно!';
                 } else {
                     buttonElement.classList.add('incorrect');
                     resultFeedback.className = 'result-feedback incorrect';
-                    feedbackText.innerHTML = `❌ Неправильно<br><small>Правильный ответ: ${result.correct_translation}</small>`;
+                    feedbackText.innerHTML = `Неправильно<br><small>Правильный ответ: ${result.correct_translation}</small>`;
                 }
 
                 // Показываем статистику
