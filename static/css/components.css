@@ -1,0 +1,158 @@
+/**
+ * 🧩 Переиспользуемые UI компоненты
+ * Общие паттерны: кнопки, карточки, поля ввода
+ */
+
+/* ===== КНОПКИ ===== */
+
+.btn {
+    display: inline-block;
+    padding: var(--spacing-4) var(--spacing-8);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: var(--transition-base);
+    text-align: center;
+}
+
+.btn-primary {
+    background: var(--gradient-primary);
+    color: var(--color-text-white);
+    box-shadow: var(--shadow-button);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-button-hover);
+}
+
+.btn-primary:active {
+    transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+    background: var(--color-border-medium);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-lg {
+    padding: var(--spacing-5) var(--spacing-12);
+    font-size: var(--font-size-md);
+}
+
+.btn-block {
+    width: 100%;
+}
+
+
+/* ===== КАРТОЧКИ ===== */
+
+.card {
+    background: var(--color-bg-white);
+    padding: var(--spacing-6);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition-base);
+}
+
+.card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.card-lg {
+    padding: var(--spacing-10);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+}
+
+
+/* ===== ПОЛЯ ВВОДА ===== */
+
+.input {
+    width: 100%;
+    padding: var(--spacing-3) var(--spacing-4);
+    border: 2px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    font-family: var(--font-family-base);
+    transition: var(--transition-base);
+    color: var(--color-text-primary);
+    background: var(--color-bg-lighter);
+}
+
+.input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    background: var(--color-bg-white);
+    box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.08);
+}
+
+.input::placeholder {
+    color: var(--color-text-light);
+}
+
+
+/* ===== ТЕГИ/BADGES ===== */
+
+.badge {
+    display: inline-block;
+    padding: var(--spacing-2) var(--spacing-4);
+    border-radius: var(--radius-pill);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+.badge-primary {
+    background: var(--color-primary);
+    color: var(--color-text-white);
+}
+
+.badge-outline {
+    border: 1.5px solid var(--color-text-primary);
+    background: transparent;
+    color: var(--color-text-primary);
+}
+
+
+/* ===== ОШИБКИ ===== */
+
+.error-message {
+    background: var(--gradient-error);
+    color: var(--color-error-text);
+    padding: var(--spacing-4) var(--spacing-5);
+    border-radius: var(--radius-md);
+    font-weight: var(--font-weight-medium);
+    border-left: 4px solid #e53e3e;
+}
+
+.success-message {
+    background: var(--color-success);
+    color: var(--color-success-text);
+    padding: var(--spacing-4) var(--spacing-5);
+    border-radius: var(--radius-md);
+    font-weight: var(--font-weight-medium);
+    border-left: 4px solid #38a169;
+}
+
+
+/* ===== АДАПТИВНОСТЬ ===== */
+
+@media (max-width: 768px) {
+    .card {
+        padding: var(--spacing-5);
+    }
+
+    .card-lg {
+        padding: var(--spacing-6);
+    }
+
+    .btn-lg {
+        padding: var(--spacing-4) var(--spacing-10);
+        font-size: var(--font-size-base);
+    }
+}

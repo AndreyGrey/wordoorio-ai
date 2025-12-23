@@ -1,0 +1,142 @@
+/**
+ * 🎨 Wordoorio Design System
+ * Единая система переменных для всех страниц
+ */
+
+:root {
+    /* ===== ЦВЕТА ===== */
+
+    /* Основные цвета */
+    --color-primary: #4CAF50;           /* Зелёный акцент */
+    --color-primary-dark: #45A049;      /* Тёмный зелёный */
+    --color-secondary: #39A0B3;         /* Бирюзовый */
+    --color-secondary-dark: #1B7A94;    /* Тёмный бирюзовый */
+
+    /* Текст */
+    --color-text-primary: #2d3748;      /* Основной текст */
+    --color-text-secondary: #4a5568;    /* Вторичный текст */
+    --color-text-muted: #718096;        /* Приглушённый текст */
+    --color-text-light: #a0aec0;        /* Светлый текст */
+    --color-text-white: #ffffff;        /* Белый текст */
+
+    /* Фоны */
+    --color-bg-body: linear-gradient(90deg, #39A0B3 0%, #1B7A94 100%);
+    --color-bg-white: #ffffff;
+    --color-bg-light: #f7fafc;
+    --color-bg-lighter: #fafafa;
+
+    /* Границы */
+    --color-border-light: #e2e8f0;
+    --color-border-medium: #cbd5e0;
+
+    /* Статусы */
+    --color-success: #c6f6d5;
+    --color-success-text: #22543d;
+    --color-error: #fed7d7;
+    --color-error-text: #c53030;
+
+    /* Градиенты */
+    --gradient-primary: linear-gradient(135deg, #4CAF50 0%, #45A049 100%);
+    --gradient-error: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
+
+
+    /* ===== ТИПОГРАФИКА ===== */
+
+    /* Семейства шрифтов */
+    --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-family-heading: 'Manrope', 'Inter', sans-serif;
+
+    /* Размеры шрифтов */
+    --font-size-xs: 0.75rem;      /* 12px */
+    --font-size-sm: 0.875rem;     /* 14px */
+    --font-size-base: 1rem;        /* 16px */
+    --font-size-md: 1.125rem;      /* 18px */
+    --font-size-lg: 1.25rem;       /* 20px */
+    --font-size-xl: 1.5rem;        /* 24px */
+    --font-size-2xl: 1.875rem;     /* 30px */
+    --font-size-3xl: 2.5rem;       /* 40px */
+
+    /* Веса шрифтов */
+    --font-weight-light: 300;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+    --font-weight-extrabold: 800;
+
+    /* Высота строки */
+    --line-height-tight: 1.1;
+    --line-height-normal: 1.5;
+    --line-height-relaxed: 1.6;
+
+
+    /* ===== ОТСТУПЫ (8px grid system) ===== */
+
+    --spacing-0: 0;
+    --spacing-1: 0.25rem;   /* 4px */
+    --spacing-2: 0.5rem;    /* 8px */
+    --spacing-3: 0.75rem;   /* 12px */
+    --spacing-4: 1rem;      /* 16px */
+    --spacing-5: 1.25rem;   /* 20px */
+    --spacing-6: 1.5rem;    /* 24px */
+    --spacing-7: 1.75rem;   /* 28px */
+    --spacing-8: 2rem;      /* 32px */
+    --spacing-10: 2.5rem;   /* 40px */
+    --spacing-12: 3rem;     /* 48px */
+    --spacing-16: 4rem;     /* 64px */
+
+
+    /* ===== РАДИУСЫ СКРУГЛЕНИЯ ===== */
+
+    --radius-none: 0;
+    --radius-sm: 0.375rem;    /* 6px */
+    --radius-md: 0.75rem;     /* 12px */
+    --radius-lg: 1rem;        /* 16px */
+    --radius-xl: 1.25rem;     /* 20px */
+    --radius-pill: 999px;     /* Таблетки */
+
+
+    /* ===== ТЕНИ ===== */
+
+    --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.05);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.12);
+    --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.15);
+
+    /* Тени для кнопок */
+    --shadow-button: 0 4px 12px rgba(76, 175, 80, 0.3);
+    --shadow-button-hover: 0 6px 16px rgba(76, 175, 80, 0.4);
+
+
+    /* ===== ПЕРЕХОДЫ ===== */
+
+    --transition-fast: all 0.15s ease;
+    --transition-base: all 0.2s ease;
+    --transition-slow: all 0.3s ease;
+    --transition-slower: all 0.4s ease;
+
+
+    /* ===== Z-INDEX ===== */
+
+    --z-base: 1;
+    --z-overlay: 2;
+    --z-dropdown: 10;
+    --z-modal: 100;
+    --z-notification: 1000;
+    --z-tooltip: 10000;
+
+
+    /* ===== КОНТЕЙНЕРЫ ===== */
+
+    --container-max-width: 1000px;
+    --container-padding: var(--spacing-5);  /* 20px */
+
+
+    /* ===== BREAKPOINTS (для reference в JS) ===== */
+    /* Используются в @media queries */
+
+    --breakpoint-mobile: 480px;
+    --breakpoint-tablet: 768px;
+    --breakpoint-desktop: 1024px;
+}

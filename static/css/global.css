@@ -1,0 +1,63 @@
+/**
+ * 🌐 Глобальные стили Wordoorio
+ * Подключать на всех страницах
+ */
+
+/* Импорт шрифтов */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@400;600;700;800&display=swap');
+
+/* Сброс стилей */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Body */
+body {
+    font-family: var(--font-family-base);
+    background: var(--color-bg-body);
+    min-height: 100vh;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+}
+
+/* Контейнер */
+.container {
+    max-width: var(--container-max-width);
+    margin: 0 auto;
+    padding: var(--spacing-10) var(--container-padding);
+}
+
+/* Ссылки */
+a {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: var(--transition-base);
+}
+
+a:hover {
+    color: var(--color-primary-dark);
+}
+
+/* Заголовки */
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-family-heading);
+    line-height: var(--line-height-tight);
+    color: var(--color-text-primary);
+}
+
+h1 { font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); }
+h2 { font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); }
+h3 { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); }
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .container {
+        padding: var(--spacing-5) var(--spacing-4);
+    }
+
+    h1 { font-size: var(--font-size-2xl); }
+    h2 { font-size: var(--font-size-xl); }
+}

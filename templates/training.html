@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тренировка | Wordoorio</title>
+
+    <!-- CSS система -->
+    <link rel="stylesheet" href="/static/css/variables.css">
+    <link rel="stylesheet" href="/static/css/global.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+
+    <style>
+        /* Специфичные стили для тренировки */
+        .training-header {
+            text-align: center;
+            color: var(--color-text-white);
+            margin-bottom: var(--spacing-8);
+        }
+
+        .training-card {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .word-display {
+            text-align: center;
+            padding: var(--spacing-8) 0;
+            border-bottom: 2px solid var(--color-border-light);
+            margin-bottom: var(--spacing-6);
+        }
+
+        .word-en {
+            font-size: var(--font-size-3xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-primary);
+            margin-bottom: var(--spacing-2);
+        }
+
+        .word-type {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .progress-bar {
+            background: var(--color-bg-light);
+            height: 8px;
+            border-radius: var(--radius-pill);
+            overflow: hidden;
+            margin-bottom: var(--spacing-4);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--gradient-primary);
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: var(--color-text-white);
+            font-size: var(--font-size-sm);
+            margin-bottom: var(--spacing-6);
+            font-weight: var(--font-weight-medium);
+        }
+
+        .options-container {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-3);
+        }
+
+        .option-btn {
+            padding: var(--spacing-5);
+            border: 2px solid var(--color-border-light);
+            border-radius: var(--radius-md);
+            background: var(--color-bg-white);
+            cursor: pointer;
+            transition: var(--transition-base);
+            font-size: var(--font-size-base);
+            text-align: left;
+            color: var(--color-text-primary);
+            font-weight: var(--font-weight-medium);
+        }
+
+        .option-btn:hover {
+            border-color: var(--color-primary);
+            background: var(--color-bg-light);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .option-btn.correct {
+            border-color: var(--color-primary);
+            background: var(--color-success);
+            color: var(--color-success-text);
+        }
+
+        .option-btn.incorrect {
+            border-color: #e53e3e;
+            background: var(--color-error);
+            color: var(--color-error-text);
+        }
+
+        .option-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .result-feedback {
+            text-align: center;
+            padding: var(--spacing-6);
+            border-radius: var(--radius-md);
+            margin-top: var(--spacing-6);
+            font-weight: var(--font-weight-semibold);
+        }
+
+        .result-feedback.correct {
+            background: var(--color-success);
+            color: var(--color-success-text);
+        }
+
+        .result-feedback.incorrect {
+            background: var(--color-error);
+            color: var(--color-error-text);
+        }
+
+        .word-stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: var(--spacing-4);
+            padding-top: var(--spacing-4);
+            border-top: 2px solid var(--color-border-light);
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-muted);
+            display: block;
+        }
+
+        .stat-value {
+            font-size: var(--font-size-xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-primary);
+            display: block;
+            margin-top: var(--spacing-1);
+        }
+
+        .completion-screen {
+            text-align: center;
+            padding: var(--spacing-12) var(--spacing-6);
+        }
+
+        .completion-icon {
+            font-size: 4rem;
+            margin-bottom: var(--spacing-6);
+        }
+
+        .completion-title {
+            font-size: var(--font-size-2xl);
+            color: var(--color-text-primary);
+            margin-bottom: var(--spacing-4);
+        }
+
+        .completion-stats {
+            background: var(--color-bg-light);
+            padding: var(--spacing-6);
+            border-radius: var(--radius-md);
+            margin: var(--spacing-6) 0;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: var(--spacing-16) var(--spacing-6);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: var(--spacing-6);
+        }
+
+        @media (max-width: 768px) {
+            .word-en {
+                font-size: var(--font-size-2xl);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="training-header">
+            <h1>🎯 Тренировка слов</h1>
+            <p>Проверьте свои знания английских слов</p>
+        </div>
+
+        <!-- Прогресс -->
+        <div id="progress-container" style="display: none;">
+            <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+            </div>
+            <div id="progress-text" class="progress-text">Тест 0 из 0</div>
+        </div>
+
+        <!-- Карточка тренировки -->
+        <div id="training-card" class="card card-lg training-card" style="display: none;">
+            <!-- Отображение слова -->
+            <div class="word-display">
+                <div id="word-english" class="word-en">...</div>
+                <div id="word-type" class="word-type"></div>
+            </div>
+
+            <!-- Варианты ответов -->
+            <div id="options-container" class="options-container">
+                <!-- Варианты добавятся через JS -->
+            </div>
+
+            <!-- Результат ответа -->
+            <div id="result-feedback" class="result-feedback" style="display: none;">
+                <div id="feedback-text"></div>
+                <div class="word-stats">
+                    <div class="stat">
+                        <span class="stat-label">Рейтинг</span>
+                        <span id="stat-rating" class="stat-value">-</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Статус</span>
+                        <span id="stat-status" class="stat-value">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Экран завершения -->
+        <div id="completion-screen" class="card card-lg training-card completion-screen" style="display: none;">
+            <div class="completion-icon">🎉</div>
+            <h2 class="completion-title">Отлично! Все тесты пройдены!</h2>
+            <div class="completion-stats">
+                <p>Вы завершили тренировку!</p>
+            </div>
+            <button id="restart-btn" class="btn btn-primary btn-lg">Начать ещё 8 слов 🚀</button>
+        </div>
+
+        <!-- Пустое состояние / Загрузка -->
+        <div id="empty-state" class="card card-lg training-card empty-state">
+            <div class="empty-state-icon">📚</div>
+            <h2>Готовы к тренировке?</h2>
+            <p style="color: var(--color-text-muted); margin: var(--spacing-6) 0;">
+                Мы выберем 8 слов из вашего словаря для тренировки
+            </p>
+            <button id="start-btn" class="btn btn-primary btn-lg">Начать тренировку 🚀</button>
+        </div>
+    </div>
+
+    <script src="/static/js/Auth.js"></script>
+    <script>
+        // Состояние тренировки
+        let currentTraining = null;
+        let currentTestIndex = 0;
+
+        // Элементы DOM
+        const startBtn = document.getElementById('start-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const emptyState = document.getElementById('empty-state');
+        const trainingCard = document.getElementById('training-card');
+        const completionScreen = document.getElementById('completion-screen');
+        const progressContainer = document.getElementById('progress-container');
+        const progressFill = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress-text');
+        const wordEnglish = document.getElementById('word-english');
+        const wordType = document.getElementById('word-type');
+        const optionsContainer = document.getElementById('options-container');
+        const resultFeedback = document.getElementById('result-feedback');
+        const feedbackText = document.getElementById('feedback-text');
+        const statRating = document.getElementById('stat-rating');
+        const statStatus = document.getElementById('stat-status');
+
+        // Проверка авторизации при загрузке
+        document.addEventListener('DOMContentLoaded', async () => {
+            const user = await checkAuth();
+            if (!user) {
+                emptyState.innerHTML = `
+                    <div class="empty-state-icon">🔐</div>
+                    <h2>Требуется авторизация</h2>
+                    <p style="color: var(--color-text-muted); margin: var(--spacing-6) 0;">
+                        Войдите через Telegram, чтобы начать тренировку
+                    </p>
+                    <a href="/" class="btn btn-primary">На главную</a>
+                `;
+                return;
+            }
+        });
+
+        // Начать тренировку
+        startBtn.addEventListener('click', startTraining);
+        restartBtn.addEventListener('click', startTraining);
+
+        async function startTraining() {
+            try {
+                startBtn.disabled = true;
+                startBtn.textContent = 'Загрузка...';
+
+                const response = await fetch('/api/training/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Ошибка запуска тренировки');
+                }
+
+                currentTraining = data;
+                currentTestIndex = 0;
+
+                // Показываем интерфейс тренировки
+                emptyState.style.display = 'none';
+                completionScreen.style.display = 'none';
+                trainingCard.style.display = 'block';
+                progressContainer.style.display = 'block';
+
+                // Показываем первый тест
+                showTest();
+
+            } catch (error) {
+                alert(error.message);
+                startBtn.disabled = false;
+                startBtn.textContent = 'Начать тренировку 🚀';
+            }
+        }
+
+        function showTest() {
+            if (!currentTraining || currentTestIndex >= currentTraining.tests.length) {
+                showCompletion();
+                return;
+            }
+
+            const test = currentTraining.tests[currentTestIndex];
+
+            // Обновляем прогресс
+            const progress = ((currentTestIndex + 1) / currentTraining.tests.length) * 100;
+            progressFill.style.width = `${progress}%`;
+            progressText.textContent = `Тест ${currentTestIndex + 1} из ${currentTraining.tests.length}`;
+
+            // Показываем слово
+            wordEnglish.textContent = test.word;
+            wordType.textContent = test.type || '';
+
+            // Скрываем результат предыдущего теста
+            resultFeedback.style.display = 'none';
+
+            // Создаем варианты ответов
+            optionsContainer.innerHTML = '';
+            test.options.forEach((option, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.textContent = option.text;
+                btn.onclick = () => submitAnswer(test.test_id, option.text, btn);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        async function submitAnswer(testId, selectedOption, buttonElement) {
+            try {
+                // Блокируем все кнопки
+                const allButtons = optionsContainer.querySelectorAll('.option-btn');
+                allButtons.forEach(btn => btn.disabled = true);
+
+                const response = await fetch('/api/training/answer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        test_id: testId,
+                        answer: selectedOption
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Ошибка отправки ответа');
+                }
+
+                // Показываем результат
+                if (result.is_correct) {
+                    buttonElement.classList.add('correct');
+                    resultFeedback.className = 'result-feedback correct';
+                    feedbackText.textContent = '✅ Правильно!';
+                } else {
+                    buttonElement.classList.add('incorrect');
+                    resultFeedback.className = 'result-feedback incorrect';
+                    feedbackText.innerHTML = `❌ Неправильно<br><small>Правильный ответ: ${result.correct_translation}</small>`;
+                }
+
+                // Показываем статистику
+                statRating.textContent = `${result.new_rating}/10`;
+                statStatus.textContent = result.new_status;
+                resultFeedback.style.display = 'block';
+
+                // Переходим к следующему тесту через 2 секунды
+                setTimeout(() => {
+                    currentTestIndex++;
+                    showTest();
+                }, 2000);
+
+            } catch (error) {
+                alert(error.message);
+                // Разблокируем кнопки при ошибке
+                const allButtons = optionsContainer.querySelectorAll('.option-btn');
+                allButtons.forEach(btn => btn.disabled = false);
+            }
+        }
+
+        function showCompletion() {
+            trainingCard.style.display = 'none';
+            progressContainer.style.display = 'none';
+            completionScreen.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

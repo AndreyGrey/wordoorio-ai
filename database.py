@@ -120,6 +120,69 @@ class WordoorioDatabase:
             # Индекс для быстрого поиска по telegram_id
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)")
 
+            # ===== СИСТЕМА ТРЕНИРОВКИ =====
+
+            # Добавляем поля rating и last_rating_change в dictionary_words (миграция)
+            try:
+                cursor.execute("ALTER TABLE dictionary_words ADD COLUMN rating INTEGER DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # Колонка уже существует
+
+            try:
+                cursor.execute("ALTER TABLE dictionary_words ADD COLUMN last_rating_change TEXT")
+            except sqlite3.OperationalError:
+                pass  # Колонка уже существует
+
+            # Таблица состояния тренировки пользователя
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_training_state (
+                    user_id INTEGER PRIMARY KEY,
+                    last_selection_position INTEGER DEFAULT 1,
+                    last_training_at TEXT,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+            """)
+
+            # Таблица тестов (удаляются после ответа)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS tests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    word_id INTEGER NOT NULL,
+                    word TEXT NOT NULL,
+                    correct_translation TEXT NOT NULL,
+                    wrong_option_1 TEXT NOT NULL,
+                    wrong_option_2 TEXT NOT NULL,
+                    wrong_option_3 TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id),
+                    FOREIGN KEY (word_id) REFERENCES dictionary_words(id)
+                )
+            """)
+
+            # Таблица статистики тестов
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS word_test_statistics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    word_id INTEGER NOT NULL,
+                    total_tests INTEGER DEFAULT 0,
+                    correct_answers INTEGER DEFAULT 0,
+                    wrong_answers INTEGER DEFAULT 0,
+                    last_test_at TEXT,
+                    last_result BOOLEAN,
+                    FOREIGN KEY (user_id) REFERENCES users(id),
+                    FOREIGN KEY (word_id) REFERENCES dictionary_words(id),
+                    UNIQUE(user_id, word_id)
+                )
+            """)
+
+            # Индексы для тренировочной системы
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_tests_user ON tests(user_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_stats_user_word ON word_test_statistics(user_id, word_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_rating ON dictionary_words(rating)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_last_rating_change ON dictionary_words(last_rating_change)")
+
             conn.commit()
     
     def save_analysis(self, 
@@ -300,3 +363,202 @@ class WordoorioDatabase:
                 'total_highlights': total_highlights,
                 'popular_words': popular_words
             }
+
+    # ===== МЕТОДЫ ДЛЯ ТРЕНИРОВОЧНОЙ СИСТЕМЫ =====
+
+    def get_user_training_state(self, user_id: int) -> Dict:
+        """Получить состояние тренировки пользователя"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT last_selection_position, last_training_at
+                FROM user_training_state
+                WHERE user_id = ?
+            """, (user_id,))
+
+            row = cursor.fetchone()
+            if row:
+                return {
+                    'last_selection_position': row[0],
+                    'last_training_at': row[1]
+                }
+            else:
+                # Создаем начальное состояние
+                cursor.execute("""
+                    INSERT INTO user_training_state (user_id, last_selection_position)
+                    VALUES (?, 1)
+                """, (user_id,))
+                conn.commit()
+                return {
+                    'last_selection_position': 1,
+                    'last_training_at': None
+                }
+
+    def update_training_position(self, user_id: int, position: int):
+        """Обновить позицию в алгоритме отбора"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            now = datetime.now().isoformat()
+            cursor.execute("""
+                INSERT INTO user_training_state (user_id, last_selection_position, last_training_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    last_selection_position = excluded.last_selection_position,
+                    last_training_at = excluded.last_training_at
+            """, (user_id, position, now))
+            conn.commit()
+
+    def insert_test(self, user_id: int, word_id: int, word: str,
+                    correct_translation: str, wrong_option_1: str,
+                    wrong_option_2: str, wrong_option_3: str) -> int:
+        """Создать тест"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            now = datetime.now().isoformat()
+            cursor.execute("""
+                INSERT INTO tests (user_id, word_id, word, correct_translation,
+                                 wrong_option_1, wrong_option_2, wrong_option_3, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, word_id, word, correct_translation,
+                  wrong_option_1, wrong_option_2, wrong_option_3, now))
+            conn.commit()
+            return cursor.lastrowid
+
+    def get_test(self, test_id: int) -> Optional[Dict]:
+        """Получить тест по ID"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, user_id, word_id, word, correct_translation,
+                       wrong_option_1, wrong_option_2, wrong_option_3, created_at
+                FROM tests
+                WHERE id = ?
+            """, (test_id,))
+
+            row = cursor.fetchone()
+            if row:
+                return {
+                    'id': row[0],
+                    'user_id': row[1],
+                    'word_id': row[2],
+                    'word': row[3],
+                    'correct_translation': row[4],
+                    'wrong_option_1': row[5],
+                    'wrong_option_2': row[6],
+                    'wrong_option_3': row[7],
+                    'created_at': row[8]
+                }
+            return None
+
+    def delete_test(self, test_id: int):
+        """Удалить тест"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM tests WHERE id = ?", (test_id,))
+            conn.commit()
+
+    def get_pending_tests(self, user_id: int) -> List[Dict]:
+        """Получить все нерешенные тесты пользователя"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, word_id, word, correct_translation,
+                       wrong_option_1, wrong_option_2, wrong_option_3, created_at
+                FROM tests
+                WHERE user_id = ?
+                ORDER BY created_at ASC
+            """, (user_id,))
+
+            results = []
+            for row in cursor.fetchall():
+                results.append({
+                    'id': row[0],
+                    'word_id': row[1],
+                    'word': row[2],
+                    'correct_translation': row[3],
+                    'wrong_option_1': row[4],
+                    'wrong_option_2': row[5],
+                    'wrong_option_3': row[6],
+                    'created_at': row[7]
+                })
+            return results
+
+    def update_word_rating(self, word_id: int, rating: int, last_rating_change: str = None):
+        """Обновить рейтинг слова"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            if last_rating_change is None:
+                last_rating_change = datetime.now().isoformat()
+
+            cursor.execute("""
+                UPDATE dictionary_words
+                SET rating = ?, last_rating_change = ?, last_reviewed_at = ?
+                WHERE id = ?
+            """, (rating, last_rating_change, datetime.now().isoformat(), word_id))
+            conn.commit()
+
+    def update_word_status(self, word_id: int, status: str):
+        """Обновить статус слова"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE dictionary_words
+                SET status = ?, last_reviewed_at = ?
+                WHERE id = ?
+            """, (status, datetime.now().isoformat(), word_id))
+            conn.commit()
+
+    def update_word_statistics(self, user_id: int, word_id: int, is_correct: bool):
+        """Обновить статистику тестов слова"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            now = datetime.now().isoformat()
+
+            cursor.execute("""
+                INSERT INTO word_test_statistics
+                (user_id, word_id, total_tests, correct_answers, wrong_answers, last_test_at, last_result)
+                VALUES (?, ?, 1, ?, ?, ?, ?)
+                ON CONFLICT(user_id, word_id) DO UPDATE SET
+                    total_tests = total_tests + 1,
+                    correct_answers = correct_answers + ?,
+                    wrong_answers = wrong_answers + ?,
+                    last_test_at = excluded.last_test_at,
+                    last_result = excluded.last_result
+            """, (
+                user_id, word_id,
+                1 if is_correct else 0,
+                1 if not is_correct else 0,
+                now,
+                is_correct,
+                1 if is_correct else 0,
+                1 if not is_correct else 0
+            ))
+            conn.commit()
+
+    def get_word_by_id(self, word_id: int) -> Optional[Dict]:
+        """Получить слово по ID"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, user_id, lemma, type, status, added_at,
+                       last_reviewed_at, review_count, correct_streak, rating, last_rating_change
+                FROM dictionary_words
+                WHERE id = ?
+            """, (word_id,))
+
+            row = cursor.fetchone()
+            if row:
+                return {
+                    'id': row[0],
+                    'user_id': row[1],
+                    'lemma': row[2],
+                    'type': row[3],
+                    'status': row[4],
+                    'added_at': row[5],
+                    'last_reviewed_at': row[6],
+                    'review_count': row[7],
+                    'correct_streak': row[8],
+                    'rating': row[9] or 0,
+                    'last_rating_change': row[10]
+                }
+            return None

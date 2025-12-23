@@ -679,6 +679,119 @@ def dictionary_page():
     return render_template('dictionary.html')
 
 
+@app.route('/training')
+def training_page():
+    """🎯 Страница тренировки слов"""
+    return render_template('training.html')
+
+
+@app.route('/api/training/start', methods=['POST'])
+def api_training_start():
+    """Начать новую тренировку - отобрать 8 слов и создать тесты"""
+    try:
+        from core.auth_manager import AuthManager
+        from core.training_service import TrainingService
+        from core.test_manager import TestManager
+        from core.yandex_ai_client import YandexAIClient
+        import asyncio
+
+        # Проверяем авторизацию
+        auth_manager = AuthManager(db.db_path)
+        user_data = auth_manager.verify_session(session)
+
+        if not user_data:
+            return jsonify({'error': 'Требуется авторизация'}), 401
+
+        user_id = user_data['id']
+
+        # Отбираем слова для тренировки
+        training_service = TrainingService(db)
+        words = training_service.select_words_for_training(user_id, count=8)
+
+        if not words:
+            return jsonify({'error': 'В вашем словаре недостаточно слов для тренировки'}), 400
+
+        # Создаем тесты
+        ai_client = YandexAIClient()
+        test_manager = TestManager(db, ai_client)
+
+        # Используем asyncio для создания тестов
+        loop = None
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        test_ids = loop.run_until_complete(
+            test_manager.create_tests_batch(user_id, words)
+        )
+
+        if not test_ids:
+            return jsonify({'error': 'Не удалось создать тесты'}), 500
+
+        # Получаем тесты с перемешанными вариантами
+        tests = []
+        for test_id in test_ids:
+            test = test_manager.get_test_with_shuffled_options(test_id)
+            if test:
+                tests.append(test)
+
+        return jsonify({
+            'success': True,
+            'tests': tests,
+            'total': len(tests)
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Ошибка создания тренировки: {str(e)}'}), 500
+
+
+@app.route('/api/training/answer', methods=['POST'])
+def api_training_answer():
+    """Отправить ответ на тест"""
+    try:
+        from core.auth_manager import AuthManager
+        from core.test_manager import TestManager
+        from core.yandex_ai_client import YandexAIClient
+
+        # Проверяем авторизацию
+        auth_manager = AuthManager(db.db_path)
+        user_data = auth_manager.verify_session(session)
+
+        if not user_data:
+            return jsonify({'error': 'Требуется авторизация'}), 401
+
+        data = request.get_json()
+        test_id = data.get('test_id')
+        answer = data.get('answer')
+
+        if not test_id or not answer:
+            return jsonify({'error': 'Неверные параметры'}), 400
+
+        # Проверяем ответ
+        ai_client = YandexAIClient()
+        test_manager = TestManager(db, ai_client)
+
+        result = test_manager.submit_answer(test_id, answer)
+
+        return jsonify({
+            'success': True,
+            'is_correct': result['is_correct'],
+            'correct_translation': result['correct_translation'],
+            'word': result['word'],
+            'new_rating': result['new_rating'],
+            'new_status': result['new_status']
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Ошибка проверки ответа: {str(e)}'}), 500
+
+
 if __name__ == '__main__':
     print("🚀 Запуск веб-интерфейса Wordoorio...")
     print("📱 Откройте http://localhost:8081 в браузере")
