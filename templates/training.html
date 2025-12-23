@@ -321,7 +321,8 @@
 
                 const response = await fetch('/api/training/start', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin'
                 });
 
                 const data = await response.json();
@@ -389,6 +390,7 @@
                 const response = await fetch('/api/training/answer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
                     body: JSON.stringify({
                         test_id: testId,
                         answer: selectedOption
