@@ -17,24 +17,19 @@ function createUnifiedHeader(user = null) {
     let authSection = '';
 
     if (user) {
-        // Пользователь авторизован - показываем аватар и имя
-        const displayName = user.first_name || user.username || 'User';
-        const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=39A0B3&color=fff&size=128&bold=true`;
-        const photoUrl = user.photo_url || defaultAvatar;
+        // Пользователь авторизован - показываем имя и кнопку выхода
+        const displayName = user.username || 'User';
 
         authSection = `
             <div class="user-info">
-                <img src="${photoUrl}" alt="${displayName}" class="user-avatar" />
                 <span class="user-name">${displayName}</span>
                 <button class="logout-btn" onclick="handleLogout()">Выйти</button>
             </div>
         `;
     } else {
-        // Пользователь не авторизован - показываем Telegram Login Widget
+        // Пользователь не авторизован - показываем кнопку входа
         authSection = `
-            <div id="telegram-login-container" class="telegram-login-wrapper">
-                <!-- Telegram Login Widget будет загружен динамически -->
-            </div>
+            <a href="/login" class="login-btn">Войти</a>
         `;
     }
 
@@ -177,11 +172,22 @@ function getUnifiedHeaderStyles() {
 
         /* ===== AUTH SECTION ===== */
 
-        /* Telegram Login Widget wrapper */
-        .telegram-login-wrapper {
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        /* Login button */
+        .login-btn {
+            padding: 10px 24px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 15px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
         }
 
         /* User info section */
@@ -193,14 +199,6 @@ function getUnifiedHeaderStyles() {
             background: rgba(255, 255, 255, 0.95);
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid #FF9966;
         }
 
         .user-name {
@@ -280,106 +278,45 @@ async function initUnifiedHeader(containerId = 'header-container') {
         document.head.appendChild(styleEl);
     }
 
-    // Проверяем текущего пользователя
-    await window.auth.init();
-    const currentUser = window.auth.getCurrentUser();
-
-    // Рендерим header с учетом auth state
-    container.innerHTML = createUnifiedHeader(currentUser);
-
-    // Если пользователь не авторизован, загружаем Telegram Login Widget
-    if (!currentUser) {
-        await loadTelegramLoginWidget();
-    }
-
-    // Подписываемся на изменения авторизации
-    window.auth.onAuthChange((isAuthenticated, user) => {
-        console.log('Auth state changed:', isAuthenticated, user);
-        container.innerHTML = createUnifiedHeader(user);
-
-        // Если пользователь вышел, загружаем виджет снова
-        if (!isAuthenticated) {
-            loadTelegramLoginWidget();
-        }
-    });
-}
-
-/**
- * Загрузить Telegram Login Widget
- */
-async function loadTelegramLoginWidget() {
+    // Проверяем текущего пользователя через API
+    let currentUser = null;
     try {
-        // Проверяем, что мы не на localhost (виджет не работает локально)
-        const isLocalhost = window.location.hostname === 'localhost' ||
-                          window.location.hostname === '127.0.0.1' ||
-                          window.location.hostname.includes('192.168');
-
-        if (isLocalhost) {
-            console.log('🔧 DEV MODE: Telegram Login Widget не загружается на localhost. Используйте devLogin() в консоли.');
-            const container = document.getElementById('telegram-login-container');
-            if (container) {
-                container.innerHTML = `
-                    <div style="padding: 10px 20px; background: rgba(255,255,255,0.9); border-radius: 12px; color: #4a5568; font-size: 14px; font-weight: 500;">
-                        🔧 Dev mode: используйте <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">devLogin()</code> в консоли
-                    </div>
-                `;
-            }
-            return;
+        const response = await fetch('/api/auth/current', {
+            credentials: 'same-origin'
+        });
+        const data = await response.json();
+        if (data.success && data.user) {
+            currentUser = data.user;
         }
-
-        // Получаем bot_username из API с timeout и fallback
-        let botUsername = 'wordoorio_bot'; // Fallback значение
-
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 сек timeout
-
-            const response = await fetch('/api/auth/config', {
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-
-            const data = await response.json();
-            if (data.success && data.bot_username) {
-                botUsername = data.bot_username;
-            }
-        } catch (error) {
-            console.warn('Failed to fetch bot config, using fallback:', error.message);
-        }
-        const container = document.getElementById('telegram-login-container');
-
-        if (!container) {
-            console.warn('Telegram login container not found');
-            return;
-        }
-
-        // Создаем скрипт Telegram Login Widget
-        const script = document.createElement('script');
-        script.src = 'https://telegram.org/js/telegram-widget.js?22';
-        script.setAttribute('data-telegram-login', botUsername);
-        script.setAttribute('data-size', 'medium');
-        script.setAttribute('data-radius', '8');
-        script.setAttribute('data-onauth', 'onTelegramAuth(user)');
-        script.setAttribute('data-request-access', 'write');
-        script.async = true;
-
-        container.innerHTML = '';
-        container.appendChild(script);
     } catch (error) {
-        console.error('Failed to load Telegram widget:', error);
+        console.error('Failed to check auth:', error);
     }
+
+    // Рендерим header
+    container.innerHTML = createUnifiedHeader(currentUser);
 }
 
 /**
  * Обработчик выхода из системы
  */
 async function handleLogout() {
-    const result = await window.auth.logout();
+    try {
+        const response = await fetch('/api/auth/logout', {
+            method: 'POST',
+            credentials: 'same-origin'
+        });
 
-    if (result.success) {
-        // Header обновится автоматически через onAuthChange callback
-        showNotification('Вы вышли из системы');
-    } else {
+        const result = await response.json();
+
+        if (result.success) {
+            showNotification('Вы вышли из системы');
+            // Перезагружаем страницу чтобы обновить header
+            setTimeout(() => window.location.reload(), 500);
+        } else {
+            showNotification('Ошибка выхода', 'error');
+        }
+    } catch (error) {
+        console.error('Logout error:', error);
         showNotification('Ошибка выхода', 'error');
     }
 }
@@ -411,39 +348,6 @@ function showNotification(message, type = 'success') {
         setTimeout(() => notification.remove(), 300);
     }, 3000);
 }
-
-/**
- * DEV: Тестовая авторизация (для локальной разработки)
- * Использование: откройте консоль браузера и вызовите devLogin()
- */
-async function devLogin() {
-    console.log('🔧 DEV MODE: Выполняется тестовая авторизация...');
-
-    // Создаем тестовые данные пользователя
-    const testUser = {
-        id: 123456789,
-        first_name: 'Test',
-        last_name: 'User',
-        username: 'testuser',
-        photo_url: 'https://ui-avatars.com/api/?name=Test+User&background=39A0B3&color=fff&size=128&bold=true',
-        auth_date: Math.floor(Date.now() / 1000),
-        hash: 'dev_mode_no_verification'
-    };
-
-    // Используем существующий обработчик
-    const result = await window.auth.handleTelegramAuth(testUser);
-
-    if (result.success) {
-        console.log('✅ DEV MODE: Авторизация успешна');
-        showNotification('Вы успешно авторизованы (DEV MODE)');
-    } else {
-        console.error('❌ DEV MODE: Ошибка авторизации:', result.error);
-        showNotification('Ошибка авторизации: ' + result.error, 'error');
-    }
-}
-
-// Делаем devLogin доступной глобально для вызова из консоли
-window.devLogin = devLogin;
 
 // Экспорт для использования в других модулях
 if (typeof module !== 'undefined' && module.exports) {

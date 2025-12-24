@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход | Wordoorio</title>
+
+    <!-- CSS система -->
+    <link rel="stylesheet" href="/static/css/variables.css">
+    <link rel="stylesheet" href="/static/css/global.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: var(--spacing-4);
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: var(--spacing-8);
+            color: var(--color-text-white);
+        }
+
+        .login-header h1 {
+            margin-bottom: var(--spacing-2);
+        }
+
+        .login-header p {
+            color: var(--color-text-muted);
+        }
+
+        .login-card {
+            background: var(--color-bg-white);
+            padding: var(--spacing-10);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .form-group {
+            margin-bottom: var(--spacing-6);
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: var(--spacing-2);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-primary);
+            font-size: var(--font-size-sm);
+        }
+
+        .login-btn {
+            margin-top: var(--spacing-4);
+        }
+
+        #error-message {
+            display: none;
+            margin-bottom: var(--spacing-6);
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>Wordoorio</h1>
+            <p>Вход в систему</p>
+        </div>
+
+        <div class="login-card">
+            <div id="error-message" class="error-message"></div>
+
+            <form id="login-form">
+                <div class="form-group">
+                    <label class="form-label" for="username">Логин</label>
+                    <input
+                        type="text"
+                        id="username"
+                        name="username"
+                        class="input"
+                        required
+                        autocomplete="username"
+                        placeholder="Введите логин"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">Пароль</label>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        class="input"
+                        required
+                        autocomplete="current-password"
+                        placeholder="Введите пароль"
+                    >
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg btn-block login-btn">
+                    Войти
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('login-form');
+        const errorMessage = document.getElementById('error-message');
+        const submitBtn = form.querySelector('button[type="submit"]');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            // Скрываем ошибку
+            errorMessage.style.display = 'none';
+
+            // Блокируем кнопку
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Вход...';
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Успешный вход - редирект на главную
+                    window.location.href = '/';
+                } else {
+                    // Показываем ошибку
+                    errorMessage.textContent = data.error || 'Ошибка входа';
+                    errorMessage.style.display = 'block';
+
+                    // Разблокируем кнопку
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Войти';
+                }
+            } catch (error) {
+                errorMessage.textContent = 'Ошибка соединения с сервером';
+                errorMessage.style.display = 'block';
+
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Войти';
+            }
+        });
+    </script>
+</body>
+</html>

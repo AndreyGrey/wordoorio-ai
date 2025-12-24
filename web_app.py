@@ -544,89 +544,16 @@ def api_dictionary_stats():
 
 # ===== AUTH API =====
 
-@app.route('/api/auth/telegram', methods=['POST'])
-def auth_telegram():
-    """
-    🔐 Обработка авторизации через Telegram Login Widget
-
-    Принимает данные от Telegram, проверяет подпись и создает сессию
-    """
-    try:
-        from core.auth_manager import AuthManager
-
-        data = request.get_json()
-
-        # Создаем AuthManager
-        auth = AuthManager()
-
-        # TODO: Временно отключена проверка подписи для тестирования
-        # Включить обратно когда будем деплоить Telegram бота
-        # if not auth.verify_telegram_auth(data):
-        #     return jsonify({
-        #         'success': False,
-        #         'error': 'Invalid Telegram signature'
-        #     }), 403
-
-        # Создаем или обновляем пользователя
-        user_id = auth.create_or_update_user(data)
-
-        if not user_id:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to create user'
-            }), 500
-
-        # Сохраняем user_id в сессии
-        session['user_id'] = user_id
-        session['telegram_id'] = data.get('id')
-
-        # Получаем данные пользователя
-        user = auth.get_user_by_id(user_id)
-
-        return jsonify({
-            'success': True,
-            'user': {
-                'id': user['id'],
-                'telegram_id': user['telegram_id'],
-                'first_name': user['first_name'],
-                'last_name': user['last_name'],
-                'username': user['username'],
-                'photo_url': user['photo_url']
-            }
-        })
-
-    except Exception as e:
-        print(f"❌ Ошибка авторизации: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': f'Ошибка авторизации: {str(e)}'
-        }), 500
-
-
 @app.route('/api/auth/current', methods=['GET'])
 def get_current_user():
     """
-    👤 Получить текущего авторизованного пользователя
+    Получить текущего авторизованного пользователя
     """
     try:
         user_id = session.get('user_id')
+        username = session.get('username')
 
         if not user_id:
-            return jsonify({
-                'success': True,
-                'user': None
-            })
-
-        from core.auth_manager import AuthManager
-        auth = AuthManager()
-        user = auth.get_user_by_id(user_id)
-
-        if not user:
-            # Пользователь удален из базы, чистим сессию
-            session.pop('user_id', None)
-            session.pop('telegram_id', None)
             return jsonify({
                 'success': True,
                 'user': None
@@ -635,17 +562,13 @@ def get_current_user():
         return jsonify({
             'success': True,
             'user': {
-                'id': user['id'],
-                'telegram_id': user['telegram_id'],
-                'first_name': user['first_name'],
-                'last_name': user['last_name'],
-                'username': user['username'],
-                'photo_url': user['photo_url']
+                'id': user_id,
+                'username': username
             }
         })
 
     except Exception as e:
-        print(f"❌ Ошибка получения пользователя: {e}")
+        print(f"Ошибка получения пользователя: {e}")
         return jsonify({
             'success': False,
             'error': f'Ошибка: {str(e)}'
@@ -655,23 +578,69 @@ def get_current_user():
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
     """
-    🚪 Выход из системы
+    Выход из системы
     """
-    session.pop('user_id', None)
-    session.pop('telegram_id', None)
+    session.clear()
     return jsonify({'success': True})
 
 
-@app.route('/api/auth/config', methods=['GET'])
-def auth_config():
+@app.route('/api/auth/login', methods=['POST'])
+def auth_login():
     """
-    ⚙️ Получить конфигурацию авторизации (bot_username)
+    Простая авторизация по логину-паролю для тестирования
     """
-    bot_username = os.getenv('TELEGRAM_BOT_USERNAME', '')
-    return jsonify({
-        'success': True,
-        'bot_username': bot_username
-    })
+    try:
+        data = request.get_json()
+        username = data.get('username', '').strip()
+        password = data.get('password', '').strip()
+
+        # Тестовые аккаунты (TODO: позже заменить на нормальную БД)
+        TEST_ACCOUNTS = {
+            'andrew': {'password': 'test123', 'user_id': 1},
+            'friend1': {'password': 'test123', 'user_id': 2},
+            'friend2': {'password': 'test123', 'user_id': 3},
+        }
+
+        if username not in TEST_ACCOUNTS:
+            return jsonify({
+                'success': False,
+                'error': 'Неверный логин или пароль'
+            }), 401
+
+        account = TEST_ACCOUNTS[username]
+
+        if account['password'] != password:
+            return jsonify({
+                'success': False,
+                'error': 'Неверный логин или пароль'
+            }), 401
+
+        # Сохраняем в сессии
+        session['user_id'] = account['user_id']
+        session['username'] = username
+
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': account['user_id'],
+                'username': username
+            }
+        })
+
+    except Exception as e:
+        print(f"Ошибка авторизации: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': 'Ошибка сервера'
+        }), 500
+
+
+@app.route('/login')
+def login_page():
+    """Страница входа"""
+    return render_template('login.html')
 
 
 @app.route('/dictionary')
@@ -756,9 +725,8 @@ def api_training_answer():
         # Проверяем авторизацию
         user_id = session.get('user_id')
 
-        # TODO: Временно для тестирования - используем user_id=1 если сессия пустая
         if not user_id:
-            user_id = 1  # Ваш аккаунт
+            return jsonify({'error': 'Требуется авторизация'}), 401
 
         data = request.get_json()
         test_id = data.get('test_id')
