@@ -10,6 +10,7 @@ import requests
 import json
 import asyncio
 import aiohttp
+import logging
 from typing import Dict, List, Any, Optional
 from dotenv import load_dotenv
 
@@ -18,6 +19,9 @@ load_dotenv()
 
 # Импортируем контракты
 from contracts.analysis_contracts import AgentResponse
+
+# Настройка логирования
+logger = logging.getLogger(__name__)
 
 class YandexAIClient:
     """Клиент для работы с Yandex AI Studio"""
@@ -184,7 +188,7 @@ class YandexAIClient:
             if response.status_code == 200:
                 token_data = response.json()
                 iam_token = token_data.get('access_token', '')
-                print(f"✅ IAM токен получен через Metadata Service (авто-обновление)", flush=True)
+                logger.info("IAM токен получен через Metadata Service (авто-обновление)")
                 return iam_token
 
         except Exception as e:
@@ -194,10 +198,10 @@ class YandexAIClient:
         # FALLBACK: проверяем переменную окружения (только для локальной разработки)
         env_token = os.getenv('YANDEX_IAM_TOKEN', '')
         if env_token:
-            print(f"⚠️ Используется IAM токен из .env (локальная разработка). Токены истекают через 12 часов!", flush=True)
+            logger.warning("Используется IAM токен из .env (локальная разработка). Токены истекают через 12 часов!")
             return env_token
 
-        print(f"❌ IAM токен не найден ни в Metadata Service, ни в environment variables", flush=True)
+        logger.error("IAM токен не найден ни в Metadata Service, ни в environment variables")
         return ''
 
     async def translate_text(self, text: str, target_lang: str = "ru") -> str:
@@ -221,7 +225,7 @@ class YandexAIClient:
         Raises:
             Exception: При ошибках сети или парсинга
         """
-        print(f"🤖 Вызов агента {agent_id[:10]}...", flush=True)
+        logger.info(f"Вызов агента {agent_id[:10]}...")
 
         # Получаем API ключ (приоритет: YANDEX_CLOUD_API_KEY > IAM токен)
         api_key = os.getenv('YANDEX_CLOUD_API_KEY', self.iam_token)
@@ -230,8 +234,8 @@ class YandexAIClient:
             raise Exception("Для AI анализа нужны токены Yandex GPT")
 
         # Диагностика
-        print(f"DEBUG: api_key starts with: {api_key[:10] if api_key else 'None'}...", flush=True)
-        print(f"DEBUG: folder_id: {self.folder_id}", flush=True)
+        logger.debug(f"api_key starts with: {api_key[:10] if api_key else 'None'}...")
+        logger.debug(f"folder_id: {self.folder_id}")
 
         # API endpoint для Yandex AI Studio Assistants
         url = "https://rest-assistant.api.cloud.yandex.net/v1/responses"
@@ -272,7 +276,7 @@ class YandexAIClient:
                     if not response_text:
                         raise Exception(f"Пустой ответ от агента. Структура: {json.dumps(result)[:200]}")
 
-                    print(f"✅ Агент ответил: {len(response_text)} символов", flush=True)
+                    logger.info(f"Агент ответил: {len(response_text)} символов")
 
                     # Парсим JSON ответ агента в AgentResponse
                     try:
@@ -282,9 +286,7 @@ class YandexAIClient:
                         raise Exception(f"Не удалось распарсить JSON от агента: {e}. Ответ: {response_text[:200]}")
 
         except Exception as e:
-            print(f"❌ ERROR in call_agent: {type(e).__name__}: {str(e)}", flush=True)
-            import traceback
-            print(f"Traceback: {traceback.format_exc()}", flush=True)
+            logger.error(f"ERROR in call_agent: {type(e).__name__}: {str(e)}", exc_info=True)
             raise Exception(f"Ошибка вызова агента: {str(e)}")
 
     async def get_dictionary_meanings(self, word: str) -> List[str]:
@@ -300,7 +302,7 @@ class YandexAIClient:
         try:
             return await self._get_dictionary_meanings(word)
         except Exception as e:
-            print(f"⚠️ Ошибка получения переводов: {e}", flush=True)
+            logger.warning(f"Ошибка получения переводов: {e}")
             return []
 
     async def _get_dictionary_meanings(self, word: str) -> List[str]:

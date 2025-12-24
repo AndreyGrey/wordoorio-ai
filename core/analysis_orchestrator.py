@@ -11,6 +11,7 @@
 
 import asyncio
 import json
+import logging
 from typing import List, Dict, Any
 from contracts.analysis_contracts import (
     Highlight,
@@ -22,6 +23,9 @@ from contracts.analysis_contracts import (
 )
 from core.yandex_ai_client import YandexAIClient
 from utils.lemmatizer import lemmatize
+
+# Настройка логирования
+logger = logging.getLogger(__name__)
 
 
 class AnalysisOrchestrator:
@@ -67,7 +71,7 @@ class AnalysisOrchestrator:
         """
         import time
         start_time = time.time()
-        print(f"🎭 [ORCHESTRATOR] Начало анализа текста ({len(request.text)} символов)", flush=True)
+        logger.info(f"[ORCHESTRATOR] Начало анализа текста ({len(request.text)} символов)")
 
         # Валидация запроса
         error = request.validate()
@@ -87,15 +91,15 @@ class AnalysisOrchestrator:
                 return_exceptions=True
             )
             agents_time = time.time() - agents_start
-            print(f"⏱️  Время вызова агентов: {agents_time:.2f}s", flush=True)
+            logger.info(f"Время вызова агентов: {agents_time:.2f}s")
 
             # Проверяем ошибки
             if isinstance(words_responses, Exception):
-                print(f"❌ Ошибка Agent #1 (words): {words_responses}", flush=True)
+                logger.error(f"Ошибка Agent #1 (words): {words_responses}")
                 words_responses = []
 
             if isinstance(phrases_responses, Exception):
-                print(f"❌ Ошибка Agent #2 (phrases): {phrases_responses}", flush=True)
+                logger.error(f"Ошибка Agent #2 (phrases): {phrases_responses}")
                 phrases_responses = []
 
             # Преобразуем AgentResponse → Highlight (параллельно!)
@@ -112,19 +116,19 @@ class AnalysisOrchestrator:
                     tasks.append(self._dict_to_highlight(highlight_dict, request.text))
 
             # Запускаем все преобразования параллельно
-            print(f"🚀 Запуск {len(tasks)} задач обработки параллельно...", flush=True)
+            logger.info(f"Запуск {len(tasks)} задач обработки параллельно")
             highlights_results = await asyncio.gather(*tasks, return_exceptions=True)
 
             # Фильтруем результаты
             highlights = []
             for result in highlights_results:
                 if isinstance(result, Exception):
-                    print(f"⚠️ Ошибка обработки highlight: {result}", flush=True)
+                    logger.warning(f"Ошибка обработки highlight: {result}")
                 elif result:
                     highlights.append(result)
 
             processing_time = time.time() - processing_start
-            print(f"⏱️  Время обработки хайлайтов (параллельно): {processing_time:.2f}s", flush=True)
+            logger.info(f"Время обработки хайлайтов (параллельно): {processing_time:.2f}s")
 
             # Удаляем дубликаты
             highlights = self._remove_duplicates(highlights)
@@ -133,8 +137,8 @@ class AnalysisOrchestrator:
             word_count = len(request.text.split())
 
             total_time = time.time() - start_time
-            print(f"⏱️  ОБЩЕЕ ВРЕМЯ: {total_time:.2f}s", flush=True)
-            print(f"✅ [ORCHESTRATOR] Анализ завершен: {len(highlights)} хайлайтов", flush=True)
+            logger.info(f"ОБЩЕЕ ВРЕМЯ: {total_time:.2f}s")
+            logger.info(f"[ORCHESTRATOR] Анализ завершен: {len(highlights)} хайлайтов")
 
             return create_success_result(
                 highlights=highlights,
@@ -150,7 +154,7 @@ class AnalysisOrchestrator:
             )
 
         except Exception as e:
-            print(f"❌ [ORCHESTRATOR] Ошибка анализа: {e}", flush=True)
+            logger.error(f"[ORCHESTRATOR] Ошибка анализа: {e}", exc_info=True)
             return create_error_result(f"Ошибка анализа: {str(e)}")
 
     async def _call_words_agent(self, text: str) -> List[AgentResponse]:
@@ -163,7 +167,7 @@ class AnalysisOrchestrator:
         Returns:
             List[AgentResponse]: Список найденных слов
         """
-        print(f"📝 [AGENT #1] Анализ слов...", flush=True)
+        logger.info("[AGENT #1] Анализ слов...")
 
         try:
             # Вызываем агента через AI Studio (передаем просто текст)
@@ -173,7 +177,7 @@ class AnalysisOrchestrator:
             return [response]
 
         except Exception as e:
-            print(f"❌ [AGENT #1] Ошибка: {e}", flush=True)
+            logger.error(f"[AGENT #1] Ошибка: {e}", exc_info=True)
             raise
 
     async def _call_phrases_agent(self, text: str) -> List[AgentResponse]:
@@ -186,7 +190,7 @@ class AnalysisOrchestrator:
         Returns:
             List[AgentResponse]: Список найденных фраз
         """
-        print(f"💬 [AGENT #2] Анализ фраз...", flush=True)
+        logger.info("[AGENT #2] Анализ фраз...")
 
         try:
             # Вызываем агента через AI Studio (передаем просто текст)
@@ -196,7 +200,7 @@ class AnalysisOrchestrator:
             return [response]
 
         except Exception as e:
-            print(f"❌ [AGENT #2] Ошибка: {e}", flush=True)
+            logger.error(f"[AGENT #2] Ошибка: {e}", exc_info=True)
             raise
 
     async def _dict_to_highlight(self, highlight_dict: Dict[str, Any], original_text: str) -> Highlight:

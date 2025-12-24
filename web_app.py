@@ -7,12 +7,21 @@ from flask import Flask, render_template, request, jsonify, session, redirect
 import json
 import sys
 import os
+import logging
 from dotenv import load_dotenv
 from database import WordoorioDatabase
 import uuid
 
 # Загружаем переменные окружения
 load_dotenv()
+
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 # Добавляем путь к агентам
 sys.path.append('.')
@@ -34,6 +43,8 @@ def analyze_text():
     try:
         data = request.get_json()
         text = data.get('text', '').strip()
+
+        logger.info(f"[/analyze] Начало анализа текста ({len(text)} символов)")
 
         # Используем новую архитектуру с AnalysisOrchestrator
         import asyncio
@@ -73,8 +84,13 @@ def analyze_text():
             orchestrator.analyze_text(analysis_request)
         )
 
+        # Логируем результаты анализа
+        if result.success and result.highlights:
+            logger.info(f"[/analyze] Анализ завершен успешно: {len(result.highlights)} хайлайтов, статистика: {result.stats.get('performance', {})}")
+
         # Проверяем успех
         if not result.success:
+            logger.error(f"[/analyze] Ошибка анализа: {result.error}")
             return jsonify({'error': result.error})
 
         if not result.highlights:
@@ -102,7 +118,7 @@ def analyze_text():
                 'analysis_id': analysis_id
             })
         except Exception as db_error:
-            print(f"Database error: {db_error}")
+            logger.error(f"[/analyze] Database error: {db_error}", exc_info=True)
 
             return jsonify({
                 'success': True,
@@ -112,8 +128,7 @@ def analyze_text():
             })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error(f"[/analyze] Критическая ошибка: {str(e)}", exc_info=True)
         return jsonify({'error': f'Критическая ошибка: {str(e)}'})
 
 @app.route('/api/history', methods=['GET'])
