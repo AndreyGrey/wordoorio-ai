@@ -691,10 +691,6 @@ def api_training_start():
         if not user_id:
             return jsonify({'error': 'Требуется авторизация'}), 401
 
-        # Проверим сколько слов в БД у пользователя
-        total_words = db.execute("SELECT COUNT(*) as cnt FROM dictionary_words WHERE user_id = ?", (user_id,)).fetchone()['cnt']
-        logger.info(f"[/api/training/start] Всего слов в БД для user_id={user_id}: {total_words}")
-
         # Отбираем слова для тренировки
         training_service = TrainingService(db)
         words = training_service.select_words_for_training(user_id, count=8)
