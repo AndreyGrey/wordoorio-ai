@@ -334,13 +334,18 @@ def api_dictionary_add():
         data = request.get_json()
 
         # Валидация
-        required_fields = ['highlight', 'type', 'highlight_translation', 'context']
+        required_fields = ['highlight', 'highlight_translation', 'context']
         for field in required_fields:
             if field not in data:
                 return jsonify({
                     'success': False,
                     'error': f'Отсутствует поле: {field}'
                 }), 400
+
+        # Автоопределение type если не передан
+        if 'type' not in data:
+            word_count = len(data['highlight'].split())
+            data['type'] = 'word' if word_count == 1 else 'expression'
 
         # Получаем session_id и user_id
         session_id = session.get('session_id', 'unknown')
