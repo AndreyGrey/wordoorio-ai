@@ -351,8 +351,11 @@ def api_dictionary_add():
         session_id = session.get('session_id', 'unknown')
         user_id = session.get('user_id')  # None если не авторизован
 
+        logger.info(f"[/api/dictionary/add] session_id={session_id}, user_id={user_id}, word={data.get('highlight')}")
+
         # Если пользователь не авторизован, не сохраняем в базу
         if not user_id:
+            logger.warning(f"[/api/dictionary/add] Попытка добавить слово без авторизации: {data.get('highlight')}")
             return jsonify({
                 'success': False,
                 'error': 'Authorization required. Please login with Telegram to save words.',
@@ -366,6 +369,8 @@ def api_dictionary_add():
             session_id=session_id,
             user_id=user_id
         )
+
+        logger.info(f"[/api/dictionary/add] Результат: success={result.get('success')}, word_id={result.get('word_id')}")
 
         return jsonify(result)
 
