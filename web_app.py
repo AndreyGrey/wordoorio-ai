@@ -681,15 +681,22 @@ def api_training_start():
 
         # Проверяем авторизацию
         user_id = session.get('user_id')
+        logger.info(f"[/api/training/start] user_id из сессии: {user_id}")
 
         if not user_id:
             return jsonify({'error': 'Требуется авторизация'}), 401
 
+        # Проверим сколько слов в БД у пользователя
+        total_words = db.execute("SELECT COUNT(*) as cnt FROM dictionary_words WHERE user_id = ?", (user_id,)).fetchone()['cnt']
+        logger.info(f"[/api/training/start] Всего слов в БД для user_id={user_id}: {total_words}")
+
         # Отбираем слова для тренировки
         training_service = TrainingService(db)
         words = training_service.select_words_for_training(user_id, count=8)
+        logger.info(f"[/api/training/start] TrainingService вернул {len(words)} слов")
 
         if not words:
+            logger.warning(f"[/api/training/start] Не удалось отобрать слова для user_id={user_id}, хотя в БД {total_words} слов")
             return jsonify({'error': 'В вашем словаре недостаточно слов для тренировки'}), 400
 
         # Создаем тесты
