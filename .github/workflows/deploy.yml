@@ -54,12 +54,17 @@ jobs:
           --container-name ${{ env.CONTAINER_NAME }} \
           --image cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest \
           --cores 1 \
-          --memory 1GB \
+          --memory 2GB \
           --execution-timeout 180s \
           --service-account-id ${{ env.SERVICE_ACCOUNT_ID }} \
           --environment YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }} \
           --environment YANDEX_CLOUD_API_KEY=${{ secrets.YANDEX_CLOUD_API_KEY }} \
-          --environment YANDEX_DICT_API_KEY=${{ secrets.YANDEX_DICT_API_KEY }}
+          --environment YANDEX_DICT_API_KEY=${{ secrets.YANDEX_DICT_API_KEY }} \
+          --environment TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
+          --environment AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
+          --environment AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+          --environment S3_BUCKET=${{ secrets.S3_BUCKET }} \
+          --environment S3_ENDPOINT=https://storage.yandexcloud.net
 
     - name: Get Container URL
       run: |
