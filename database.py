@@ -1,6 +1,7 @@
 """
 Модуль для работы с базой данных Wordoorio
 Сохраняет историю анализов текстов и результатов
++ Синхронизация с Yandex Object Storage (S3) для персистентности
 """
 
 import sqlite3
@@ -8,12 +9,86 @@ import json
 from datetime import datetime
 from typing import List, Dict, Optional
 import os
+import boto3
+from botocore.exceptions import ClientError
+import logging
+
+logger = logging.getLogger(__name__)
 
 class WordoorioDatabase:
     def __init__(self, db_path: str = "wordoorio.db"):
         self.db_path = db_path
+
+        # S3 configuration
+        self.s3_enabled = all([
+            os.getenv('AWS_ACCESS_KEY_ID'),
+            os.getenv('AWS_SECRET_ACCESS_KEY'),
+            os.getenv('S3_BUCKET')
+        ])
+
+        if self.s3_enabled:
+            self.s3_bucket = os.getenv('S3_BUCKET')
+            self.s3_endpoint = os.getenv('S3_ENDPOINT', 'https://storage.yandexcloud.net')
+            self.s3_client = boto3.client(
+                's3',
+                endpoint_url=self.s3_endpoint,
+                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
+            )
+            logger.info(f"[DATABASE] S3 синхронизация включена: {self.s3_bucket}")
+
+            # Скачать БД из S3 перед инициализацией
+            self._download_from_s3()
+        else:
+            logger.warning("[DATABASE] S3 синхронизация отключена (нет переменных окружения)")
+
         self.init_database()
-    
+
+    def _download_from_s3(self):
+        """
+        Скачать БД из S3 (если существует)
+
+        Логика:
+        - Если файл wordoorio.db в S3 существует → скачать
+        - Если не существует → пропустить (создастся новая БД)
+        - Если ошибка → залогировать, но продолжить работу
+        """
+        try:
+            self.s3_client.download_file(
+                Bucket=self.s3_bucket,
+                Key=self.db_path,
+                Filename=self.db_path
+            )
+            logger.info(f"[DATABASE] БД скачана из S3: s3://{self.s3_bucket}/{self.db_path}")
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code == '404' or error_code == 'NoSuchKey':
+                logger.info(f"[DATABASE] БД не найдена в S3 (будет создана новая)")
+            else:
+                logger.error(f"[DATABASE] Ошибка скачивания из S3: {e}")
+        except Exception as e:
+            logger.error(f"[DATABASE] Неожиданная ошибка при скачивании: {e}")
+
+    def _upload_to_s3(self):
+        """
+        Загрузить БД в S3
+
+        Вызывается после каждого изменения данных.
+        Асинхронно не делаем (пока простое решение).
+        """
+        if not self.s3_enabled:
+            return
+
+        try:
+            self.s3_client.upload_file(
+                Filename=self.db_path,
+                Bucket=self.s3_bucket,
+                Key=self.db_path
+            )
+            logger.info(f"[DATABASE] БД загружена в S3: s3://{self.s3_bucket}/{self.db_path}")
+        except Exception as e:
+            logger.error(f"[DATABASE] Ошибка загрузки в S3: {e}")
+
     def init_database(self):
         """Инициализация базы данных и создание таблиц"""
         with sqlite3.connect(self.db_path) as conn:
@@ -242,6 +317,7 @@ class WordoorioDatabase:
                 ))
             
             conn.commit()
+            self._upload_to_s3()
             return analysis_id
     
     def get_recent_analyses(self, limit: int = 10) -> List[Dict]:
@@ -389,6 +465,7 @@ class WordoorioDatabase:
                     VALUES (?, 1)
                 """, (user_id,))
                 conn.commit()
+                self._upload_to_s3()
                 return {
                     'last_selection_position': 1,
                     'last_training_at': None
@@ -407,6 +484,7 @@ class WordoorioDatabase:
                     last_training_at = excluded.last_training_at
             """, (user_id, position, now))
             conn.commit()
+            self._upload_to_s3()
 
     def insert_test(self, user_id: int, word_id: int, word: str,
                     correct_translation: str, wrong_option_1: str,
@@ -422,6 +500,7 @@ class WordoorioDatabase:
             """, (user_id, word_id, word, correct_translation,
                   wrong_option_1, wrong_option_2, wrong_option_3, now))
             conn.commit()
+            self._upload_to_s3()
             return cursor.lastrowid
 
     def get_test(self, test_id: int) -> Optional[Dict]:
@@ -456,6 +535,7 @@ class WordoorioDatabase:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM tests WHERE id = ?", (test_id,))
             conn.commit()
+            self._upload_to_s3()
 
     def get_pending_tests(self, user_id: int) -> List[Dict]:
         """Получить все нерешенные тесты пользователя"""
@@ -496,6 +576,7 @@ class WordoorioDatabase:
                 WHERE id = ?
             """, (rating, last_rating_change, datetime.now().isoformat(), word_id))
             conn.commit()
+            self._upload_to_s3()
 
     def update_word_status(self, word_id: int, status: str):
         """Обновить статус слова"""
@@ -507,6 +588,7 @@ class WordoorioDatabase:
                 WHERE id = ?
             """, (status, datetime.now().isoformat(), word_id))
             conn.commit()
+            self._upload_to_s3()
 
     def update_word_statistics(self, user_id: int, word_id: int, is_correct: bool):
         """Обновить статистику тестов слова"""
@@ -534,6 +616,7 @@ class WordoorioDatabase:
                 1 if not is_correct else 0
             ))
             conn.commit()
+            self._upload_to_s3()
 
     def get_word_by_id(self, word_id: int) -> Optional[Dict]:
         """Получить слово по ID"""

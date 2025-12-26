@@ -12,6 +12,12 @@
 import sqlite3
 from datetime import datetime
 from typing import Dict, List, Optional
+import os
+import boto3
+from botocore.exceptions import ClientError
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class DictionaryManager:
@@ -25,6 +31,45 @@ class DictionaryManager:
             db_path: Путь к базе данных SQLite
         """
         self.db_path = db_path
+
+        # S3 configuration
+        self.s3_enabled = all([
+            os.getenv('AWS_ACCESS_KEY_ID'),
+            os.getenv('AWS_SECRET_ACCESS_KEY'),
+            os.getenv('S3_BUCKET')
+        ])
+
+        if self.s3_enabled:
+            self.s3_bucket = os.getenv('S3_BUCKET')
+            self.s3_endpoint = os.getenv('S3_ENDPOINT', 'https://storage.yandexcloud.net')
+            self.s3_client = boto3.client(
+                's3',
+                endpoint_url=self.s3_endpoint,
+                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
+            )
+            logger.info(f"[DICTIONARY] S3 синхронизация включена: {self.s3_bucket}")
+        else:
+            logger.warning("[DICTIONARY] S3 синхронизация отключена")
+
+    def _upload_to_s3(self):
+        """
+        Загрузить БД в S3
+
+        Вызывается после каждого изменения данных.
+        """
+        if not self.s3_enabled:
+            return
+
+        try:
+            self.s3_client.upload_file(
+                Filename=self.db_path,
+                Bucket=self.s3_bucket,
+                Key=self.db_path
+            )
+            logger.info(f"[DICTIONARY] БД загружена в S3: s3://{self.s3_bucket}/{self.db_path}")
+        except Exception as e:
+            logger.error(f"[DICTIONARY] Ошибка загрузки в S3: {e}")
 
     def add_word(self, highlight_dict: Dict, session_id: str, user_id: Optional[int] = None) -> Dict:
         """
@@ -107,6 +152,7 @@ class DictionaryManager:
                 """, (word_id, lemma, context, session_id, now))
 
                 conn.commit()
+                self._upload_to_s3()
 
                 return {
                     'success': True,
@@ -148,6 +194,7 @@ class DictionaryManager:
                 """, (word_id, lemma, context, session_id, now))
 
                 conn.commit()
+                self._upload_to_s3()
 
                 return {
                     'success': True,
@@ -332,6 +379,7 @@ class DictionaryManager:
 
             if cursor.rowcount > 0:
                 conn.commit()
+                self._upload_to_s3()
                 return {
                     'success': True,
                     'message': f'Слово "{lemma}" удалено из словаря'
@@ -424,6 +472,7 @@ class DictionaryManager:
 
             if cursor.rowcount > 0:
                 conn.commit()
+                self._upload_to_s3()
                 return {
                     'success': True,
                     'message': f'Статус слова "{lemma}" обновлен на "{status}"'
@@ -498,6 +547,7 @@ class DictionaryManager:
             """, (new_streak, now, new_status, lemma, user_id, user_id))
 
             conn.commit()
+            self._upload_to_s3()
 
             return {
                 'success': True,

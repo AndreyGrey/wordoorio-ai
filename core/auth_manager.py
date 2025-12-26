@@ -10,6 +10,11 @@ import hmac
 from datetime import datetime
 from typing import Dict, Optional
 import os
+import boto3
+from botocore.exceptions import ClientError
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AuthManager:
@@ -17,6 +22,45 @@ class AuthManager:
         self.db_path = db_path
         # Получаем BOT_TOKEN из .env для проверки подписи Telegram
         self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN', '')
+
+        # S3 configuration
+        self.s3_enabled = all([
+            os.getenv('AWS_ACCESS_KEY_ID'),
+            os.getenv('AWS_SECRET_ACCESS_KEY'),
+            os.getenv('S3_BUCKET')
+        ])
+
+        if self.s3_enabled:
+            self.s3_bucket = os.getenv('S3_BUCKET')
+            self.s3_endpoint = os.getenv('S3_ENDPOINT', 'https://storage.yandexcloud.net')
+            self.s3_client = boto3.client(
+                's3',
+                endpoint_url=self.s3_endpoint,
+                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
+            )
+            logger.info(f"[AUTH] S3 синхронизация включена: {self.s3_bucket}")
+        else:
+            logger.warning("[AUTH] S3 синхронизация отключена")
+
+    def _upload_to_s3(self):
+        """
+        Загрузить БД в S3
+
+        Вызывается после каждого изменения данных.
+        """
+        if not self.s3_enabled:
+            return
+
+        try:
+            self.s3_client.upload_file(
+                Filename=self.db_path,
+                Bucket=self.s3_bucket,
+                Key=self.db_path
+            )
+            logger.info(f"[AUTH] БД загружена в S3: s3://{self.s3_bucket}/{self.db_path}")
+        except Exception as e:
+            logger.error(f"[AUTH] Ошибка загрузки в S3: {e}")
 
     def verify_telegram_auth(self, auth_data: Dict) -> bool:
         """
@@ -119,6 +163,7 @@ class AuthManager:
                 print(f"✅ Создан новый пользователь {telegram_id} с id={user_id}")
 
             conn.commit()
+            self._upload_to_s3()
             return user_id
 
     def get_user_by_id(self, user_id: int) -> Optional[Dict]:
