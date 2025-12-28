@@ -10,7 +10,7 @@
 - **Словарные значения** из Yandex Dictionary API
 - **Лемматизация** для удаления дубликатов (amplify/amplifying/amplified = одно слово)
 - **Веб-интерфейс** для удобной работы
-- **База данных**: SQLite + Yandex Object Storage (персистентное хранение, см. [DATABASE_STORAGE.md](DATABASE_STORAGE.md))
+- **База данных**: YDB (Yandex Database) - serverless NoSQL/SQL база данных
 
 ## Архитектура
 
@@ -106,7 +106,7 @@ Highlights → Frontend
 - **HTTP Client**: aiohttp
 - **NLP**: spaCy (лемматизация), pymorphy2
 - **Dictionary**: Yandex Dictionary API
-- **Database**: SQLite + Yandex Object Storage (см. [DATABASE_STORAGE.md](DATABASE_STORAGE.md))
+- **Database**: YDB (Yandex Database) - serverless NoSQL/SQL database
 - **Deploy**: Yandex Serverless Containers (stateless)
 - **Frontend**: Vanilla JS
 
@@ -133,25 +133,33 @@ python -m spacy download en_core_web_sm
 
 ```bash
 # Yandex Cloud (обязательно)
-YANDEX_IAM_TOKEN=<ваш_iam_токен>
+YANDEX_CLOUD_API_KEY=<ваш_yandex_cloud_api_key>
 YANDEX_FOLDER_ID=<ваш_folder_id>
 
 # Yandex Dictionary API (обязательно)
 YANDEX_DICT_API_KEY=<ваш_dict_api_ключ>
 
+# YDB (Yandex Database) настройки (обязательно)
+YDB_ENDPOINT=grpcs://ydb.serverless.yandexcloud.net:2135
+YDB_DATABASE=/ru-central1/<ваш_folder_id>/<ваш_database_id>
+
+# Telegram Bot для авторизации (обязательно)
+TELEGRAM_BOT_TOKEN=<ваш_telegram_bot_token>
+TELEGRAM_BOT_USERNAME=<ваш_bot_username>
+
 # Приложение
 DEBUG=true
 ```
 
-**Получение токенов:**
+**Получение токенов и настройка YDB:**
 
-- IAM токен (локальная разработка):
-  ```bash
-  ~/yandex-cloud/bin/yc iam create-token
-  ```
-  ⚠️ Токен действителен 12 часов!
-
-- Dictionary API: https://yandex.ru/dev/dictionary/
+- **Yandex Cloud API Key**: Создайте API ключ для сервисного аккаунта с ролью `ai.languageModels.user`
+- **Dictionary API**: https://yandex.ru/dev/dictionary/
+- **Telegram Bot**: https://t.me/BotFather -> /newbot
+- **YDB**:
+  1. Создайте serverless YDB базу в Yandex Cloud Console
+  2. Скопируйте `Эндпоинт` и `База данных` из настроек YDB
+  3. Запустите схему: `python create_ydb_schema.py` (требуется IAM токен)
 
 ### 3. Запуск
 
@@ -168,7 +176,7 @@ open http://localhost:8081
 ```
 Wordoorio/
 ├── web_app.py                 # Flask веб-сервер
-├── database.py                # SQLite операции
+├── database.py                # YDB (Yandex Database) операции
 ├── requirements.txt           # Зависимости Python
 │
 ├── core/
@@ -206,22 +214,34 @@ python test_orchestrator.py
 
 ## Развертывание (Production)
 
-В продакшене IAM токен получается автоматически через **Metadata Service** Yandex Cloud:
+Приложение развертывается в **Yandex Serverless Containers** через GitHub Actions.
 
-```python
-# Код в yandex_ai_client.py автоматически определяет окружение:
-if self._is_yandex_cloud_environment():
-    # Получаем токен из Metadata Service
-    self.iam_token = self._get_token_from_metadata()
-else:
-    # Используем токен из .env (локальная разработка)
-    self.iam_token = os.getenv('YANDEX_IAM_TOKEN')
-```
+### Требования:
 
-Для Yandex Cloud Container/Compute Instance:
-1. Присвойте сервисному аккаунту роль `ai.languageModels.user`
-2. Настройте переменные окружения (FOLDER_ID, DICT_API_KEY)
-3. Токен будет обновляться автоматически
+1. **Сервисный аккаунт** с ролями:
+   - `ai.languageModels.user` (для YandexGPT)
+   - `ydb.editor` (для YDB)
+   - `container-registry.images.puller` (для Container Registry)
+
+2. **GitHub Secrets**:
+   - `YANDEX_CLOUD_API_KEY` - API ключ для YandexGPT
+   - `YANDEX_DICT_API_KEY` - ключ Yandex Dictionary API
+   - `TELEGRAM_BOT_TOKEN` - токен Telegram бота
+   - `YDB_ENDPOINT` - endpoint YDB базы
+   - `YDB_DATABASE` - путь к YDB базе
+
+3. **YDB база данных**:
+   - Создайте serverless YDB в Yandex Cloud Console
+   - Настройте права доступа для сервисного аккаунта
+   - Запустите `create_ydb_schema.py` для создания таблиц
+
+### Автоматический деплой:
+
+При push в `main` ветку GitHub Actions:
+1. Собирает Docker образ
+2. Загружает в Container Registry
+3. Деплоит новую ревизию Serverless Container
+4. YDB credentials передаются через **MetadataUrlCredentials**
 
 ## Лицензия
 
