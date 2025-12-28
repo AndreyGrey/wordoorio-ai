@@ -145,6 +145,9 @@ class DictionaryManager:
         # Проверяем: есть ли слово с такой lemma?
         if user_id is not None:
             check_query = """
+            DECLARE $lemma AS Utf8;
+            DECLARE $user_id AS Int64;
+
             SELECT id FROM dictionary_words
             WHERE lemma = $lemma AND user_id = $user_id
             """
@@ -154,6 +157,8 @@ class DictionaryManager:
             })
         else:
             check_query = """
+            DECLARE $lemma AS Utf8;
+
             SELECT id FROM dictionary_words
             WHERE lemma = $lemma AND user_id IS NULL
             """
@@ -167,6 +172,9 @@ class DictionaryManager:
 
             # Добавляем основной перевод (если еще нет)
             check_translation_query = """
+            DECLARE $word_id AS Int64;
+            DECLARE $translation AS Utf8;
+
             SELECT COUNT(*) AS count FROM dictionary_translations
             WHERE word_id = $word_id AND translation = $translation
             """
@@ -178,6 +186,12 @@ class DictionaryManager:
             if translation_exists['count'] == 0:
                 translation_id = self._get_next_id('dictionary_translations')
                 insert_translation_query = """
+                DECLARE $id AS Int64;
+                DECLARE $word_id AS Int64;
+                DECLARE $translation AS Utf8;
+                DECLARE $session_id AS Utf8;
+                DECLARE $added_at AS Utf8;
+
                 UPSERT INTO dictionary_translations (id, word_id, translation, source_session_id, added_at)
                 VALUES ($id, $word_id, $translation, $session_id, $added_at)
                 """
@@ -192,6 +206,9 @@ class DictionaryManager:
             # Добавляем дополнительные переводы
             for meaning in additional_meanings:
                 check_meaning_query = """
+                DECLARE $word_id AS Int64;
+                DECLARE $translation AS Utf8;
+
                 SELECT COUNT(*) AS count FROM dictionary_translations
                 WHERE word_id = $word_id AND translation = $translation
                 """
@@ -203,6 +220,12 @@ class DictionaryManager:
                 if meaning_exists['count'] == 0:
                     meaning_id = self._get_next_id('dictionary_translations')
                     insert_meaning_query = """
+                    DECLARE $id AS Int64;
+                    DECLARE $word_id AS Int64;
+                    DECLARE $translation AS Utf8;
+                    DECLARE $session_id AS Utf8;
+                    DECLARE $added_at AS Utf8;
+
                     UPSERT INTO dictionary_translations (id, word_id, translation, source_session_id, added_at)
                     VALUES ($id, $word_id, $translation, $session_id, $added_at)
                     """
@@ -217,6 +240,13 @@ class DictionaryManager:
             # Добавляем новый пример использования
             example_id = self._get_next_id('dictionary_examples')
             insert_example_query = """
+            DECLARE $id AS Int64;
+            DECLARE $word_id AS Int64;
+            DECLARE $original_form AS Utf8;
+            DECLARE $context AS Utf8;
+            DECLARE $session_id AS Utf8;
+            DECLARE $added_at AS Utf8;
+
             UPSERT INTO dictionary_examples (id, word_id, original_form, context, session_id, added_at)
             VALUES ($id, $word_id, $original_form, $context, $session_id, $added_at)
             """
@@ -241,6 +271,16 @@ class DictionaryManager:
             word_id = self._get_next_id('dictionary_words')
 
             insert_word_query = """
+            DECLARE $id AS Int64;
+            DECLARE $user_id AS Int64?;
+            DECLARE $lemma AS Utf8;
+            DECLARE $type AS Utf8;
+            DECLARE $status AS Utf8;
+            DECLARE $added_at AS Utf8;
+            DECLARE $review_count AS Int64;
+            DECLARE $correct_streak AS Int64;
+            DECLARE $rating AS Int64;
+
             UPSERT INTO dictionary_words (id, user_id, lemma, type, status, added_at, review_count, correct_streak, rating)
             VALUES ($id, $user_id, $lemma, $type, $status, $added_at, $review_count, $correct_streak, $rating)
             """
@@ -260,6 +300,12 @@ class DictionaryManager:
             # Добавляем основной перевод
             translation_id = self._get_next_id('dictionary_translations')
             insert_translation_query = """
+            DECLARE $id AS Int64;
+            DECLARE $word_id AS Int64;
+            DECLARE $translation AS Utf8;
+            DECLARE $session_id AS Utf8;
+            DECLARE $added_at AS Utf8;
+
             UPSERT INTO dictionary_translations (id, word_id, translation, source_session_id, added_at)
             VALUES ($id, $word_id, $translation, $session_id, $added_at)
             """
@@ -275,6 +321,12 @@ class DictionaryManager:
             for meaning in additional_meanings:
                 meaning_id = self._get_next_id('dictionary_translations')
                 insert_meaning_query = """
+                DECLARE $id AS Int64;
+                DECLARE $word_id AS Int64;
+                DECLARE $translation AS Utf8;
+                DECLARE $session_id AS Utf8;
+                DECLARE $added_at AS Utf8;
+
                 UPSERT INTO dictionary_translations (id, word_id, translation, source_session_id, added_at)
                 VALUES ($id, $word_id, $translation, $session_id, $added_at)
                 """
@@ -289,6 +341,13 @@ class DictionaryManager:
             # Добавляем первый пример использования
             example_id = self._get_next_id('dictionary_examples')
             insert_example_query = """
+            DECLARE $id AS Int64;
+            DECLARE $word_id AS Int64;
+            DECLARE $original_form AS Utf8;
+            DECLARE $context AS Utf8;
+            DECLARE $session_id AS Utf8;
+            DECLARE $added_at AS Utf8;
+
             UPSERT INTO dictionary_examples (id, word_id, original_form, context, session_id, added_at)
             VALUES ($id, $word_id, $original_form, $context, $session_id, $added_at)
             """
@@ -342,6 +401,9 @@ class DictionaryManager:
         # Получаем основную информацию о слове
         if user_id is not None:
             word_query = """
+            DECLARE $lemma AS Utf8;
+            DECLARE $user_id AS Int64;
+
             SELECT id, type, status, added_at, last_reviewed_at, review_count, correct_streak
             FROM dictionary_words
             WHERE lemma = $lemma AND user_id = $user_id
@@ -352,6 +414,8 @@ class DictionaryManager:
             })
         else:
             word_query = """
+            DECLARE $lemma AS Utf8;
+
             SELECT id, type, status, added_at, last_reviewed_at, review_count, correct_streak
             FROM dictionary_words
             WHERE lemma = $lemma AND user_id IS NULL
@@ -365,6 +429,8 @@ class DictionaryManager:
 
         # Получаем переводы
         translations_query = """
+        DECLARE $word_id AS Int64;
+
         SELECT translation, source_session_id, added_at
         FROM dictionary_translations
         WHERE word_id = $word_id
@@ -383,6 +449,8 @@ class DictionaryManager:
 
         # Получаем примеры
         examples_query = """
+        DECLARE $word_id AS Int64;
+
         SELECT original_form, context, session_id, added_at
         FROM dictionary_examples
         WHERE word_id = $word_id
@@ -435,6 +503,8 @@ class DictionaryManager:
         # Получаем все слова
         if user_id is not None:
             words_query = """
+            DECLARE $user_id AS Int64?;
+
             SELECT id, lemma, type, status, added_at
             FROM dictionary_words
             WHERE user_id = $user_id
@@ -460,6 +530,8 @@ class DictionaryManager:
 
             # Получаем переводы
             translations_query = """
+            DECLARE $word_id AS Int64;
+
             SELECT translation FROM dictionary_translations
             WHERE word_id = $word_id
             ORDER BY added_at ASC
@@ -469,6 +541,8 @@ class DictionaryManager:
 
             # Получаем количество примеров
             examples_count_query = """
+            DECLARE $word_id AS Int64;
+
             SELECT COUNT(*) AS count FROM dictionary_examples
             WHERE word_id = $word_id
             """
@@ -501,6 +575,9 @@ class DictionaryManager:
         # First check if word exists and get its ID
         if user_id is not None:
             check_query = """
+            DECLARE $lemma AS Utf8;
+            DECLARE $user_id AS Int64?;
+
             SELECT id FROM dictionary_words
             WHERE lemma = $lemma AND user_id = $user_id
             """
@@ -510,6 +587,8 @@ class DictionaryManager:
             })
         else:
             check_query = """
+            DECLARE $lemma AS Utf8;
+
             SELECT id FROM dictionary_words
             WHERE lemma = $lemma AND user_id IS NULL
             """
@@ -525,6 +604,8 @@ class DictionaryManager:
 
         # Delete translations
         delete_translations_query = """
+            DECLARE $word_id AS Int64;
+
         DELETE FROM dictionary_translations
         WHERE word_id = $word_id
         """
@@ -532,6 +613,8 @@ class DictionaryManager:
 
         # Delete examples
         delete_examples_query = """
+            DECLARE $word_id AS Int64;
+
         DELETE FROM dictionary_examples
         WHERE word_id = $word_id
         """
@@ -539,6 +622,8 @@ class DictionaryManager:
 
         # Delete word
         delete_word_query = """
+            DECLARE $word_id AS Int64;
+
         DELETE FROM dictionary_words
         WHERE id = $word_id
         """
@@ -571,6 +656,8 @@ class DictionaryManager:
         # Общее количество слов
         if user_id is not None:
             words_query = """
+            DECLARE $user_id AS Int64?;
+
             SELECT COUNT(*) AS count FROM dictionary_words
             WHERE user_id = $user_id AND type = 'word'
             """
@@ -587,6 +674,8 @@ class DictionaryManager:
         # Общее количество фраз
         if user_id is not None:
             phrases_query = """
+            DECLARE $user_id AS Int64?;
+
             SELECT COUNT(*) AS count FROM dictionary_words
             WHERE user_id = $user_id AND type = 'expression'
             """
@@ -603,6 +692,8 @@ class DictionaryManager:
         # Разбивка по статусам
         if user_id is not None:
             status_query = """
+            DECLARE $user_id AS Int64?;
+
             SELECT status, COUNT(*) AS count FROM dictionary_words
             WHERE user_id = $user_id
             GROUP BY status
@@ -646,6 +737,10 @@ class DictionaryManager:
 
         if user_id is not None:
             update_query = """
+            DECLARE $lemma AS Utf8;
+            DECLARE $status AS Utf8;
+            DECLARE $user_id AS Int64?;
+
             UPDATE dictionary_words
             SET status = $status
             WHERE lemma = $lemma AND user_id = $user_id
@@ -657,6 +752,9 @@ class DictionaryManager:
             })
         else:
             update_query = """
+            DECLARE $lemma AS Utf8;
+            DECLARE $status AS Utf8;
+
             UPDATE dictionary_words
             SET status = $status
             WHERE lemma = $lemma AND user_id IS NULL
@@ -669,6 +767,9 @@ class DictionaryManager:
         # Check if update was successful by checking if word exists
         if user_id is not None:
             check_query = """
+            DECLARE $lemma AS Utf8;
+            DECLARE $user_id AS Int64?;
+
             SELECT COUNT(*) AS count FROM dictionary_words
             WHERE lemma = $lemma AND user_id = $user_id
             """
@@ -678,6 +779,8 @@ class DictionaryManager:
             })
         else:
             check_query = """
+            DECLARE $lemma AS Utf8;
+
             SELECT COUNT(*) AS count FROM dictionary_words
             WHERE lemma = $lemma AND user_id IS NULL
             """
@@ -714,6 +817,9 @@ class DictionaryManager:
         # Получаем текущую статистику
         if user_id is not None:
             word_query = """
+            DECLARE $lemma AS Utf8;
+            DECLARE $user_id AS Int64?;
+
             SELECT correct_streak, review_count, status
             FROM dictionary_words
             WHERE lemma = $lemma AND user_id = $user_id
@@ -724,6 +830,8 @@ class DictionaryManager:
             })
         else:
             word_query = """
+            DECLARE $lemma AS Utf8;
+
             SELECT correct_streak, review_count, status
             FROM dictionary_words
             WHERE lemma = $lemma AND user_id IS NULL
@@ -758,6 +866,13 @@ class DictionaryManager:
         # Обновляем запись
         if user_id is not None:
             update_query = """
+            DECLARE $correct_streak AS Int64;
+            DECLARE $last_reviewed_at AS Utf8;
+            DECLARE $lemma AS Utf8;
+            DECLARE $review_count AS Int64;
+            DECLARE $status AS Utf8;
+            DECLARE $user_id AS Int64?;
+
             UPDATE dictionary_words
             SET
                 correct_streak = $correct_streak,
@@ -776,6 +891,12 @@ class DictionaryManager:
             })
         else:
             update_query = """
+            DECLARE $correct_streak AS Int64;
+            DECLARE $last_reviewed_at AS Utf8;
+            DECLARE $lemma AS Utf8;
+            DECLARE $review_count AS Int64;
+            DECLARE $status AS Utf8;
+
             UPDATE dictionary_words
             SET
                 correct_streak = $correct_streak,
