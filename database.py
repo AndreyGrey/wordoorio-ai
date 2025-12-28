@@ -1,647 +1,446 @@
+#!/usr/bin/env python3
 """
-Модуль для работы с базой данных Wordoorio
-Сохраняет историю анализов текстов и результатов
-+ Синхронизация с Yandex Object Storage (S3) для персистентности
+YDB Database Manager for Wordoorio
+Manages all database operations using Yandex Database (YDB)
 """
 
-import sqlite3
-import json
-from datetime import datetime
-from typing import List, Dict, Optional
+import ydb
 import os
-import boto3
-from botocore.exceptions import ClientError
 import logging
+from datetime import datetime
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+
 class WordoorioDatabase:
-    def __init__(self, db_path: str = "wordoorio.db"):
-        self.db_path = db_path
+    """YDB-based database manager for Wordoorio application"""
 
-        # S3 configuration
-        self.s3_enabled = all([
-            os.getenv('AWS_ACCESS_KEY_ID'),
-            os.getenv('AWS_SECRET_ACCESS_KEY'),
-            os.getenv('S3_BUCKET')
-        ])
-
-        if self.s3_enabled:
-            self.s3_bucket = os.getenv('S3_BUCKET')
-            self.s3_endpoint = os.getenv('S3_ENDPOINT', 'https://storage.yandexcloud.net')
-            self.s3_client = boto3.client(
-                's3',
-                endpoint_url=self.s3_endpoint,
-                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
-            )
-            logger.info(f"[DATABASE] S3 синхронизация включена: {self.s3_bucket}")
-
-            # Скачать БД из S3 перед инициализацией
-            self._download_from_s3()
-        else:
-            logger.warning("[DATABASE] S3 синхронизация отключена (нет переменных окружения)")
-
-        self.init_database()
-
-    def _download_from_s3(self):
+    def __init__(self, db_path: str = None):
         """
-        Скачать БД из S3 (если существует)
+        Initialize YDB connection
 
-        Логика:
-        - Если файл wordoorio.db в S3 существует → скачать
-        - Если не существует → пропустить (создастся новая БД)
-        - Если ошибка → залогировать, но продолжить работу
-        """
-        try:
-            self.s3_client.download_file(
-                Bucket=self.s3_bucket,
-                Key=self.db_path,
-                Filename=self.db_path
-            )
-            logger.info(f"[DATABASE] БД скачана из S3: s3://{self.s3_bucket}/{self.db_path}")
-        except ClientError as e:
-            error_code = e.response.get('Error', {}).get('Code', '')
-            if error_code == '404' or error_code == 'NoSuchKey':
-                logger.info(f"[DATABASE] БД не найдена в S3 (будет создана новая)")
-            else:
-                logger.error(f"[DATABASE] Ошибка скачивания из S3: {e}")
-        except Exception as e:
-            logger.error(f"[DATABASE] Неожиданная ошибка при скачивании: {e}")
-
-    def _upload_to_s3(self):
-        """
-        Загрузить БД в S3
-
-        Вызывается после каждого изменения данных.
-        Асинхронно не делаем (пока простое решение).
-        """
-        if not self.s3_enabled:
-            return
-
-        try:
-            self.s3_client.upload_file(
-                Filename=self.db_path,
-                Bucket=self.s3_bucket,
-                Key=self.db_path
-            )
-            logger.info(f"[DATABASE] БД загружена в S3: s3://{self.s3_bucket}/{self.db_path}")
-        except Exception as e:
-            logger.error(f"[DATABASE] Ошибка загрузки в S3: {e}")
-
-    def init_database(self):
-        """Инициализация базы данных и создание таблиц"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Таблица для сохранения анализов
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS analyses (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    original_text TEXT NOT NULL,
-                    analysis_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    total_highlights INTEGER DEFAULT 0,
-                    total_words INTEGER DEFAULT 0,
-                    session_id TEXT,
-                    ip_address TEXT
-                )
-            """)
-            
-            # Таблица для сохранения найденных хайлайтов
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS highlights (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    analysis_id INTEGER,
-                    highlight_word TEXT NOT NULL,
-                    context TEXT NOT NULL,
-                    highlight_translation TEXT NOT NULL,
-                    dictionary_meanings TEXT,
-                    FOREIGN KEY (analysis_id) REFERENCES analyses (id)
-                )
-            """)
-            
-            # Индексы для быстрого поиска
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_analysis_date ON analyses(analysis_date)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_highlight_word ON highlights(highlight_word)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_analysis_id ON highlights(analysis_id)")
-
-            # ===== ЛИЧНЫЙ СЛОВАРЬ =====
-
-            # Таблица слов в словаре
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS dictionary_words (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER DEFAULT NULL,
-                    lemma TEXT NOT NULL,
-                    type TEXT NOT NULL,
-                    status TEXT DEFAULT 'new',
-                    added_at TEXT NOT NULL,
-                    last_reviewed_at TEXT,
-                    review_count INTEGER DEFAULT 0,
-                    correct_streak INTEGER DEFAULT 0,
-                    UNIQUE(user_id, lemma)
-                )
-            """)
-
-            # Таблица переводов
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS dictionary_translations (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    word_id INTEGER NOT NULL,
-                    translation TEXT NOT NULL,
-                    source_session_id TEXT,
-                    added_at TEXT NOT NULL,
-                    FOREIGN KEY (word_id) REFERENCES dictionary_words(id) ON DELETE CASCADE
-                )
-            """)
-
-            # Таблица примеров использования
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS dictionary_examples (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    word_id INTEGER NOT NULL,
-                    original_form TEXT NOT NULL,
-                    context TEXT NOT NULL,
-                    session_id TEXT NOT NULL,
-                    added_at TEXT NOT NULL,
-                    FOREIGN KEY (word_id) REFERENCES dictionary_words(id) ON DELETE CASCADE
-                )
-            """)
-
-            # Индексы для словаря
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_lemma ON dictionary_words(lemma)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_user ON dictionary_words(user_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_status ON dictionary_words(status)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_word_id ON dictionary_translations(word_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_examples_word_id ON dictionary_examples(word_id)")
-
-            # ===== TELEGRAM USERS =====
-
-            # Таблица пользователей Telegram
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY,
-                    telegram_id INTEGER UNIQUE NOT NULL,
-                    first_name TEXT,
-                    last_name TEXT,
-                    username TEXT,
-                    photo_url TEXT,
-                    auth_date INTEGER NOT NULL,
-                    created_at TEXT NOT NULL,
-                    last_login_at TEXT NOT NULL
-                )
-            """)
-
-            # Индекс для быстрого поиска по telegram_id
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)")
-
-            # ===== СИСТЕМА ТРЕНИРОВКИ =====
-
-            # Добавляем поля rating и last_rating_change в dictionary_words (миграция)
-            try:
-                cursor.execute("ALTER TABLE dictionary_words ADD COLUMN rating INTEGER DEFAULT 0")
-            except sqlite3.OperationalError:
-                pass  # Колонка уже существует
-
-            try:
-                cursor.execute("ALTER TABLE dictionary_words ADD COLUMN last_rating_change TEXT")
-            except sqlite3.OperationalError:
-                pass  # Колонка уже существует
-
-            # Таблица состояния тренировки пользователя
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS user_training_state (
-                    user_id INTEGER PRIMARY KEY,
-                    last_selection_position INTEGER DEFAULT 1,
-                    last_training_at TEXT,
-                    FOREIGN KEY (user_id) REFERENCES users(id)
-                )
-            """)
-
-            # Таблица тестов (удаляются после ответа)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS tests (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    word_id INTEGER NOT NULL,
-                    word TEXT NOT NULL,
-                    correct_translation TEXT NOT NULL,
-                    wrong_option_1 TEXT NOT NULL,
-                    wrong_option_2 TEXT NOT NULL,
-                    wrong_option_3 TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    FOREIGN KEY (user_id) REFERENCES users(id),
-                    FOREIGN KEY (word_id) REFERENCES dictionary_words(id)
-                )
-            """)
-
-            # Таблица статистики тестов
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS word_test_statistics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    word_id INTEGER NOT NULL,
-                    total_tests INTEGER DEFAULT 0,
-                    correct_answers INTEGER DEFAULT 0,
-                    wrong_answers INTEGER DEFAULT 0,
-                    last_test_at TEXT,
-                    last_result BOOLEAN,
-                    FOREIGN KEY (user_id) REFERENCES users(id),
-                    FOREIGN KEY (word_id) REFERENCES dictionary_words(id),
-                    UNIQUE(user_id, word_id)
-                )
-            """)
-
-            # Индексы для тренировочной системы
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_tests_user ON tests(user_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_stats_user_word ON word_test_statistics(user_id, word_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_rating ON dictionary_words(rating)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_dictionary_last_rating_change ON dictionary_words(last_rating_change)")
-
-            conn.commit()
-    
-    def save_analysis(self, 
-                     original_text: str, 
-                     highlights: List[Dict], 
-                     stats: Dict,
-                     session_id: str = None,
-                     ip_address: str = None) -> int:
-        """
-        Сохранение результата анализа в базу данных
-        
         Args:
-            original_text: Исходный текст для анализа
-            highlights: Список найденных хайлайтов
-            stats: Статистика анализа (total_highlights, total_words)
-            session_id: ID сессии пользователя
-            ip_address: IP адрес пользователя
-            
-        Returns:
-            ID созданного анализа
+            db_path: Not used for YDB, kept for API compatibility
         """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Сохраняем основную запись анализа
-            # Убираем переносы строк для компактного отображения
-            cleaned_text = original_text.replace('\n', ' ').replace('\r', ' ')
-            # Убираем множественные пробелы
-            cleaned_text = ' '.join(cleaned_text.split())
-            
-            cursor.execute("""
-                INSERT INTO analyses 
-                (original_text, total_highlights, total_words, session_id, ip_address)
-                VALUES (?, ?, ?, ?, ?)
-            """, (
-                cleaned_text,
-                stats.get('total_highlights', 0),
-                stats.get('total_words', 0),
-                session_id,
-                ip_address
-            ))
-            
-            analysis_id = cursor.lastrowid
-            
-            # Сохраняем каждый хайлайт
-            for highlight in highlights:
-                cursor.execute("""
-                    INSERT INTO highlights
-                    (analysis_id, highlight_word, context, highlight_translation, dictionary_meanings)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (
-                    analysis_id,
-                    highlight['highlight'],
-                    highlight['context'],
-                    highlight['highlight_translation'],
-                    json.dumps(highlight.get('dictionary_meanings', []))
-                ))
-            
-            conn.commit()
-            self._upload_to_s3()
-            return analysis_id
-    
+        # YDB connection parameters from environment
+        self.endpoint = os.getenv('YDB_ENDPOINT', 'grpcs://ydb.serverless.yandexcloud.net:2135')
+        self.database = os.getenv('YDB_DATABASE', '/ru-central1/b1g5sgin5ubfvtkrvjft/etnnib344dr71jrf015e')
+
+        # For API compatibility
+        self.db_path = db_path or "ydb"
+
+        # Initialize YDB driver
+        self._init_driver()
+
+        logger.info(f"[YDB] Connected to {self.endpoint}, database: {self.database}")
+
+    def _init_driver(self):
+        """Initialize YDB driver with credentials"""
+        # Use MetadataUrlCredentials for serverless containers
+        # This automatically uses the service account attached to the container
+        driver_config = ydb.DriverConfig(
+            endpoint=self.endpoint,
+            database=self.database,
+            credentials=ydb.iam.MetadataUrlCredentials()
+        )
+
+        self.driver = ydb.Driver(driver_config)
+        self.driver.wait(fail_fast=True, timeout=5)
+
+        # Create session pool for efficient connection reuse
+        self.pool = ydb.SessionPool(self.driver)
+
+    def _execute_query(self, query: str, parameters: Dict = None):
+        """
+        Execute YQL query with automatic retries
+
+        Args:
+            query: YQL query string
+            parameters: Query parameters as dict
+
+        Returns:
+            Query result
+        """
+        def callee(session):
+            return session.transaction().execute(
+                query,
+                parameters or {},
+                commit_tx=True
+            )
+
+        return self.pool.retry_operation_sync(callee)
+
+    def _fetch_one(self, query: str, parameters: Dict = None) -> Optional[Dict]:
+        """Execute query and return first row as dict"""
+        result = self._execute_query(query, parameters)
+
+        if not result or not result[0].rows:
+            return None
+
+        row = result[0].rows[0]
+        return {col: getattr(row, col) for col in result[0].columns}
+
+    def _fetch_all(self, query: str, parameters: Dict = None) -> List[Dict]:
+        """Execute query and return all rows as list of dicts"""
+        result = self._execute_query(query, parameters)
+
+        if not result or not result[0].rows:
+            return []
+
+        columns = [col.name for col in result[0].columns]
+        return [
+            {col: getattr(row, col) for col in columns}
+            for row in result[0].rows
+        ]
+
+    def _get_next_id(self, table_name: str) -> int:
+        """
+        Get next auto-increment ID for a table
+        YDB doesn't have auto-increment, so we simulate it
+        """
+        query = f"SELECT MAX(id) AS max_id FROM {table_name}"
+        result = self._fetch_one(query)
+
+        if not result or result['max_id'] is None:
+            return 1
+
+        return result['max_id'] + 1
+
+    # ====================
+    # Analysis Methods
+    # ====================
+
+    def save_analysis(self,
+                     original_text: str,
+                     analysis_result: Dict,
+                     session_id: Optional[str] = None,
+                     ip_address: Optional[str] = None) -> int:
+        """
+        Save text analysis results to database
+
+        Args:
+            original_text: Original input text
+            analysis_result: Analysis results with highlights
+            session_id: Session identifier
+            ip_address: Client IP address
+
+        Returns:
+            analysis_id: ID of created analysis record
+        """
+        # Get next ID
+        analysis_id = self._get_next_id('analyses')
+
+        # Extract highlights from result
+        highlights = analysis_result.get('highlights', [])
+        total_highlights = len(highlights)
+        total_words = analysis_result.get('total_words', 0)
+
+        # Insert analysis record
+        query = """
+        UPSERT INTO analyses (id, original_text, analysis_date, total_highlights, total_words, session_id, ip_address)
+        VALUES ($id, $original_text, CurrentUtcTimestamp(), $total_highlights, $total_words, $session_id, $ip_address)
+        """
+
+        self._execute_query(query, {
+            '$id': analysis_id,
+            '$original_text': original_text,
+            '$total_highlights': total_highlights,
+            '$total_words': total_words,
+            '$session_id': session_id,
+            '$ip_address': ip_address
+        })
+
+        # Insert highlights
+        for highlight in highlights:
+            highlight_id = self._get_next_id('highlights')
+
+            highlight_query = """
+            UPSERT INTO highlights (id, analysis_id, highlight_word, context, highlight_translation, dictionary_meanings)
+            VALUES ($id, $analysis_id, $highlight_word, $context, $highlight_translation, $dictionary_meanings)
+            """
+
+            self._execute_query(highlight_query, {
+                '$id': highlight_id,
+                '$analysis_id': analysis_id,
+                '$highlight_word': highlight.get('word', ''),
+                '$context': highlight.get('context', ''),
+                '$highlight_translation': highlight.get('translation', ''),
+                '$dictionary_meanings': str(highlight.get('meanings', []))
+            })
+
+        logger.info(f"[YDB] Saved analysis {analysis_id} with {total_highlights} highlights")
+        return analysis_id
+
     def get_recent_analyses(self, limit: int = 10) -> List[Dict]:
-        """Получение последних анализов"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, original_text, analysis_date, total_highlights, total_words
-                FROM analyses 
-                ORDER BY analysis_date DESC 
-                LIMIT ?
-            """, (limit,))
-            
-            results = []
-            for row in cursor.fetchall():
-                results.append({
-                    'id': row[0],
-                    'original_text': row[1][:100] + '...' if len(row[1]) > 100 else row[1],
-                    'analysis_date': row[2],
-                    'total_highlights': row[3],
-                    'total_words': row[4]
-                })
-            
-            return results
-    
+        """Get recent text analyses"""
+        query = f"""
+        SELECT *
+        FROM analyses
+        ORDER BY analysis_date DESC
+        LIMIT {limit}
+        """
+
+        return self._fetch_all(query)
+
     def get_analysis_by_id(self, analysis_id: int) -> Optional[Dict]:
-        """Получение полного анализа по ID"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Получаем основную информацию
-            cursor.execute("""
-                SELECT original_text, analysis_date, total_highlights, total_words
-                FROM analyses 
-                WHERE id = ?
-            """, (analysis_id,))
-            
-            analysis_row = cursor.fetchone()
-            if not analysis_row:
-                return None
-            
-            # Получаем хайлайты
-            cursor.execute("""
-                SELECT highlight_word, context, highlight_translation, dictionary_meanings
-                FROM highlights
-                WHERE analysis_id = ?
-            """, (analysis_id,))
+        """Get analysis by ID with all highlights"""
+        # Get analysis
+        analysis_query = """
+        SELECT *
+        FROM analyses
+        WHERE id = $id
+        """
 
-            highlights = []
-            for row in cursor.fetchall():
-                highlights.append({
-                    'highlight': row[0],
-                    'context': row[1],
-                    'highlight_translation': row[2],
-                    'dictionary_meanings': json.loads(row[3]) if row[3] else []
-                })
-            
-            return {
-                'id': analysis_id,
-                'original_text': analysis_row[0],
-                'analysis_date': analysis_row[1],
-                'stats': {
-                    'total_highlights': analysis_row[2],
-                    'total_words': analysis_row[3]
-                },
-                'highlights': highlights
-            }
-    
+        analysis = self._fetch_one(analysis_query, {'$id': analysis_id})
+
+        if not analysis:
+            return None
+
+        # Get highlights
+        highlights_query = """
+        SELECT *
+        FROM highlights
+        WHERE analysis_id = $analysis_id
+        ORDER BY id
+        """
+
+        highlights = self._fetch_all(highlights_query, {'$analysis_id': analysis_id})
+
+        analysis['highlights'] = highlights
+        return analysis
+
     def search_by_word(self, word: str, limit: int = 20) -> List[Dict]:
-        """Поиск анализов по конкретному слову"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT DISTINCT a.id, a.original_text, a.analysis_date, h.highlight_word, h.context
-                FROM analyses a
-                JOIN highlights h ON a.id = h.analysis_id
-                WHERE h.highlight_word LIKE ?
-                ORDER BY a.analysis_date DESC
-                LIMIT ?
-            """, (f'%{word}%', limit))
-            
-            results = []
-            for row in cursor.fetchall():
-                results.append({
-                    'analysis_id': row[0],
-                    'text_preview': row[1][:80] + '...' if len(row[1]) > 80 else row[1],
-                    'date': row[2],
-                    'highlight_word': row[3],
-                    'context': row[4]
-                })
-            
-            return results
-    
-    def get_stats(self) -> Dict:
-        """Получение общей статистики"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Общее количество анализов
-            cursor.execute("SELECT COUNT(*) FROM analyses")
-            total_analyses = cursor.fetchone()[0]
-            
-            # Общее количество хайлайтов
-            cursor.execute("SELECT COUNT(*) FROM highlights")
-            total_highlights = cursor.fetchone()[0]
-            
-            # Самые популярные слова
-            cursor.execute("""
-                SELECT highlight_word, COUNT(*) as count
-                FROM highlights 
-                GROUP BY highlight_word 
-                ORDER BY count DESC 
-                LIMIT 10
-            """)
-            popular_words = [{'word': row[0], 'count': row[1]} for row in cursor.fetchall()]
-            
-            return {
-                'total_analyses': total_analyses,
-                'total_highlights': total_highlights,
-                'popular_words': popular_words
-            }
+        """Search analyses by word in highlights"""
+        query = f"""
+        SELECT DISTINCT a.*
+        FROM analyses AS a
+        JOIN highlights AS h ON a.id = h.analysis_id
+        WHERE h.highlight_word LIKE '%' || $word || '%'
+        ORDER BY a.analysis_date DESC
+        LIMIT {limit}
+        """
 
-    # ===== МЕТОДЫ ДЛЯ ТРЕНИРОВОЧНОЙ СИСТЕМЫ =====
+        return self._fetch_all(query, {'$word': word})
+
+    def get_stats(self) -> Dict:
+        """Get database statistics"""
+        # Count analyses
+        analyses_query = "SELECT COUNT(*) AS count FROM analyses"
+        analyses_result = self._fetch_one(analyses_query)
+        total_analyses = analyses_result['count'] if analyses_result else 0
+
+        # Count highlights
+        highlights_query = "SELECT COUNT(*) AS count FROM highlights"
+        highlights_result = self._fetch_one(highlights_query)
+        total_highlights = highlights_result['count'] if highlights_result else 0
+
+        # Count dictionary words
+        words_query = "SELECT COUNT(*) AS count FROM dictionary_words"
+        words_result = self._fetch_one(words_query)
+        total_words = words_result['count'] if words_result else 0
+
+        return {
+            'total_analyses': total_analyses,
+            'total_highlights': total_highlights,
+            'total_dictionary_words': total_words
+        }
+
+    # ====================
+    # Training Methods
+    # ====================
 
     def get_user_training_state(self, user_id: int) -> Dict:
-        """Получить состояние тренировки пользователя"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT last_selection_position, last_training_at
-                FROM user_training_state
-                WHERE user_id = ?
-            """, (user_id,))
+        """Get user's training state"""
+        query = """
+        SELECT *
+        FROM user_training_state
+        WHERE user_id = $user_id
+        """
 
-            row = cursor.fetchone()
-            if row:
-                return {
-                    'last_selection_position': row[0],
-                    'last_training_at': row[1]
-                }
-            else:
-                # Создаем начальное состояние
-                cursor.execute("""
-                    INSERT INTO user_training_state (user_id, last_selection_position)
-                    VALUES (?, 1)
-                """, (user_id,))
-                conn.commit()
-                self._upload_to_s3()
-                return {
-                    'last_selection_position': 1,
-                    'last_training_at': None
-                }
+        state = self._fetch_one(query, {'$user_id': user_id})
+
+        if not state:
+            # Create default state
+            return {
+                'user_id': user_id,
+                'last_selection_position': 0,
+                'last_training_at': None
+            }
+
+        return state
 
     def update_training_position(self, user_id: int, position: int):
-        """Обновить позицию в алгоритме отбора"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            now = datetime.now().isoformat()
-            cursor.execute("""
-                INSERT INTO user_training_state (user_id, last_selection_position, last_training_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(user_id) DO UPDATE SET
-                    last_selection_position = excluded.last_selection_position,
-                    last_training_at = excluded.last_training_at
-            """, (user_id, position, now))
-            conn.commit()
-            self._upload_to_s3()
+        """Update user's training position"""
+        query = """
+        UPSERT INTO user_training_state (user_id, last_selection_position, last_training_at)
+        VALUES ($user_id, $position, $timestamp)
+        """
+
+        self._execute_query(query, {
+            '$user_id': user_id,
+            '$position': position,
+            '$timestamp': datetime.now().isoformat()
+        })
+
+    # ====================
+    # Test Methods
+    # ====================
 
     def insert_test(self, user_id: int, word_id: int, word: str,
-                    correct_translation: str, wrong_option_1: str,
-                    wrong_option_2: str, wrong_option_3: str) -> int:
-        """Создать тест"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            now = datetime.now().isoformat()
-            cursor.execute("""
-                INSERT INTO tests (user_id, word_id, word, correct_translation,
-                                 wrong_option_1, wrong_option_2, wrong_option_3, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (user_id, word_id, word, correct_translation,
-                  wrong_option_1, wrong_option_2, wrong_option_3, now))
-            conn.commit()
-            self._upload_to_s3()
-            return cursor.lastrowid
+                   correct_translation: str, wrong_option_1: str,
+                   wrong_option_2: str, wrong_option_3: str) -> int:
+        """Insert new test"""
+        test_id = self._get_next_id('tests')
+
+        query = """
+        UPSERT INTO tests (id, user_id, word_id, word, correct_translation, wrong_option_1, wrong_option_2, wrong_option_3, created_at)
+        VALUES ($id, $user_id, $word_id, $word, $correct_translation, $wrong_option_1, $wrong_option_2, $wrong_option_3, $created_at)
+        """
+
+        self._execute_query(query, {
+            '$id': test_id,
+            '$user_id': user_id,
+            '$word_id': word_id,
+            '$word': word,
+            '$correct_translation': correct_translation,
+            '$wrong_option_1': wrong_option_1,
+            '$wrong_option_2': wrong_option_2,
+            '$wrong_option_3': wrong_option_3,
+            '$created_at': datetime.now().isoformat()
+        })
+
+        return test_id
 
     def get_test(self, test_id: int) -> Optional[Dict]:
-        """Получить тест по ID"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, user_id, word_id, word, correct_translation,
-                       wrong_option_1, wrong_option_2, wrong_option_3, created_at
-                FROM tests
-                WHERE id = ?
-            """, (test_id,))
+        """Get test by ID"""
+        query = """
+        SELECT *
+        FROM tests
+        WHERE id = $id
+        """
 
-            row = cursor.fetchone()
-            if row:
-                return {
-                    'id': row[0],
-                    'user_id': row[1],
-                    'word_id': row[2],
-                    'word': row[3],
-                    'correct_translation': row[4],
-                    'wrong_option_1': row[5],
-                    'wrong_option_2': row[6],
-                    'wrong_option_3': row[7],
-                    'created_at': row[8]
-                }
-            return None
+        return self._fetch_one(query, {'$id': test_id})
 
     def delete_test(self, test_id: int):
-        """Удалить тест"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM tests WHERE id = ?", (test_id,))
-            conn.commit()
-            self._upload_to_s3()
+        """Delete test by ID"""
+        query = """
+        DELETE FROM tests
+        WHERE id = $id
+        """
+
+        self._execute_query(query, {'$id': test_id})
 
     def get_pending_tests(self, user_id: int) -> List[Dict]:
-        """Получить все нерешенные тесты пользователя"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, word_id, word, correct_translation,
-                       wrong_option_1, wrong_option_2, wrong_option_3, created_at
-                FROM tests
-                WHERE user_id = ?
-                ORDER BY created_at ASC
-            """, (user_id,))
+        """Get all pending tests for user"""
+        query = """
+        SELECT *
+        FROM tests
+        WHERE user_id = $user_id
+        ORDER BY created_at DESC
+        """
 
-            results = []
-            for row in cursor.fetchall():
-                results.append({
-                    'id': row[0],
-                    'word_id': row[1],
-                    'word': row[2],
-                    'correct_translation': row[3],
-                    'wrong_option_1': row[4],
-                    'wrong_option_2': row[5],
-                    'wrong_option_3': row[6],
-                    'created_at': row[7]
-                })
-            return results
+        return self._fetch_all(query, {'$user_id': user_id})
+
+    # ====================
+    # Word Methods
+    # ====================
 
     def update_word_rating(self, word_id: int, rating: int, last_rating_change: str = None):
-        """Обновить рейтинг слова"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            if last_rating_change is None:
-                last_rating_change = datetime.now().isoformat()
+        """Update word rating"""
+        if last_rating_change is None:
+            last_rating_change = datetime.now().isoformat()
 
-            cursor.execute("""
-                UPDATE dictionary_words
-                SET rating = ?, last_rating_change = ?, last_reviewed_at = ?
-                WHERE id = ?
-            """, (rating, last_rating_change, datetime.now().isoformat(), word_id))
-            conn.commit()
-            self._upload_to_s3()
+        query = """
+        UPDATE dictionary_words
+        SET rating = $rating, last_rating_change = $last_rating_change
+        WHERE id = $id
+        """
+
+        self._execute_query(query, {
+            '$id': word_id,
+            '$rating': rating,
+            '$last_rating_change': last_rating_change
+        })
 
     def update_word_status(self, word_id: int, status: str):
-        """Обновить статус слова"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE dictionary_words
-                SET status = ?, last_reviewed_at = ?
-                WHERE id = ?
-            """, (status, datetime.now().isoformat(), word_id))
-            conn.commit()
-            self._upload_to_s3()
+        """Update word status"""
+        query = """
+        UPDATE dictionary_words
+        SET status = $status
+        WHERE id = $id
+        """
+
+        self._execute_query(query, {
+            '$id': word_id,
+            '$status': status
+        })
 
     def update_word_statistics(self, user_id: int, word_id: int, is_correct: bool):
-        """Обновить статистику тестов слова"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            now = datetime.now().isoformat()
+        """Update word test statistics"""
+        # Get existing statistics
+        query = """
+        SELECT *
+        FROM word_test_statistics
+        WHERE user_id = $user_id AND word_id = $word_id
+        """
 
-            cursor.execute("""
-                INSERT INTO word_test_statistics
-                (user_id, word_id, total_tests, correct_answers, wrong_answers, last_test_at, last_result)
-                VALUES (?, ?, 1, ?, ?, ?, ?)
-                ON CONFLICT(user_id, word_id) DO UPDATE SET
-                    total_tests = total_tests + 1,
-                    correct_answers = correct_answers + ?,
-                    wrong_answers = wrong_answers + ?,
-                    last_test_at = excluded.last_test_at,
-                    last_result = excluded.last_result
-            """, (
-                user_id, word_id,
-                1 if is_correct else 0,
-                1 if not is_correct else 0,
-                now,
-                is_correct,
-                1 if is_correct else 0,
-                1 if not is_correct else 0
-            ))
-            conn.commit()
-            self._upload_to_s3()
+        stats = self._fetch_one(query, {
+            '$user_id': user_id,
+            '$word_id': word_id
+        })
+
+        if stats:
+            # Update existing
+            update_query = """
+            UPDATE word_test_statistics
+            SET total_tests = $total_tests,
+                correct_answers = $correct_answers,
+                wrong_answers = $wrong_answers,
+                last_test_at = $last_test_at,
+                last_result = $last_result
+            WHERE id = $id
+            """
+
+            self._execute_query(update_query, {
+                '$id': stats['id'],
+                '$total_tests': stats['total_tests'] + 1,
+                '$correct_answers': stats['correct_answers'] + (1 if is_correct else 0),
+                '$wrong_answers': stats['wrong_answers'] + (0 if is_correct else 1),
+                '$last_test_at': datetime.now().isoformat(),
+                '$last_result': is_correct
+            })
+        else:
+            # Create new
+            stat_id = self._get_next_id('word_test_statistics')
+
+            insert_query = """
+            UPSERT INTO word_test_statistics (id, user_id, word_id, total_tests, correct_answers, wrong_answers, last_test_at, last_result)
+            VALUES ($id, $user_id, $word_id, $total_tests, $correct_answers, $wrong_answers, $last_test_at, $last_result)
+            """
+
+            self._execute_query(insert_query, {
+                '$id': stat_id,
+                '$user_id': user_id,
+                '$word_id': word_id,
+                '$total_tests': 1,
+                '$correct_answers': 1 if is_correct else 0,
+                '$wrong_answers': 0 if is_correct else 1,
+                '$last_test_at': datetime.now().isoformat(),
+                '$last_result': is_correct
+            })
 
     def get_word_by_id(self, word_id: int) -> Optional[Dict]:
-        """Получить слово по ID"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, user_id, lemma, type, status, added_at,
-                       last_reviewed_at, review_count, correct_streak, rating, last_rating_change
-                FROM dictionary_words
-                WHERE id = ?
-            """, (word_id,))
+        """Get dictionary word by ID"""
+        query = """
+        SELECT *
+        FROM dictionary_words
+        WHERE id = $id
+        """
 
-            row = cursor.fetchone()
-            if row:
-                return {
-                    'id': row[0],
-                    'user_id': row[1],
-                    'lemma': row[2],
-                    'type': row[3],
-                    'status': row[4],
-                    'added_at': row[5],
-                    'last_reviewed_at': row[6],
-                    'review_count': row[7],
-                    'correct_streak': row[8],
-                    'rating': row[9] or 0,
-                    'last_rating_change': row[10]
-                }
-            return None
+        return self._fetch_one(query, {'$id': word_id})
+
+    def __del__(self):
+        """Cleanup on destruction"""
+        if hasattr(self, 'driver'):
+            self.driver.stop()

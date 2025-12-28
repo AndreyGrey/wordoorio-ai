@@ -2,16 +2,16 @@
 """
 🔐 Auth Manager
 Управление авторизацией через Telegram Login Widget
+
+@version 2.0.0 (YDB)
 """
 
-import sqlite3
+import ydb
 import hashlib
 import hmac
 from datetime import datetime
 from typing import Dict, Optional
 import os
-import boto3
-from botocore.exceptions import ClientError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -19,48 +19,85 @@ logger = logging.getLogger(__name__)
 
 class AuthManager:
     def __init__(self, db_path: str = "wordoorio.db"):
+        """
+        Инициализация Auth Manager
+
+        Args:
+            db_path: Не используется для YDB, сохранено для совместимости API
+        """
+        # YDB connection parameters from environment
+        self.endpoint = os.getenv('YDB_ENDPOINT', 'grpcs://ydb.serverless.yandexcloud.net:2135')
+        self.database = os.getenv('YDB_DATABASE', '/ru-central1/b1g5sgin5ubfvtkrvjft/etnnib344dr71jrf015e')
+
+        # For API compatibility
         self.db_path = db_path
+
         # Получаем BOT_TOKEN из .env для проверки подписи Telegram
         self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN', '')
 
-        # S3 configuration
-        self.s3_enabled = all([
-            os.getenv('AWS_ACCESS_KEY_ID'),
-            os.getenv('AWS_SECRET_ACCESS_KEY'),
-            os.getenv('S3_BUCKET')
-        ])
+        # Initialize YDB driver
+        self._init_driver()
 
-        if self.s3_enabled:
-            self.s3_bucket = os.getenv('S3_BUCKET')
-            self.s3_endpoint = os.getenv('S3_ENDPOINT', 'https://storage.yandexcloud.net')
-            self.s3_client = boto3.client(
-                's3',
-                endpoint_url=self.s3_endpoint,
-                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
-            )
-            logger.info(f"[AUTH] S3 синхронизация включена: {self.s3_bucket}")
-        else:
-            logger.warning("[AUTH] S3 синхронизация отключена")
+        logger.info(f"[AUTH] YDB connected: {self.endpoint}")
 
-    def _upload_to_s3(self):
+    def _init_driver(self):
+        """Initialize YDB driver with credentials"""
+        # Use MetadataUrlCredentials for serverless containers
+        driver_config = ydb.DriverConfig(
+            endpoint=self.endpoint,
+            database=self.database,
+            credentials=ydb.iam.MetadataUrlCredentials()
+        )
+
+        self.driver = ydb.Driver(driver_config)
+        self.driver.wait(fail_fast=True, timeout=5)
+
+        # Create session pool for efficient connection reuse
+        self.pool = ydb.SessionPool(self.driver)
+
+    def _execute_query(self, query: str, parameters: Dict = None):
         """
-        Загрузить БД в S3
+        Execute YQL query with automatic retries
 
-        Вызывается после каждого изменения данных.
+        Args:
+            query: YQL query string
+            parameters: Query parameters as dict
+
+        Returns:
+            Query result
         """
-        if not self.s3_enabled:
-            return
-
-        try:
-            self.s3_client.upload_file(
-                Filename=self.db_path,
-                Bucket=self.s3_bucket,
-                Key=self.db_path
+        def callee(session):
+            return session.transaction().execute(
+                query,
+                parameters or {},
+                commit_tx=True
             )
-            logger.info(f"[AUTH] БД загружена в S3: s3://{self.s3_bucket}/{self.db_path}")
-        except Exception as e:
-            logger.error(f"[AUTH] Ошибка загрузки в S3: {e}")
+
+        return self.pool.retry_operation_sync(callee)
+
+    def _fetch_one(self, query: str, parameters: Dict = None) -> Optional[Dict]:
+        """Execute query and return first row as dict"""
+        result = self._execute_query(query, parameters)
+
+        if not result or not result[0].rows:
+            return None
+
+        row = result[0].rows[0]
+        columns = [col.name for col in result[0].columns]
+        return {col: getattr(row, col) for col in columns}
+
+    def _get_next_id(self, table_name: str) -> int:
+        """
+        Get next auto-increment ID for a table
+        YDB doesn't have auto-increment, so we simulate it
+        """
+        query = f"SELECT MAX(id) AS max_id FROM {table_name}"
+        result = self._fetch_one(query)
+
+        if not result or result['max_id'] is None:
+            return 1
+
+        return result['max_id'] + 1
 
     def verify_telegram_auth(self, auth_data: Dict) -> bool:
         """
@@ -115,56 +152,56 @@ class AuthManager:
 
         now = datetime.now().isoformat()
 
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        # Проверяем существует ли пользователь
+        check_query = """
+        SELECT id FROM users WHERE telegram_id = $telegram_id
+        """
+        existing = self._fetch_one(check_query, {'$telegram_id': telegram_id})
 
-            # Проверяем существует ли пользователь
-            cursor.execute("SELECT id FROM users WHERE telegram_id = ?", (telegram_id,))
-            existing = cursor.fetchone()
+        if existing:
+            # Обновляем данные пользователя
+            user_id = existing['id']
+            update_query = """
+            UPDATE users SET
+                first_name = $first_name,
+                last_name = $last_name,
+                username = $username,
+                photo_url = $photo_url,
+                auth_date = $auth_date,
+                last_login_at = $last_login_at
+            WHERE id = $id
+            """
+            self._execute_query(update_query, {
+                '$first_name': telegram_data.get('first_name'),
+                '$last_name': telegram_data.get('last_name'),
+                '$username': telegram_data.get('username'),
+                '$photo_url': telegram_data.get('photo_url'),
+                '$auth_date': telegram_data.get('auth_date'),
+                '$last_login_at': now,
+                '$id': user_id
+            })
+            logger.info(f"[AUTH] Пользователь {telegram_id} обновлен")
+        else:
+            # Создаем нового пользователя
+            user_id = self._get_next_id('users')
+            insert_query = """
+            UPSERT INTO users (id, telegram_id, first_name, last_name, username, photo_url, auth_date, created_at, last_login_at)
+            VALUES ($id, $telegram_id, $first_name, $last_name, $username, $photo_url, $auth_date, $created_at, $last_login_at)
+            """
+            self._execute_query(insert_query, {
+                '$id': user_id,
+                '$telegram_id': telegram_id,
+                '$first_name': telegram_data.get('first_name'),
+                '$last_name': telegram_data.get('last_name'),
+                '$username': telegram_data.get('username'),
+                '$photo_url': telegram_data.get('photo_url'),
+                '$auth_date': telegram_data.get('auth_date'),
+                '$created_at': now,
+                '$last_login_at': now
+            })
+            logger.info(f"[AUTH] Создан новый пользователь {telegram_id} с id={user_id}")
 
-            if existing:
-                # Обновляем данные пользователя
-                user_id = existing[0]
-                cursor.execute("""
-                    UPDATE users SET
-                        first_name = ?,
-                        last_name = ?,
-                        username = ?,
-                        photo_url = ?,
-                        auth_date = ?,
-                        last_login_at = ?
-                    WHERE id = ?
-                """, (
-                    telegram_data.get('first_name'),
-                    telegram_data.get('last_name'),
-                    telegram_data.get('username'),
-                    telegram_data.get('photo_url'),
-                    telegram_data.get('auth_date'),
-                    now,
-                    user_id
-                ))
-                print(f"✅ Пользователь {telegram_id} обновлен")
-            else:
-                # Создаем нового пользователя
-                cursor.execute("""
-                    INSERT INTO users (telegram_id, first_name, last_name, username, photo_url, auth_date, created_at, last_login_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    telegram_id,
-                    telegram_data.get('first_name'),
-                    telegram_data.get('last_name'),
-                    telegram_data.get('username'),
-                    telegram_data.get('photo_url'),
-                    telegram_data.get('auth_date'),
-                    now,
-                    now
-                ))
-                user_id = cursor.lastrowid
-                print(f"✅ Создан новый пользователь {telegram_id} с id={user_id}")
-
-            conn.commit()
-            self._upload_to_s3()
-            return user_id
+        return user_id
 
     def get_user_by_id(self, user_id: int) -> Optional[Dict]:
         """
@@ -176,16 +213,10 @@ class AuthManager:
         Returns:
             Словарь с данными пользователя или None
         """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-
-            cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-            row = cursor.fetchone()
-
-            if row:
-                return dict(row)
-            return None
+        query = """
+        SELECT * FROM users WHERE id = $id
+        """
+        return self._fetch_one(query, {'$id': user_id})
 
     def get_user_by_telegram_id(self, telegram_id: int) -> Optional[Dict]:
         """
@@ -197,21 +228,20 @@ class AuthManager:
         Returns:
             Словарь с данными пользователя или None
         """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+        query = """
+        SELECT * FROM users WHERE telegram_id = $telegram_id
+        """
+        return self._fetch_one(query, {'$telegram_id': telegram_id})
 
-            cursor.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,))
-            row = cursor.fetchone()
-
-            if row:
-                return dict(row)
-            return None
+    def __del__(self):
+        """Cleanup on destruction"""
+        if hasattr(self, 'driver'):
+            self.driver.stop()
 
 
 # Тесты для проверки
 if __name__ == "__main__":
-    print("🧪 Тестируем AuthManager...\n")
+    print("🧪 Тестируем AuthManager (YDB)...\n")
 
     auth = AuthManager()
 

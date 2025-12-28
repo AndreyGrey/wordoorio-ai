@@ -10,7 +10,7 @@
 - **Словарные значения** из Yandex Dictionary API
 - **Лемматизация** для удаления дубликатов (amplify/amplifying/amplified = одно слово)
 - **Веб-интерфейс** для удобной работы
-- **База данных SQLite** для сохранения истории анализов
+- **База данных**: SQLite + Yandex Object Storage (персистентное хранение, см. [DATABASE_STORAGE.md](DATABASE_STORAGE.md))
 
 ## Архитектура
 
@@ -106,7 +106,8 @@ Highlights → Frontend
 - **HTTP Client**: aiohttp
 - **NLP**: spaCy (лемматизация), pymorphy2
 - **Dictionary**: Yandex Dictionary API
-- **Database**: SQLite
+- **Database**: SQLite + Yandex Object Storage (см. [DATABASE_STORAGE.md](DATABASE_STORAGE.md))
+- **Deploy**: Yandex Serverless Containers (stateless)
 - **Frontend**: Vanilla JS
 
 ## Установка и запуск

@@ -5,71 +5,112 @@
 Управление персональным словарем пользователя.
 Добавление, получение, удаление слов и фраз для изучения.
 
-@version 1.0.0
+@version 2.0.0 (YDB)
 @author Wordoorio Team
 """
 
-import sqlite3
+import ydb
+import os
 from datetime import datetime
 from typing import Dict, List, Optional
-import os
-import boto3
-from botocore.exceptions import ClientError
 import logging
 
 logger = logging.getLogger(__name__)
 
 
 class DictionaryManager:
-    """Менеджер персонального словаря"""
+    """Менеджер персонального словаря (YDB)"""
 
     def __init__(self, db_path: str = "wordoorio.db"):
         """
         Инициализация менеджера словаря
 
         Args:
-            db_path: Путь к базе данных SQLite
+            db_path: Не используется для YDB, сохранено для совместимости API
         """
+        # YDB connection parameters from environment
+        self.endpoint = os.getenv('YDB_ENDPOINT', 'grpcs://ydb.serverless.yandexcloud.net:2135')
+        self.database = os.getenv('YDB_DATABASE', '/ru-central1/b1g5sgin5ubfvtkrvjft/etnnib344dr71jrf015e')
+
+        # For API compatibility
         self.db_path = db_path
 
-        # S3 configuration
-        self.s3_enabled = all([
-            os.getenv('AWS_ACCESS_KEY_ID'),
-            os.getenv('AWS_SECRET_ACCESS_KEY'),
-            os.getenv('S3_BUCKET')
-        ])
+        # Initialize YDB driver
+        self._init_driver()
 
-        if self.s3_enabled:
-            self.s3_bucket = os.getenv('S3_BUCKET')
-            self.s3_endpoint = os.getenv('S3_ENDPOINT', 'https://storage.yandexcloud.net')
-            self.s3_client = boto3.client(
-                's3',
-                endpoint_url=self.s3_endpoint,
-                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
-            )
-            logger.info(f"[DICTIONARY] S3 синхронизация включена: {self.s3_bucket}")
-        else:
-            logger.warning("[DICTIONARY] S3 синхронизация отключена")
+        logger.info(f"[DICTIONARY] YDB connected: {self.endpoint}")
 
-    def _upload_to_s3(self):
+    def _init_driver(self):
+        """Initialize YDB driver with credentials"""
+        # Use MetadataUrlCredentials for serverless containers
+        driver_config = ydb.DriverConfig(
+            endpoint=self.endpoint,
+            database=self.database,
+            credentials=ydb.iam.MetadataUrlCredentials()
+        )
+
+        self.driver = ydb.Driver(driver_config)
+        self.driver.wait(fail_fast=True, timeout=5)
+
+        # Create session pool for efficient connection reuse
+        self.pool = ydb.SessionPool(self.driver)
+
+    def _execute_query(self, query: str, parameters: Dict = None):
         """
-        Загрузить БД в S3
+        Execute YQL query with automatic retries
 
-        Вызывается после каждого изменения данных.
+        Args:
+            query: YQL query string
+            parameters: Query parameters as dict
+
+        Returns:
+            Query result
         """
-        if not self.s3_enabled:
-            return
-
-        try:
-            self.s3_client.upload_file(
-                Filename=self.db_path,
-                Bucket=self.s3_bucket,
-                Key=self.db_path
+        def callee(session):
+            return session.transaction().execute(
+                query,
+                parameters or {},
+                commit_tx=True
             )
-            logger.info(f"[DICTIONARY] БД загружена в S3: s3://{self.s3_bucket}/{self.db_path}")
-        except Exception as e:
-            logger.error(f"[DICTIONARY] Ошибка загрузки в S3: {e}")
+
+        return self.pool.retry_operation_sync(callee)
+
+    def _fetch_one(self, query: str, parameters: Dict = None) -> Optional[Dict]:
+        """Execute query and return first row as dict"""
+        result = self._execute_query(query, parameters)
+
+        if not result or not result[0].rows:
+            return None
+
+        row = result[0].rows[0]
+        columns = [col.name for col in result[0].columns]
+        return {col: getattr(row, col) for col in columns}
+
+    def _fetch_all(self, query: str, parameters: Dict = None) -> List[Dict]:
+        """Execute query and return all rows as list of dicts"""
+        result = self._execute_query(query, parameters)
+
+        if not result or not result[0].rows:
+            return []
+
+        columns = [col.name for col in result[0].columns]
+        return [
+            {col: getattr(row, col) for col in columns}
+            for row in result[0].rows
+        ]
+
+    def _get_next_id(self, table_name: str) -> int:
+        """
+        Get next auto-increment ID for a table
+        YDB doesn't have auto-increment, so we simulate it
+        """
+        query = f"SELECT MAX(id) AS max_id FROM {table_name}"
+        result = self._fetch_one(query)
+
+        if not result or result['max_id'] is None:
+            return 1
+
+        return result['max_id'] + 1
 
     def add_word(self, highlight_dict: Dict, session_id: str, user_id: Optional[int] = None) -> Dict:
         """
@@ -101,107 +142,171 @@ class DictionaryManager:
         context = highlight_dict['context']
         additional_meanings = highlight_dict.get('dictionary_meanings', [])
 
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        # Проверяем: есть ли слово с такой lemma?
+        if user_id is not None:
+            check_query = """
+            SELECT id FROM dictionary_words
+            WHERE lemma = $lemma AND user_id = $user_id
+            """
+            existing = self._fetch_one(check_query, {
+                '$lemma': lemma,
+                '$user_id': user_id
+            })
+        else:
+            check_query = """
+            SELECT id FROM dictionary_words
+            WHERE lemma = $lemma AND user_id IS NULL
+            """
+            existing = self._fetch_one(check_query, {'$lemma': lemma})
 
-            # Проверяем: есть ли слово с такой lemma?
-            cursor.execute("""
-                SELECT id FROM dictionary_words
-                WHERE lemma = ? AND (user_id = ? OR (user_id IS NULL AND ? IS NULL))
-            """, (lemma, user_id, user_id))
+        now = datetime.now().isoformat()
 
-            existing = cursor.fetchone()
-            now = datetime.now().isoformat()
+        if existing:
+            # Слово уже есть - добавляем новый перевод и пример
+            word_id = existing['id']
 
-            if existing:
-                # Слово уже есть - добавляем новый перевод и пример
-                word_id = existing[0]
+            # Добавляем основной перевод (если еще нет)
+            check_translation_query = """
+            SELECT COUNT(*) AS count FROM dictionary_translations
+            WHERE word_id = $word_id AND translation = $translation
+            """
+            translation_exists = self._fetch_one(check_translation_query, {
+                '$word_id': word_id,
+                '$translation': main_translation
+            })
 
-                # Добавляем основной перевод (если еще нет)
-                cursor.execute("""
-                    SELECT COUNT(*) FROM dictionary_translations
-                    WHERE word_id = ? AND translation = ?
-                """, (word_id, main_translation))
+            if translation_exists['count'] == 0:
+                translation_id = self._get_next_id('dictionary_translations')
+                insert_translation_query = """
+                UPSERT INTO dictionary_translations (id, word_id, translation, source_session_id, added_at)
+                VALUES ($id, $word_id, $translation, $session_id, $added_at)
+                """
+                self._execute_query(insert_translation_query, {
+                    '$id': translation_id,
+                    '$word_id': word_id,
+                    '$translation': main_translation,
+                    '$session_id': session_id,
+                    '$added_at': now
+                })
 
-                if cursor.fetchone()[0] == 0:
-                    cursor.execute("""
-                        INSERT INTO dictionary_translations
-                        (word_id, translation, source_session_id, added_at)
-                        VALUES (?, ?, ?, ?)
-                    """, (word_id, main_translation, session_id, now))
+            # Добавляем дополнительные переводы
+            for meaning in additional_meanings:
+                check_meaning_query = """
+                SELECT COUNT(*) AS count FROM dictionary_translations
+                WHERE word_id = $word_id AND translation = $translation
+                """
+                meaning_exists = self._fetch_one(check_meaning_query, {
+                    '$word_id': word_id,
+                    '$translation': meaning
+                })
 
-                # Добавляем дополнительные переводы
-                for meaning in additional_meanings:
-                    cursor.execute("""
-                        SELECT COUNT(*) FROM dictionary_translations
-                        WHERE word_id = ? AND translation = ?
-                    """, (word_id, meaning))
+                if meaning_exists['count'] == 0:
+                    meaning_id = self._get_next_id('dictionary_translations')
+                    insert_meaning_query = """
+                    UPSERT INTO dictionary_translations (id, word_id, translation, source_session_id, added_at)
+                    VALUES ($id, $word_id, $translation, $session_id, $added_at)
+                    """
+                    self._execute_query(insert_meaning_query, {
+                        '$id': meaning_id,
+                        '$word_id': word_id,
+                        '$translation': meaning,
+                        '$session_id': session_id,
+                        '$added_at': now
+                    })
 
-                    if cursor.fetchone()[0] == 0:
-                        cursor.execute("""
-                            INSERT INTO dictionary_translations
-                            (word_id, translation, source_session_id, added_at)
-                            VALUES (?, ?, ?, ?)
-                        """, (word_id, meaning, session_id, now))
+            # Добавляем новый пример использования
+            example_id = self._get_next_id('dictionary_examples')
+            insert_example_query = """
+            UPSERT INTO dictionary_examples (id, word_id, original_form, context, session_id, added_at)
+            VALUES ($id, $word_id, $original_form, $context, $session_id, $added_at)
+            """
+            self._execute_query(insert_example_query, {
+                '$id': example_id,
+                '$word_id': word_id,
+                '$original_form': lemma,
+                '$context': context,
+                '$session_id': session_id,
+                '$added_at': now
+            })
 
-                # Добавляем новый пример использования
-                cursor.execute("""
-                    INSERT INTO dictionary_examples
-                    (word_id, original_form, context, session_id, added_at)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (word_id, lemma, context, session_id, now))
+            return {
+                'success': True,
+                'is_new': False,
+                'word_id': word_id,
+                'message': f'Добавлен новый пример к слову "{lemma}"'
+            }
 
-                conn.commit()
-                self._upload_to_s3()
+        else:
+            # Новое слово - создаем запись
+            word_id = self._get_next_id('dictionary_words')
 
-                return {
-                    'success': True,
-                    'is_new': False,
-                    'word_id': word_id,
-                    'message': f'Добавлен новый пример к слову "{lemma}"'
-                }
+            insert_word_query = """
+            UPSERT INTO dictionary_words (id, user_id, lemma, type, status, added_at, review_count, correct_streak, rating)
+            VALUES ($id, $user_id, $lemma, $type, $status, $added_at, $review_count, $correct_streak, $rating)
+            """
 
-            else:
-                # Новое слово - создаем запись
-                cursor.execute("""
-                    INSERT INTO dictionary_words
-                    (user_id, lemma, type, status, added_at)
-                    VALUES (?, ?, ?, 'new', ?)
-                """, (user_id, lemma, word_type, now))
+            self._execute_query(insert_word_query, {
+                '$id': word_id,
+                '$user_id': user_id,
+                '$lemma': lemma,
+                '$type': word_type,
+                '$status': 'new',
+                '$added_at': now,
+                '$review_count': 0,
+                '$correct_streak': 0,
+                '$rating': 0
+            })
 
-                word_id = cursor.lastrowid
+            # Добавляем основной перевод
+            translation_id = self._get_next_id('dictionary_translations')
+            insert_translation_query = """
+            UPSERT INTO dictionary_translations (id, word_id, translation, source_session_id, added_at)
+            VALUES ($id, $word_id, $translation, $session_id, $added_at)
+            """
+            self._execute_query(insert_translation_query, {
+                '$id': translation_id,
+                '$word_id': word_id,
+                '$translation': main_translation,
+                '$session_id': session_id,
+                '$added_at': now
+            })
 
-                # Добавляем основной перевод
-                cursor.execute("""
-                    INSERT INTO dictionary_translations
-                    (word_id, translation, source_session_id, added_at)
-                    VALUES (?, ?, ?, ?)
-                """, (word_id, main_translation, session_id, now))
+            # Добавляем дополнительные переводы
+            for meaning in additional_meanings:
+                meaning_id = self._get_next_id('dictionary_translations')
+                insert_meaning_query = """
+                UPSERT INTO dictionary_translations (id, word_id, translation, source_session_id, added_at)
+                VALUES ($id, $word_id, $translation, $session_id, $added_at)
+                """
+                self._execute_query(insert_meaning_query, {
+                    '$id': meaning_id,
+                    '$word_id': word_id,
+                    '$translation': meaning,
+                    '$session_id': session_id,
+                    '$added_at': now
+                })
 
-                # Добавляем дополнительные переводы
-                for meaning in additional_meanings:
-                    cursor.execute("""
-                        INSERT INTO dictionary_translations
-                        (word_id, translation, source_session_id, added_at)
-                        VALUES (?, ?, ?, ?)
-                    """, (word_id, meaning, session_id, now))
+            # Добавляем первый пример использования
+            example_id = self._get_next_id('dictionary_examples')
+            insert_example_query = """
+            UPSERT INTO dictionary_examples (id, word_id, original_form, context, session_id, added_at)
+            VALUES ($id, $word_id, $original_form, $context, $session_id, $added_at)
+            """
+            self._execute_query(insert_example_query, {
+                '$id': example_id,
+                '$word_id': word_id,
+                '$original_form': lemma,
+                '$context': context,
+                '$session_id': session_id,
+                '$added_at': now
+            })
 
-                # Добавляем первый пример использования
-                cursor.execute("""
-                    INSERT INTO dictionary_examples
-                    (word_id, original_form, context, session_id, added_at)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (word_id, lemma, context, session_id, now))
-
-                conn.commit()
-                self._upload_to_s3()
-
-                return {
-                    'success': True,
-                    'is_new': True,
-                    'word_id': word_id,
-                    'message': f'Слово "{lemma}" добавлено в словарь'
-                }
+            return {
+                'success': True,
+                'is_new': True,
+                'word_id': word_id,
+                'message': f'Слово "{lemma}" добавлено в словарь'
+            }
 
     def get_word(self, lemma: str, user_id: Optional[int] = None) -> Optional[Dict]:
         """
@@ -234,68 +339,78 @@ class DictionaryManager:
                 ]
             }
         """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        # Получаем основную информацию о слове
+        if user_id is not None:
+            word_query = """
+            SELECT id, type, status, added_at, last_reviewed_at, review_count, correct_streak
+            FROM dictionary_words
+            WHERE lemma = $lemma AND user_id = $user_id
+            """
+            word_row = self._fetch_one(word_query, {
+                '$lemma': lemma,
+                '$user_id': user_id
+            })
+        else:
+            word_query = """
+            SELECT id, type, status, added_at, last_reviewed_at, review_count, correct_streak
+            FROM dictionary_words
+            WHERE lemma = $lemma AND user_id IS NULL
+            """
+            word_row = self._fetch_one(word_query, {'$lemma': lemma})
 
-            # Получаем основную информацию о слове
-            cursor.execute("""
-                SELECT id, type, status, added_at, last_reviewed_at, review_count, correct_streak
-                FROM dictionary_words
-                WHERE lemma = ? AND (user_id = ? OR (user_id IS NULL AND ? IS NULL))
-            """, (lemma, user_id, user_id))
+        if not word_row:
+            return None
 
-            word_row = cursor.fetchone()
-            if not word_row:
-                return None
+        word_id = word_row['id']
 
-            word_id = word_row[0]
+        # Получаем переводы
+        translations_query = """
+        SELECT translation, source_session_id, added_at
+        FROM dictionary_translations
+        WHERE word_id = $word_id
+        ORDER BY added_at ASC
+        """
+        translation_rows = self._fetch_all(translations_query, {'$word_id': word_id})
 
-            # Получаем переводы
-            cursor.execute("""
-                SELECT translation, source_session_id, added_at
-                FROM dictionary_translations
-                WHERE word_id = ?
-                ORDER BY added_at ASC
-            """, (word_id,))
-
-            translations = [
-                {
-                    'text': row[0],
-                    'source_session_id': row[1],
-                    'added_at': row[2]
-                }
-                for row in cursor.fetchall()
-            ]
-
-            # Получаем примеры
-            cursor.execute("""
-                SELECT original_form, context, session_id, added_at
-                FROM dictionary_examples
-                WHERE word_id = ?
-                ORDER BY added_at ASC
-            """, (word_id,))
-
-            examples = [
-                {
-                    'original_form': row[0],
-                    'context': row[1],
-                    'session_id': row[2],
-                    'added_at': row[3]
-                }
-                for row in cursor.fetchall()
-            ]
-
-            return {
-                'lemma': lemma,
-                'type': word_row[1],
-                'status': word_row[2],
-                'added_at': word_row[3],
-                'last_reviewed_at': word_row[4],
-                'review_count': word_row[5],
-                'correct_streak': word_row[6],
-                'translations': translations,
-                'examples': examples
+        translations = [
+            {
+                'text': row['translation'],
+                'source_session_id': row['source_session_id'],
+                'added_at': row['added_at']
             }
+            for row in translation_rows
+        ]
+
+        # Получаем примеры
+        examples_query = """
+        SELECT original_form, context, session_id, added_at
+        FROM dictionary_examples
+        WHERE word_id = $word_id
+        ORDER BY added_at ASC
+        """
+        example_rows = self._fetch_all(examples_query, {'$word_id': word_id})
+
+        examples = [
+            {
+                'original_form': row['original_form'],
+                'context': row['context'],
+                'session_id': row['session_id'],
+                'added_at': row['added_at']
+            }
+            for row in example_rows
+        ]
+
+        return {
+            'lemma': lemma,
+            'type': word_row['type'],
+            'status': word_row['status'],
+            'added_at': word_row['added_at'],
+            'last_reviewed_at': word_row['last_reviewed_at'],
+            'review_count': word_row['review_count'],
+            'correct_streak': word_row['correct_streak'],
+            'translations': translations,
+            'examples': examples
+        }
 
     def get_all_words(self, user_id: Optional[int] = None, filters: Optional[Dict] = None) -> List[Dict]:
         """
@@ -317,46 +432,59 @@ class DictionaryManager:
                 }
             ]
         """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        # Получаем все слова
+        if user_id is not None:
+            words_query = """
+            SELECT id, lemma, type, status, added_at
+            FROM dictionary_words
+            WHERE user_id = $user_id
+            ORDER BY added_at DESC
+            """
+            word_rows = self._fetch_all(words_query, {'$user_id': user_id})
+        else:
+            words_query = """
+            SELECT id, lemma, type, status, added_at
+            FROM dictionary_words
+            WHERE user_id IS NULL
+            ORDER BY added_at DESC
+            """
+            word_rows = self._fetch_all(words_query)
 
-            # Получаем все слова
-            cursor.execute("""
-                SELECT id, lemma, type, status, added_at
-                FROM dictionary_words
-                WHERE user_id = ? OR (user_id IS NULL AND ? IS NULL)
-                ORDER BY added_at DESC
-            """, (user_id, user_id))
+        words = []
+        for row in word_rows:
+            word_id = row['id']
+            lemma = row['lemma']
+            word_type = row['type']
+            status = row['status']
+            added_at = row['added_at']
 
-            words = []
-            for row in cursor.fetchall():
-                word_id, lemma, word_type, status, added_at = row
+            # Получаем переводы
+            translations_query = """
+            SELECT translation FROM dictionary_translations
+            WHERE word_id = $word_id
+            ORDER BY added_at ASC
+            """
+            translation_rows = self._fetch_all(translations_query, {'$word_id': word_id})
+            translations = [t['translation'] for t in translation_rows]
 
-                # Получаем переводы
-                cursor.execute("""
-                    SELECT translation FROM dictionary_translations
-                    WHERE word_id = ?
-                    ORDER BY added_at ASC
-                """, (word_id,))
-                translations = [t[0] for t in cursor.fetchall()]
+            # Получаем количество примеров
+            examples_count_query = """
+            SELECT COUNT(*) AS count FROM dictionary_examples
+            WHERE word_id = $word_id
+            """
+            examples_count_row = self._fetch_one(examples_count_query, {'$word_id': word_id})
+            examples_count = examples_count_row['count'] if examples_count_row else 0
 
-                # Получаем количество примеров
-                cursor.execute("""
-                    SELECT COUNT(*) FROM dictionary_examples
-                    WHERE word_id = ?
-                """, (word_id,))
-                examples_count = cursor.fetchone()[0]
+            words.append({
+                'lemma': lemma,
+                'type': word_type,
+                'translations': translations,
+                'examples_count': examples_count,
+                'status': status,
+                'added_at': added_at
+            })
 
-                words.append({
-                    'lemma': lemma,
-                    'type': word_type,
-                    'translations': translations,
-                    'examples_count': examples_count,
-                    'status': status,
-                    'added_at': added_at
-                })
-
-            return words
+        return words
 
     def delete_word(self, lemma: str, user_id: Optional[int] = None) -> Dict:
         """
@@ -369,26 +497,57 @@ class DictionaryManager:
         Returns:
             {'success': bool, 'message': str}
         """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        # YDB doesn't have CASCADE DELETE, so we need to delete manually
+        # First check if word exists and get its ID
+        if user_id is not None:
+            check_query = """
+            SELECT id FROM dictionary_words
+            WHERE lemma = $lemma AND user_id = $user_id
+            """
+            word_row = self._fetch_one(check_query, {
+                '$lemma': lemma,
+                '$user_id': user_id
+            })
+        else:
+            check_query = """
+            SELECT id FROM dictionary_words
+            WHERE lemma = $lemma AND user_id IS NULL
+            """
+            word_row = self._fetch_one(check_query, {'$lemma': lemma})
 
-            cursor.execute("""
-                DELETE FROM dictionary_words
-                WHERE lemma = ? AND (user_id = ? OR (user_id IS NULL AND ? IS NULL))
-            """, (lemma, user_id, user_id))
+        if not word_row:
+            return {
+                'success': False,
+                'message': f'Слово "{lemma}" не найдено в словаре'
+            }
 
-            if cursor.rowcount > 0:
-                conn.commit()
-                self._upload_to_s3()
-                return {
-                    'success': True,
-                    'message': f'Слово "{lemma}" удалено из словаря'
-                }
-            else:
-                return {
-                    'success': False,
-                    'message': f'Слово "{lemma}" не найдено в словаре'
-                }
+        word_id = word_row['id']
+
+        # Delete translations
+        delete_translations_query = """
+        DELETE FROM dictionary_translations
+        WHERE word_id = $word_id
+        """
+        self._execute_query(delete_translations_query, {'$word_id': word_id})
+
+        # Delete examples
+        delete_examples_query = """
+        DELETE FROM dictionary_examples
+        WHERE word_id = $word_id
+        """
+        self._execute_query(delete_examples_query, {'$word_id': word_id})
+
+        # Delete word
+        delete_word_query = """
+        DELETE FROM dictionary_words
+        WHERE id = $word_id
+        """
+        self._execute_query(delete_word_query, {'$word_id': word_id})
+
+        return {
+            'success': True,
+            'message': f'Слово "{lemma}" удалено из словаря'
+        }
 
     def get_stats(self, user_id: Optional[int] = None) -> Dict:
         """
@@ -409,38 +568,62 @@ class DictionaryManager:
                 }
             }
         """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        # Общее количество слов
+        if user_id is not None:
+            words_query = """
+            SELECT COUNT(*) AS count FROM dictionary_words
+            WHERE user_id = $user_id AND type = 'word'
+            """
+            words_result = self._fetch_one(words_query, {'$user_id': user_id})
+        else:
+            words_query = """
+            SELECT COUNT(*) AS count FROM dictionary_words
+            WHERE user_id IS NULL AND type = 'word'
+            """
+            words_result = self._fetch_one(words_query)
 
-            # Общее количество слов
-            cursor.execute("""
-                SELECT COUNT(*) FROM dictionary_words
-                WHERE (user_id = ? OR (user_id IS NULL AND ? IS NULL)) AND type = 'word'
-            """, (user_id, user_id))
-            total_words = cursor.fetchone()[0]
+        total_words = words_result['count'] if words_result else 0
 
-            # Общее количество фраз
-            cursor.execute("""
-                SELECT COUNT(*) FROM dictionary_words
-                WHERE (user_id = ? OR (user_id IS NULL AND ? IS NULL)) AND type = 'expression'
-            """, (user_id, user_id))
-            total_phrases = cursor.fetchone()[0]
+        # Общее количество фраз
+        if user_id is not None:
+            phrases_query = """
+            SELECT COUNT(*) AS count FROM dictionary_words
+            WHERE user_id = $user_id AND type = 'expression'
+            """
+            phrases_result = self._fetch_one(phrases_query, {'$user_id': user_id})
+        else:
+            phrases_query = """
+            SELECT COUNT(*) AS count FROM dictionary_words
+            WHERE user_id IS NULL AND type = 'expression'
+            """
+            phrases_result = self._fetch_one(phrases_query)
 
-            # Разбивка по статусам
-            cursor.execute("""
-                SELECT status, COUNT(*) FROM dictionary_words
-                WHERE user_id = ? OR (user_id IS NULL AND ? IS NULL)
-                GROUP BY status
-            """, (user_id, user_id))
+        total_phrases = phrases_result['count'] if phrases_result else 0
 
-            status_breakdown = {row[0]: row[1] for row in cursor.fetchall()}
+        # Разбивка по статусам
+        if user_id is not None:
+            status_query = """
+            SELECT status, COUNT(*) AS count FROM dictionary_words
+            WHERE user_id = $user_id
+            GROUP BY status
+            """
+            status_rows = self._fetch_all(status_query, {'$user_id': user_id})
+        else:
+            status_query = """
+            SELECT status, COUNT(*) AS count FROM dictionary_words
+            WHERE user_id IS NULL
+            GROUP BY status
+            """
+            status_rows = self._fetch_all(status_query)
 
-            return {
-                'total_words': total_words,
-                'total_phrases': total_phrases,
-                'total_count': total_words + total_phrases,
-                'status_breakdown': status_breakdown
-            }
+        status_breakdown = {row['status']: row['count'] for row in status_rows}
+
+        return {
+            'total_words': total_words,
+            'total_phrases': total_phrases,
+            'total_count': total_words + total_phrases,
+            'status_breakdown': status_breakdown
+        }
 
     def update_word_status(self, lemma: str, status: str, user_id: Optional[int] = None) -> Dict:
         """
@@ -461,27 +644,55 @@ class DictionaryManager:
                 'message': f'Недопустимый статус. Допустимые: {", ".join(valid_statuses)}'
             }
 
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        if user_id is not None:
+            update_query = """
+            UPDATE dictionary_words
+            SET status = $status
+            WHERE lemma = $lemma AND user_id = $user_id
+            """
+            self._execute_query(update_query, {
+                '$status': status,
+                '$lemma': lemma,
+                '$user_id': user_id
+            })
+        else:
+            update_query = """
+            UPDATE dictionary_words
+            SET status = $status
+            WHERE lemma = $lemma AND user_id IS NULL
+            """
+            self._execute_query(update_query, {
+                '$status': status,
+                '$lemma': lemma
+            })
 
-            cursor.execute("""
-                UPDATE dictionary_words
-                SET status = ?
-                WHERE lemma = ? AND (user_id = ? OR (user_id IS NULL AND ? IS NULL))
-            """, (status, lemma, user_id, user_id))
+        # Check if update was successful by checking if word exists
+        if user_id is not None:
+            check_query = """
+            SELECT COUNT(*) AS count FROM dictionary_words
+            WHERE lemma = $lemma AND user_id = $user_id
+            """
+            result = self._fetch_one(check_query, {
+                '$lemma': lemma,
+                '$user_id': user_id
+            })
+        else:
+            check_query = """
+            SELECT COUNT(*) AS count FROM dictionary_words
+            WHERE lemma = $lemma AND user_id IS NULL
+            """
+            result = self._fetch_one(check_query, {'$lemma': lemma})
 
-            if cursor.rowcount > 0:
-                conn.commit()
-                self._upload_to_s3()
-                return {
-                    'success': True,
-                    'message': f'Статус слова "{lemma}" обновлен на "{status}"'
-                }
-            else:
-                return {
-                    'success': False,
-                    'message': f'Слово "{lemma}" не найдено в словаре'
-                }
+        if result and result['count'] > 0:
+            return {
+                'success': True,
+                'message': f'Статус слова "{lemma}" обновлен на "{status}"'
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Слово "{lemma}" не найдено в словаре'
+            }
 
     def update_review_stats(self, lemma: str, is_correct: bool, user_id: Optional[int] = None) -> Dict:
         """
@@ -500,66 +711,103 @@ class DictionaryManager:
                 'message': str
             }
         """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        # Получаем текущую статистику
+        if user_id is not None:
+            word_query = """
+            SELECT correct_streak, review_count, status
+            FROM dictionary_words
+            WHERE lemma = $lemma AND user_id = $user_id
+            """
+            word_row = self._fetch_one(word_query, {
+                '$lemma': lemma,
+                '$user_id': user_id
+            })
+        else:
+            word_query = """
+            SELECT correct_streak, review_count, status
+            FROM dictionary_words
+            WHERE lemma = $lemma AND user_id IS NULL
+            """
+            word_row = self._fetch_one(word_query, {'$lemma': lemma})
 
-            # Получаем текущую статистику
-            cursor.execute("""
-                SELECT correct_streak, review_count, status
-                FROM dictionary_words
-                WHERE lemma = ? AND (user_id = ? OR (user_id IS NULL AND ? IS NULL))
-            """, (lemma, user_id, user_id))
-
-            word_row = cursor.fetchone()
-            if not word_row:
-                return {
-                    'success': False,
-                    'message': f'Слово "{lemma}" не найдено в словаре'
-                }
-
-            current_streak = word_row[0]
-            review_count = word_row[1]
-            current_status = word_row[2]
-
-            # Обновляем streak
-            if is_correct:
-                new_streak = current_streak + 1
-            else:
-                new_streak = 0  # Сбрасываем при ошибке
-
-            # Обновляем статус
-            new_status = current_status
-            if new_streak >= 10 and current_status != 'learned':
-                new_status = 'learned'  # 10 правильных подряд = изучено
-            elif review_count == 0 and current_status == 'new':
-                new_status = 'learning'  # Первая тренировка
-
-            now = datetime.now().isoformat()
-
-            cursor.execute("""
-                UPDATE dictionary_words
-                SET
-                    correct_streak = ?,
-                    review_count = review_count + 1,
-                    last_reviewed_at = ?,
-                    status = ?
-                WHERE lemma = ? AND (user_id = ? OR (user_id IS NULL AND ? IS NULL))
-            """, (new_streak, now, new_status, lemma, user_id, user_id))
-
-            conn.commit()
-            self._upload_to_s3()
-
+        if not word_row:
             return {
-                'success': True,
-                'new_status': new_status,
-                'correct_streak': new_streak,
-                'message': f'Статистика обновлена. Серия: {new_streak}'
+                'success': False,
+                'message': f'Слово "{lemma}" не найдено в словаре'
             }
+
+        current_streak = word_row['correct_streak']
+        review_count = word_row['review_count']
+        current_status = word_row['status']
+
+        # Обновляем streak
+        if is_correct:
+            new_streak = current_streak + 1
+        else:
+            new_streak = 0  # Сбрасываем при ошибке
+
+        # Обновляем статус
+        new_status = current_status
+        if new_streak >= 10 and current_status != 'learned':
+            new_status = 'learned'  # 10 правильных подряд = изучено
+        elif review_count == 0 and current_status == 'new':
+            new_status = 'learning'  # Первая тренировка
+
+        now = datetime.now().isoformat()
+
+        # Обновляем запись
+        if user_id is not None:
+            update_query = """
+            UPDATE dictionary_words
+            SET
+                correct_streak = $correct_streak,
+                review_count = $review_count,
+                last_reviewed_at = $last_reviewed_at,
+                status = $status
+            WHERE lemma = $lemma AND user_id = $user_id
+            """
+            self._execute_query(update_query, {
+                '$correct_streak': new_streak,
+                '$review_count': review_count + 1,
+                '$last_reviewed_at': now,
+                '$status': new_status,
+                '$lemma': lemma,
+                '$user_id': user_id
+            })
+        else:
+            update_query = """
+            UPDATE dictionary_words
+            SET
+                correct_streak = $correct_streak,
+                review_count = $review_count,
+                last_reviewed_at = $last_reviewed_at,
+                status = $status
+            WHERE lemma = $lemma AND user_id IS NULL
+            """
+            self._execute_query(update_query, {
+                '$correct_streak': new_streak,
+                '$review_count': review_count + 1,
+                '$last_reviewed_at': now,
+                '$status': new_status,
+                '$lemma': lemma
+            })
+
+        return {
+            'success': True,
+            'new_status': new_status,
+            'correct_streak': new_streak,
+            'message': f'Статистика обновлена. Серия: {new_streak}'
+        }
+
+    def __del__(self):
+        """Cleanup on destruction"""
+        if hasattr(self, 'driver'):
+            self.driver.stop()
 
 
 # Для тестирования
 if __name__ == '__main__':
-    print("🧪 ТЕСТ DICTIONARY MANAGER")
+    print("🧪 ТЕСТ DICTIONARY MANAGER (YDB)")
     print("=" * 50)
 
     manager = DictionaryManager()
@@ -593,9 +841,10 @@ if __name__ == '__main__':
     # Тест 3: Получение слова с деталями
     print("\n📖 Тест 3: Получение деталей слова")
     word = manager.get_word('give up')
-    print(f"Слово: {word['lemma']}")
-    print(f"Переводы: {[t['text'] for t in word['translations']]}")
-    print(f"Примеров: {len(word['examples'])}")
+    if word:
+        print(f"Слово: {word['lemma']}")
+        print(f"Переводы: {[t['text'] for t in word['translations']]}")
+        print(f"Примеров: {len(word['examples'])}")
 
     # Тест 4: Получение всех слов
     print("\n📚 Тест 4: Все слова в словаре")

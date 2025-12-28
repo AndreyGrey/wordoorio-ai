@@ -61,10 +61,8 @@ jobs:
           --environment YANDEX_CLOUD_API_KEY=${{ secrets.YANDEX_CLOUD_API_KEY }} \
           --environment YANDEX_DICT_API_KEY=${{ secrets.YANDEX_DICT_API_KEY }} \
           --environment TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
-          --environment AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
-          --environment AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
-          --environment S3_BUCKET=${{ secrets.S3_BUCKET }} \
-          --environment S3_ENDPOINT=https://storage.yandexcloud.net
+          --environment YDB_ENDPOINT=${{ secrets.YDB_ENDPOINT }} \
+          --environment YDB_DATABASE=${{ secrets.YDB_DATABASE }}
 
     - name: Get Container URL
       run: |

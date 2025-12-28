@@ -1,0 +1,123 @@
+-- YDB Schema for Wordoorio
+-- Миграция из SQLite в YDB
+
+-- 1. Таблица пользователей
+CREATE TABLE users (
+    id Uint64 NOT NULL,
+    telegram_id Uint64 NOT NULL,
+    first_name Utf8,
+    last_name Utf8,
+    username Utf8,
+    photo_url Utf8,
+    auth_date Uint64 NOT NULL,
+    created_at Utf8 NOT NULL,
+    last_login_at Utf8 NOT NULL,
+    PRIMARY KEY (id),
+    INDEX idx_telegram_id GLOBAL ON (telegram_id)
+);
+
+-- 2. Таблица словарных слов
+CREATE TABLE dictionary_words (
+    id Uint64 NOT NULL,
+    user_id Uint64,
+    lemma Utf8 NOT NULL,
+    type Utf8 NOT NULL,
+    status Utf8 NOT NULL,
+    added_at Utf8 NOT NULL,
+    last_reviewed_at Utf8,
+    review_count Uint32 NOT NULL,
+    correct_streak Uint32 NOT NULL,
+    rating Uint32 NOT NULL,
+    last_rating_change Utf8,
+    PRIMARY KEY (id),
+    INDEX idx_user_lemma GLOBAL ON (user_id, lemma),
+    INDEX idx_lemma GLOBAL ON (lemma),
+    INDEX idx_status GLOBAL ON (status),
+    INDEX idx_rating GLOBAL ON (rating)
+);
+
+-- 3. Переводы слов
+CREATE TABLE dictionary_translations (
+    id Uint64 NOT NULL,
+    word_id Uint64 NOT NULL,
+    translation Utf8 NOT NULL,
+    source_session_id Utf8,
+    added_at Utf8 NOT NULL,
+    PRIMARY KEY (id),
+    INDEX idx_word_id GLOBAL ON (word_id)
+);
+
+-- 4. Примеры использования слов
+CREATE TABLE dictionary_examples (
+    id Uint64 NOT NULL,
+    word_id Uint64 NOT NULL,
+    original_form Utf8 NOT NULL,
+    context Utf8 NOT NULL,
+    session_id Utf8 NOT NULL,
+    added_at Utf8 NOT NULL,
+    PRIMARY KEY (id),
+    INDEX idx_word_id GLOBAL ON (word_id)
+);
+
+-- 5. Анализы текста
+CREATE TABLE analyses (
+    id Uint64 NOT NULL,
+    original_text Utf8 NOT NULL,
+    analysis_date Timestamp NOT NULL,
+    total_highlights Uint32 NOT NULL,
+    total_words Uint32 NOT NULL,
+    session_id Utf8,
+    ip_address Utf8,
+    PRIMARY KEY (id),
+    INDEX idx_analysis_date GLOBAL ON (analysis_date)
+);
+
+-- 6. Хайлайты (найденные слова)
+CREATE TABLE highlights (
+    id Uint64 NOT NULL,
+    analysis_id Uint64,
+    highlight_word Utf8 NOT NULL,
+    context Utf8 NOT NULL,
+    highlight_translation Utf8 NOT NULL,
+    dictionary_meanings Utf8,
+    PRIMARY KEY (id),
+    INDEX idx_analysis_id GLOBAL ON (analysis_id),
+    INDEX idx_highlight_word GLOBAL ON (highlight_word)
+);
+
+-- 7. Состояние тренировки пользователя
+CREATE TABLE user_training_state (
+    user_id Uint64 NOT NULL,
+    last_selection_position Uint32 NOT NULL,
+    last_training_at Utf8,
+    PRIMARY KEY (user_id)
+);
+
+-- 8. Тесты
+CREATE TABLE tests (
+    id Uint64 NOT NULL,
+    user_id Uint64 NOT NULL,
+    word_id Uint64 NOT NULL,
+    word Utf8 NOT NULL,
+    correct_translation Utf8 NOT NULL,
+    wrong_option_1 Utf8 NOT NULL,
+    wrong_option_2 Utf8 NOT NULL,
+    wrong_option_3 Utf8 NOT NULL,
+    created_at Utf8 NOT NULL,
+    PRIMARY KEY (id),
+    INDEX idx_user_id GLOBAL ON (user_id)
+);
+
+-- 9. Статистика тестирования слов
+CREATE TABLE word_test_statistics (
+    id Uint64 NOT NULL,
+    user_id Uint64 NOT NULL,
+    word_id Uint64 NOT NULL,
+    total_tests Uint32 NOT NULL,
+    correct_answers Uint32 NOT NULL,
+    wrong_answers Uint32 NOT NULL,
+    last_test_at Utf8,
+    last_result Bool,
+    PRIMARY KEY (id),
+    INDEX idx_user_word GLOBAL ON (user_id, word_id)
+);
