@@ -152,8 +152,8 @@ class DictionaryManager:
             WHERE lemma = $lemma AND user_id = $user_id
             """
             existing = self._fetch_one(check_query, {
-                '$lemma': lemma,
-                '$user_id': user_id
+                'lemma': lemma,
+                'user_id': user_id
             })
         else:
             check_query = """
@@ -162,7 +162,7 @@ class DictionaryManager:
             SELECT id FROM dictionary_words
             WHERE lemma = $lemma AND user_id IS NULL
             """
-            existing = self._fetch_one(check_query, {'$lemma': lemma})
+            existing = self._fetch_one(check_query, {'lemma': lemma})
 
         now = datetime.now().isoformat()
 
@@ -179,8 +179,8 @@ class DictionaryManager:
             WHERE word_id = $word_id AND translation = $translation
             """
             translation_exists = self._fetch_one(check_translation_query, {
-                '$word_id': word_id,
-                '$translation': main_translation
+                'word_id': word_id,
+                'translation': main_translation
             })
 
             if translation_exists['count'] == 0:
@@ -196,11 +196,11 @@ class DictionaryManager:
                 VALUES ($id, $word_id, $translation, $session_id, $added_at)
                 """
                 self._execute_query(insert_translation_query, {
-                    '$id': translation_id,
-                    '$word_id': word_id,
-                    '$translation': main_translation,
-                    '$session_id': session_id,
-                    '$added_at': now
+                    'id': translation_id,
+                    'word_id': word_id,
+                    'translation': main_translation,
+                    'session_id': session_id,
+                    'added_at': now
                 })
 
             # Добавляем дополнительные переводы
@@ -213,8 +213,8 @@ class DictionaryManager:
                 WHERE word_id = $word_id AND translation = $translation
                 """
                 meaning_exists = self._fetch_one(check_meaning_query, {
-                    '$word_id': word_id,
-                    '$translation': meaning
+                    'word_id': word_id,
+                    'translation': meaning
                 })
 
                 if meaning_exists['count'] == 0:
@@ -230,11 +230,11 @@ class DictionaryManager:
                     VALUES ($id, $word_id, $translation, $session_id, $added_at)
                     """
                     self._execute_query(insert_meaning_query, {
-                        '$id': meaning_id,
-                        '$word_id': word_id,
-                        '$translation': meaning,
-                        '$session_id': session_id,
-                        '$added_at': now
+                        'id': meaning_id,
+                        'word_id': word_id,
+                        'translation': meaning,
+                        'session_id': session_id,
+                        'added_at': now
                     })
 
             # Добавляем новый пример использования
@@ -251,12 +251,12 @@ class DictionaryManager:
             VALUES ($id, $word_id, $original_form, $context, $session_id, $added_at)
             """
             self._execute_query(insert_example_query, {
-                '$id': example_id,
-                '$word_id': word_id,
-                '$original_form': lemma,
-                '$context': context,
-                '$session_id': session_id,
-                '$added_at': now
+                'id': example_id,
+                'word_id': word_id,
+                'original_form': lemma,
+                'context': context,
+                'session_id': session_id,
+                'added_at': now
             })
 
             return {
@@ -286,15 +286,15 @@ class DictionaryManager:
             """
 
             self._execute_query(insert_word_query, {
-                '$id': word_id,
-                '$user_id': user_id,
-                '$lemma': lemma,
-                '$type': word_type,
-                '$status': 'new',
-                '$added_at': now,
-                '$review_count': 0,
-                '$correct_streak': 0,
-                '$rating': 0
+                'id': word_id,
+                'user_id': user_id,
+                'lemma': lemma,
+                'type': word_type,
+                'status': 'new',
+                'added_at': now,
+                'review_count': 0,
+                'correct_streak': 0,
+                'rating': 0
             })
 
             # Добавляем основной перевод
@@ -310,11 +310,11 @@ class DictionaryManager:
             VALUES ($id, $word_id, $translation, $session_id, $added_at)
             """
             self._execute_query(insert_translation_query, {
-                '$id': translation_id,
-                '$word_id': word_id,
-                '$translation': main_translation,
-                '$session_id': session_id,
-                '$added_at': now
+                'id': translation_id,
+                'word_id': word_id,
+                'translation': main_translation,
+                'session_id': session_id,
+                'added_at': now
             })
 
             # Добавляем дополнительные переводы
@@ -331,11 +331,11 @@ class DictionaryManager:
                 VALUES ($id, $word_id, $translation, $session_id, $added_at)
                 """
                 self._execute_query(insert_meaning_query, {
-                    '$id': meaning_id,
-                    '$word_id': word_id,
-                    '$translation': meaning,
-                    '$session_id': session_id,
-                    '$added_at': now
+                    'id': meaning_id,
+                    'word_id': word_id,
+                    'translation': meaning,
+                    'session_id': session_id,
+                    'added_at': now
                 })
 
             # Добавляем первый пример использования
@@ -352,12 +352,12 @@ class DictionaryManager:
             VALUES ($id, $word_id, $original_form, $context, $session_id, $added_at)
             """
             self._execute_query(insert_example_query, {
-                '$id': example_id,
-                '$word_id': word_id,
-                '$original_form': lemma,
-                '$context': context,
-                '$session_id': session_id,
-                '$added_at': now
+                'id': example_id,
+                'word_id': word_id,
+                'original_form': lemma,
+                'context': context,
+                'session_id': session_id,
+                'added_at': now
             })
 
             return {
@@ -409,8 +409,8 @@ class DictionaryManager:
             WHERE lemma = $lemma AND user_id = $user_id
             """
             word_row = self._fetch_one(word_query, {
-                '$lemma': lemma,
-                '$user_id': user_id
+                'lemma': lemma,
+                'user_id': user_id
             })
         else:
             word_query = """
@@ -420,7 +420,7 @@ class DictionaryManager:
             FROM dictionary_words
             WHERE lemma = $lemma AND user_id IS NULL
             """
-            word_row = self._fetch_one(word_query, {'$lemma': lemma})
+            word_row = self._fetch_one(word_query, {'lemma': lemma})
 
         if not word_row:
             return None
@@ -436,7 +436,7 @@ class DictionaryManager:
         WHERE word_id = $word_id
         ORDER BY added_at ASC
         """
-        translation_rows = self._fetch_all(translations_query, {'$word_id': word_id})
+        translation_rows = self._fetch_all(translations_query, {'word_id': word_id})
 
         translations = [
             {
@@ -456,7 +456,7 @@ class DictionaryManager:
         WHERE word_id = $word_id
         ORDER BY added_at ASC
         """
-        example_rows = self._fetch_all(examples_query, {'$word_id': word_id})
+        example_rows = self._fetch_all(examples_query, {'word_id': word_id})
 
         examples = [
             {
@@ -510,7 +510,7 @@ class DictionaryManager:
             WHERE user_id = $user_id
             ORDER BY added_at DESC
             """
-            word_rows = self._fetch_all(words_query, {'$user_id': user_id})
+            word_rows = self._fetch_all(words_query, {'user_id': user_id})
         else:
             words_query = """
             SELECT id, lemma, type, status, added_at
@@ -536,7 +536,7 @@ class DictionaryManager:
             WHERE word_id = $word_id
             ORDER BY added_at ASC
             """
-            translation_rows = self._fetch_all(translations_query, {'$word_id': word_id})
+            translation_rows = self._fetch_all(translations_query, {'word_id': word_id})
             translations = [t['translation'] for t in translation_rows]
 
             # Получаем количество примеров
@@ -546,7 +546,7 @@ class DictionaryManager:
             SELECT COUNT(*) AS count FROM dictionary_examples
             WHERE word_id = $word_id
             """
-            examples_count_row = self._fetch_one(examples_count_query, {'$word_id': word_id})
+            examples_count_row = self._fetch_one(examples_count_query, {'word_id': word_id})
             examples_count = examples_count_row['count'] if examples_count_row else 0
 
             words.append({
@@ -582,8 +582,8 @@ class DictionaryManager:
             WHERE lemma = $lemma AND user_id = $user_id
             """
             word_row = self._fetch_one(check_query, {
-                '$lemma': lemma,
-                '$user_id': user_id
+                'lemma': lemma,
+                'user_id': user_id
             })
         else:
             check_query = """
@@ -592,7 +592,7 @@ class DictionaryManager:
             SELECT id FROM dictionary_words
             WHERE lemma = $lemma AND user_id IS NULL
             """
-            word_row = self._fetch_one(check_query, {'$lemma': lemma})
+            word_row = self._fetch_one(check_query, {'lemma': lemma})
 
         if not word_row:
             return {
@@ -609,7 +609,7 @@ class DictionaryManager:
         DELETE FROM dictionary_translations
         WHERE word_id = $word_id
         """
-        self._execute_query(delete_translations_query, {'$word_id': word_id})
+        self._execute_query(delete_translations_query, {'word_id': word_id})
 
         # Delete examples
         delete_examples_query = """
@@ -618,7 +618,7 @@ class DictionaryManager:
         DELETE FROM dictionary_examples
         WHERE word_id = $word_id
         """
-        self._execute_query(delete_examples_query, {'$word_id': word_id})
+        self._execute_query(delete_examples_query, {'word_id': word_id})
 
         # Delete word
         delete_word_query = """
@@ -627,7 +627,7 @@ class DictionaryManager:
         DELETE FROM dictionary_words
         WHERE id = $word_id
         """
-        self._execute_query(delete_word_query, {'$word_id': word_id})
+        self._execute_query(delete_word_query, {'word_id': word_id})
 
         return {
             'success': True,
@@ -661,7 +661,7 @@ class DictionaryManager:
             SELECT COUNT(*) AS count FROM dictionary_words
             WHERE user_id = $user_id AND type = 'word'
             """
-            words_result = self._fetch_one(words_query, {'$user_id': user_id})
+            words_result = self._fetch_one(words_query, {'user_id': user_id})
         else:
             words_query = """
             SELECT COUNT(*) AS count FROM dictionary_words
@@ -679,7 +679,7 @@ class DictionaryManager:
             SELECT COUNT(*) AS count FROM dictionary_words
             WHERE user_id = $user_id AND type = 'expression'
             """
-            phrases_result = self._fetch_one(phrases_query, {'$user_id': user_id})
+            phrases_result = self._fetch_one(phrases_query, {'user_id': user_id})
         else:
             phrases_query = """
             SELECT COUNT(*) AS count FROM dictionary_words
@@ -698,7 +698,7 @@ class DictionaryManager:
             WHERE user_id = $user_id
             GROUP BY status
             """
-            status_rows = self._fetch_all(status_query, {'$user_id': user_id})
+            status_rows = self._fetch_all(status_query, {'user_id': user_id})
         else:
             status_query = """
             SELECT status, COUNT(*) AS count FROM dictionary_words
@@ -746,9 +746,9 @@ class DictionaryManager:
             WHERE lemma = $lemma AND user_id = $user_id
             """
             self._execute_query(update_query, {
-                '$status': status,
-                '$lemma': lemma,
-                '$user_id': user_id
+                'status': status,
+                'lemma': lemma,
+                'user_id': user_id
             })
         else:
             update_query = """
@@ -760,8 +760,8 @@ class DictionaryManager:
             WHERE lemma = $lemma AND user_id IS NULL
             """
             self._execute_query(update_query, {
-                '$status': status,
-                '$lemma': lemma
+                'status': status,
+                'lemma': lemma
             })
 
         # Check if update was successful by checking if word exists
@@ -774,8 +774,8 @@ class DictionaryManager:
             WHERE lemma = $lemma AND user_id = $user_id
             """
             result = self._fetch_one(check_query, {
-                '$lemma': lemma,
-                '$user_id': user_id
+                'lemma': lemma,
+                'user_id': user_id
             })
         else:
             check_query = """
@@ -784,7 +784,7 @@ class DictionaryManager:
             SELECT COUNT(*) AS count FROM dictionary_words
             WHERE lemma = $lemma AND user_id IS NULL
             """
-            result = self._fetch_one(check_query, {'$lemma': lemma})
+            result = self._fetch_one(check_query, {'lemma': lemma})
 
         if result and result['count'] > 0:
             return {
@@ -825,8 +825,8 @@ class DictionaryManager:
             WHERE lemma = $lemma AND user_id = $user_id
             """
             word_row = self._fetch_one(word_query, {
-                '$lemma': lemma,
-                '$user_id': user_id
+                'lemma': lemma,
+                'user_id': user_id
             })
         else:
             word_query = """
@@ -836,7 +836,7 @@ class DictionaryManager:
             FROM dictionary_words
             WHERE lemma = $lemma AND user_id IS NULL
             """
-            word_row = self._fetch_one(word_query, {'$lemma': lemma})
+            word_row = self._fetch_one(word_query, {'lemma': lemma})
 
         if not word_row:
             return {
@@ -882,12 +882,12 @@ class DictionaryManager:
             WHERE lemma = $lemma AND user_id = $user_id
             """
             self._execute_query(update_query, {
-                '$correct_streak': new_streak,
-                '$review_count': review_count + 1,
-                '$last_reviewed_at': now,
-                '$status': new_status,
-                '$lemma': lemma,
-                '$user_id': user_id
+                'correct_streak': new_streak,
+                'review_count': review_count + 1,
+                'last_reviewed_at': now,
+                'status': new_status,
+                'lemma': lemma,
+                'user_id': user_id
             })
         else:
             update_query = """
@@ -906,11 +906,11 @@ class DictionaryManager:
             WHERE lemma = $lemma AND user_id IS NULL
             """
             self._execute_query(update_query, {
-                '$correct_streak': new_streak,
-                '$review_count': review_count + 1,
-                '$last_reviewed_at': now,
-                '$status': new_status,
-                '$lemma': lemma
+                'correct_streak': new_streak,
+                'review_count': review_count + 1,
+                'last_reviewed_at': now,
+                'status': new_status,
+                'lemma': lemma
             })
 
         return {
