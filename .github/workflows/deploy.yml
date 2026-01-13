@@ -37,7 +37,7 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -t cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest .
+        docker build --no-cache -t cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest .
         docker tag cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest \
                    cr.yandex/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
