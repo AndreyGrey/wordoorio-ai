@@ -38,103 +38,6 @@ def index():
     """Главная страница"""
     return render_template('index.html')
 
-@app.route('/analyze', methods=['POST'])
-def analyze_text():
-    """API для анализа текста - использует новую архитектуру"""
-    try:
-        data = request.get_json()
-        text = data.get('text', '').strip()
-
-        logger.info(f"[/analyze] Начало анализа текста ({len(text)} символов)")
-
-        # Используем новую архитектуру с AnalysisOrchestrator
-        import asyncio
-        from contracts.analysis_contracts import AnalysisRequest
-        from core.analysis_orchestrator import AnalysisOrchestrator
-        from core.yandex_ai_client import YandexAIClient
-
-        # Создаем запрос
-        analysis_request = AnalysisRequest(
-            text=text,
-            page_id='main',
-            user_session=session.get('session_id')
-        )
-
-        # Валидация
-        error = analysis_request.validate()
-        if error:
-            return jsonify({'error': error})
-
-        # Генерируем session_id если его нет
-        if 'session_id' not in session:
-            session['session_id'] = str(uuid.uuid4())
-
-        # Создаем клиент и оркестратор
-        ai_client = YandexAIClient()
-        orchestrator = AnalysisOrchestrator(ai_client)
-
-        # Анализируем
-        loop = None
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        result = loop.run_until_complete(
-            orchestrator.analyze_text(analysis_request)
-        )
-
-        # Логируем результаты анализа
-        if result.success and result.highlights:
-            logger.info(f"[/analyze] Анализ завершен успешно: {len(result.highlights)} хайлайтов, статистика: {result.stats.get('performance', {})}")
-
-        # Проверяем успех
-        if not result.success:
-            logger.error(f"[/analyze] Ошибка анализа: {result.error}")
-            return jsonify({'error': result.error})
-
-        if not result.highlights:
-            return jsonify({
-                'error': 'Для AI анализа нужны токены Yandex GPT. Без них система не может генерировать качественные хайлайты.',
-                'need_tokens': True
-            })
-
-        # Сохраняем в БД
-        try:
-            highlights_dicts = [h.to_dict() for h in result.highlights]
-
-            analysis_id = db.save_analysis(
-                original_text=text,
-                analysis_result={
-                    'highlights': highlights_dicts,
-                    'total_words': result.stats.get('total_words', 0)
-                },
-                user_id=session.get('user_id'),
-                session_id=session['session_id'],
-                ip_address=request.remote_addr
-            )
-
-            return jsonify({
-                'success': True,
-                'stats': result.stats,
-                'highlights': highlights_dicts,
-                'analysis_id': analysis_id
-            })
-        except Exception as db_error:
-            logger.error(f"[/analyze] Database error: {db_error}", exc_info=True)
-
-            return jsonify({
-                'success': True,
-                'stats': result.stats,
-                'highlights': [h.to_dict() for h in result.highlights],
-                'warning': 'Анализ выполнен, но не сохранен в историю'
-            })
-
-    except Exception as e:
-        logger.error(f"[/analyze] Критическая ошибка: {str(e)}", exc_info=True)
-        return jsonify({'error': f'Критическая ошибка: {str(e)}'})
-
 @app.route('/api/history', methods=['GET'])
 def get_history():
     """API для получения истории анализов"""
@@ -202,9 +105,9 @@ def my_highlights_page():
     """📚 Страница с сохраненными хайлайтами"""
     return render_template('my-highlights.html')
 
-@app.route('/api/v2/analyze', methods=['POST'])
-def analyze_v2():
-    """🚀 API V2 - использует новую архитектуру с версионированием промптов"""
+@app.route('/analyze', methods=['POST'])
+def analyze_text():
+    """API для анализа текста через Yandex AI агентов"""
     try:
         data = request.get_json()
         text = data.get('text', '').strip()
@@ -304,20 +207,6 @@ def analyze_v2():
 def history_page():
     """Страница истории анализов"""
     return render_template('history.html')
-
-# ===== YOUTUBE ROUTES =====
-
-# ===== YOUTUBE ENDPOINT (DEPRECATED - будет удален) =====
-# @app.route('/youtube/analyze', methods=['POST'])
-# def analyze_youtube():
-#     """
-#     Извлечение транскрипта из YouTube и редирект на /experimental
-#     DEPRECATED: YouTube функциональность удалена в Agent Refactoring v2.0
-#     """
-#     return jsonify({
-#         'success': False,
-#         'error': 'YouTube функциональность временно недоступна'
-#     })
 
 # ===== DICTIONARY ROUTES =====
 
