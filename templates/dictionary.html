@@ -566,7 +566,8 @@
 
                 const data = await response.json();
 
-                if (data.success) {
+                // Check BOTH response.ok and data.success for proper error handling
+                if (response.ok && data.success) {
                     // Удаляем элемент из DOM с анимацией
                     const wordRow = event.target.closest('.dictionary-word-row');
                     wordRow.style.opacity = '0';
@@ -592,7 +593,7 @@
                     button.innerHTML = originalHTML;
                     button.disabled = false;
                     button.style.opacity = '1';
-                    alert('Ошибка удаления: ' + (data.error || 'Неизвестная ошибка'));
+                    alert('Ошибка удаления: ' + (data.error || data.message || 'Неизвестная ошибка'));
                 }
             } catch (error) {
                 // Восстанавливаем кнопку при ошибке

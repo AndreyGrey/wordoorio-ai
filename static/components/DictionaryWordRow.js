@@ -34,8 +34,23 @@ function createDictionaryWordRow(word) {
     // Цвет бордера в зависимости от типа
     const borderColor = type === 'word' ? '#FF9966' : '#4299e1';
 
-    // Форматируем переводы (показываем все)
-    const translationsText = translations.join(', ');
+    // Форматируем переводы как таблетки
+    // Первый перевод - основной (заполненная таблетка)
+    // Остальные - дополнительные (с бордером)
+    const mainTranslation = translations.length > 0 ? translations[0] : '';
+    const additionalTranslations = translations.slice(1);
+
+    const mainTranslationHTML = mainTranslation
+        ? `<span class="translation-pill-main">${escapeHtml(mainTranslation)}</span>`
+        : '';
+
+    const additionalTranslationsHTML = additionalTranslations.length > 0
+        ? `<div class="translation-pills-additional">
+             ${additionalTranslations.map(t =>
+                 `<span class="translation-pill-bordered">${escapeHtml(t)}</span>`
+             ).join('')}
+           </div>`
+        : '';
 
     // Форматируем дату
     const formattedDate = formatDateShort(added_at);
@@ -59,8 +74,9 @@ function createDictionaryWordRow(word) {
                         <span class="word-lemma">${escapeHtml(lemma)}</span>
                         ${statusBadge}
                     </div>
-                    <div class="word-row-translation">
-                        ${escapeHtml(translationsText)}
+                    <div class="word-row-translations">
+                        ${mainTranslationHTML}
+                        ${additionalTranslationsHTML}
                     </div>
                     <div class="word-row-date">${formattedDate}</div>
                 </div>
@@ -180,12 +196,44 @@ function getDictionaryWordRowStyles() {
             color: #48bb78;
         }
 
-        /* Translation */
-        .word-row-translation {
-            font-size: 0.875rem;
-            color: #718096;
-            margin-bottom: 4px;
-            line-height: 1.4;
+        /* Translation pills container */
+        .word-row-translations {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        /* Main translation pill (filled) */
+        .translation-pill-main {
+            display: inline-block;
+            background-color: #0A3A4D;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 6px 16px;
+            border-radius: 50px;
+            line-height: 1.2;
+            align-self: flex-start;
+        }
+
+        /* Additional translations container */
+        .translation-pills-additional {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        /* Additional translation pills (bordered) */
+        .translation-pill-bordered {
+            display: inline-block;
+            border: 1.5px solid #2d3748;
+            border-radius: 50px;
+            padding: 5px 14px;
+            font-size: 13px;
+            color: #2d3748;
+            font-weight: 400;
+            line-height: 1.2;
         }
 
         /* Date below translation */
@@ -205,12 +253,36 @@ function getDictionaryWordRowStyles() {
                 font-size: 1.125rem;
             }
 
-            .word-row-translation {
-                font-size: 1rem;
-            }
-
             .word-row-left {
                 padding-left: 16px;
+            }
+
+            .translation-pill-main {
+                font-size: 15px;
+                padding: 7px 18px;
+            }
+
+            .translation-pill-bordered {
+                font-size: 14px;
+                padding: 6px 16px;
+            }
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 480px) {
+            .translation-pill-main {
+                font-size: 13px;
+                padding: 5px 14px;
+            }
+
+            .translation-pill-bordered {
+                font-size: 12px;
+                padding: 4px 12px;
+                border-width: 1.5px;
+            }
+
+            .translation-pills-additional {
+                gap: 6px;
             }
         }
     `;
