@@ -4,33 +4,83 @@
 
 ## Возможности
 
-- **Интеллектуальный анализ текста** через специализированных AI-агентов Yandex AI Studio
+- **Интеллектуальный анализ текста** через AI-агенты Yandex AI Studio
 - **Определение сложных слов и фраз** с учетом контекста
 - **Автоматические переводы** на русский язык
 - **Словарные значения** из Yandex Dictionary API
-- **Лемматизация** для удаления дубликатов (amplify/amplifying/amplified = одно слово)
-- **Веб-интерфейс** для удобной работы
-- **База данных**: YDB (Yandex Database) - serverless NoSQL/SQL база данных
+- **Лемматизация** для удаления дубликатов
+- **Персональный словарь** с прогрессом изучения
+- **База данных**: YDB (Yandex Database) - serverless база данных
+
+## Технологии
+
+- **Backend**: Python 3.9+, Flask, asyncio
+- **AI**: Yandex AI Studio (Qwen3-235B через REST API)
+- **NLP**: spaCy (лемматизация)
+- **Dictionary**: Yandex Dictionary API
+- **Database**: YDB (serverless NoSQL/SQL)
+- **Deploy**: Yandex Serverless Containers
+- **Frontend**: Vanilla JS
+
+## Быстрый старт
+
+### 1. Установка
+
+```bash
+git clone <repo-url>
+cd Wordoorio
+
+python3 -m venv venv
+source venv/bin/activate
+
+pip install -r requirements.txt
+python -m spacy download en_core_web_sm
+```
+
+### 2. Настройка окружения
+
+Создайте `.env`:
+
+```bash
+# Yandex Cloud
+YANDEX_CLOUD_API_KEY=<api_key>
+YANDEX_FOLDER_ID=<folder_id>
+
+# Dictionary API
+YANDEX_DICT_API_KEY=<dict_key>
+
+# YDB
+YDB_ENDPOINT=grpcs://ydb.serverless.yandexcloud.net:2135
+YDB_DATABASE=/ru-central1/<folder_id>/<database_id>
+
+# Telegram Bot (авторизация)
+TELEGRAM_BOT_TOKEN=<bot_token>
+TELEGRAM_BOT_USERNAME=<bot_username>
+```
+
+**Получение ключей:**
+- Yandex Cloud API Key: Сервисный аккаунт с ролью `ai.languageModels.user`
+- Dictionary API: https://yandex.ru/dev/dictionary/
+- Telegram Bot: https://t.me/BotFather → /newbot
+- YDB: Создайте serverless базу в Yandex Cloud Console, запустите `python create_ydb_schema.py`
+
+### 3. Запуск
+
+```bash
+python web_app.py
+# Откройте http://localhost:8081
+```
 
 ## Архитектура
 
-### Агентная система (Yandex AI Studio)
+### AI-агенты (Yandex AI Studio)
 
-Система использует два специализированных AI-агента:
+Два специализированных агента на базе Qwen3-235B:
 
-1. **Agent #1 (Words)** - `fvt3bjtulehmg0v8tss3`
-   - Анализирует отдельные сложные слова
-   - Модель: Qwen3-235B-A22B-FP8
+1. **Agent #1 (Words)** - `fvt3bjtulehmg0v8tss3` - анализирует отдельные слова
+2. **Agent #2 (Phrases)** - `fvt6j0ev2cgf1q2itfr6` - анализирует выражения
 
-2. **Agent #2 (Phrases)** - `fvt6j0ev2cgf1q2itfr6`
-   - Анализирует устойчивые выражения и коллокации
-   - Модель: Qwen3-235B-A22B-FP8
-
-### Подключение агентов
-
-⚠️ **Important:** Do NOT use `openai` or `yandex-cloud-ml-sdk` libraries (dependency conflicts).
-
-Агенты вызываются через **прямой REST API**:
+**Подключение через REST API:**
 
 ```python
 import aiohttp
@@ -50,203 +100,142 @@ async with aiohttp.ClientSession() as session:
     async with session.post(url, headers=headers, json=payload,
                            timeout=aiohttp.ClientTimeout(total=120)) as response:
         result = await response.json()
-        text = result['output'][0]['content'][0]['text']
 ```
 
-See full implementation: `core/yandex_ai_client.py:207-288`
+См. полную реализацию: `core/yandex_ai_client.py`
 
-**Важно**: Агенты должны быть настроены с JSON Schema для возврата структурированных данных:
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "highlights": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "highlight": {"type": "string"},
-          "highlight_translation": {"type": "string"},
-          "context": {"type": "string"}
-        },
-        "required": ["highlight", "highlight_translation", "context"]
-      }
-    }
-  },
-  "required": ["highlights"]
-}
-```
-
-### Обработка результатов
+### Поток обработки
 
 ```
-User Text
-    ↓
-AnalysisOrchestrator
-    ↓
-┌─────────────┬─────────────┐
-│  Agent #1   │  Agent #2   │  (параллельно)
-│   Words     │   Phrases   │
-└─────────────┴─────────────┘
-    ↓
-Lemmatization (spaCy)
-    ↓
-Dictionary API (async)
-    ↓
-Remove Duplicates
-    ↓
-Highlights → Frontend
+User Text → AnalysisOrchestrator
+           ↓
+    ┌──────────┬──────────┐
+    │ Agent #1 │ Agent #2 │ (параллельно)
+    │  Words   │ Phrases  │
+    └──────────┴──────────┘
+           ↓
+    Lemmatization (spaCy)
+           ↓
+    Dictionary API
+           ↓
+    Remove Duplicates
+           ↓
+    Highlights → Frontend
 ```
 
-## Технологии
+## YDB: Важные уроки
 
-- **Backend**: Python 3.9+, Flask, asyncio
-- **AI**: Yandex AI Studio (Assistant API via REST)
-- **HTTP Client**: aiohttp
-- **NLP**: spaCy (лемматизация), pymorphy2
-- **Dictionary**: Yandex Dictionary API
-- **Database**: YDB (Yandex Database) - serverless NoSQL/SQL database
-- **Deploy**: Yandex Serverless Containers (stateless)
-- **Frontend**: Vanilla JS
+### Работа с типами параметров
 
-## Установка и запуск
+**Проблема:** Ошибки `type mismatch` при передаче параметров в запросы.
 
-### 1. Клонирование и установка зависимостей
+**Решение:**
 
-```bash
-git clone <repo-url>
-cd Wordoorio
+1. **Проверяйте реальную схему таблицы:**
+   ```python
+   # Endpoint для проверки схемы
+   GET /api/test/describe-table
+   ```
 
-python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+2. **Правило:** Тип в `DECLARE` должен **точно соответствовать** типу параметра:
+   ```python
+   # Если поле в таблице: lemma Utf8?
+   # То в запросе:
+   query = """
+   DECLARE $lemma AS Utf8?;  # С вопросом!
+   INSERT INTO table (lemma) VALUES ($lemma);
+   """
 
-pip install -r requirements.txt
+   params = {
+       '$lemma': ('test', ydb.OptionalType(ydb.PrimitiveType.Utf8))  # Optional!
+   }
+   ```
 
-# Загрузка модели spaCy для английского
-python -m spacy download en_core_web_sm
-```
+3. **Используйте QuerySessionPool** (не SessionPool):
+   ```python
+   # ✅ Правильно
+   self.pool = ydb.QuerySessionPool(self.driver)
+   result = self.pool.execute_with_retries(query, parameters=params)
 
-### 2. Настройка окружения
+   # ❌ Неправильно (баг в SDK 3.23.0)
+   self.pool = ydb.SessionPool(self.driver)
+   session.transaction().execute(query, parameters=params)
+   ```
 
-Создайте файл `.env`:
+4. **Беззнаковые типы:**
+   - ID поля → `Uint64` (не `Int64`)
+   - Счетчики → `Uint32` (не `Int32`)
 
-```bash
-# Yandex Cloud (обязательно)
-YANDEX_CLOUD_API_KEY=<ваш_yandex_cloud_api_key>
-YANDEX_FOLDER_ID=<ваш_folder_id>
-
-# Yandex Dictionary API (обязательно)
-YANDEX_DICT_API_KEY=<ваш_dict_api_ключ>
-
-# YDB (Yandex Database) настройки (обязательно)
-YDB_ENDPOINT=grpcs://ydb.serverless.yandexcloud.net:2135
-YDB_DATABASE=/ru-central1/<ваш_folder_id>/<ваш_database_id>
-
-# Telegram Bot для авторизации (обязательно)
-TELEGRAM_BOT_TOKEN=<ваш_telegram_bot_token>
-TELEGRAM_BOT_USERNAME=<ваш_bot_username>
-
-# Приложение
-DEBUG=true
-```
-
-**Получение токенов и настройка YDB:**
-
-- **Yandex Cloud API Key**: Создайте API ключ для сервисного аккаунта с ролью `ai.languageModels.user`
-- **Dictionary API**: https://yandex.ru/dev/dictionary/
-- **Telegram Bot**: https://t.me/BotFather -> /newbot
-- **YDB**:
-  1. Создайте serverless YDB базу в Yandex Cloud Console
-  2. Скопируйте `Эндпоинт` и `База данных` из настроек YDB
-  3. Запустите схему: `python create_ydb_schema.py` (требуется IAM токен)
-
-### 3. Запуск
-
-```bash
-# Локальная разработка
-python web_app.py
-
-# Открыть в браузере
-open http://localhost:8081
-```
+**Не тратьте токены на догадки** - спрашивайте у поддержки Yandex или проверяйте схему!
 
 ## Структура проекта
 
 ```
 Wordoorio/
-├── web_app.py                 # Flask веб-сервер
-├── database.py                # YDB (Yandex Database) операции
-├── requirements.txt           # Зависимости Python
+├── web_app.py                 # Flask сервер + API endpoints
+├── create_ydb_schema.py       # Создание схемы YDB
+├── requirements.txt
 │
 ├── core/
-│   ├── yandex_ai_client.py    # Клиент для Yandex AI (agents + dictionary)
-│   └── analysis_orchestrator.py # Координатор анализа
+│   ├── yandex_ai_client.py    # REST API клиент для AI
+│   ├── analysis_orchestrator.py
+│   ├── dictionary_manager.py  # YDB операции со словарем
+│   └── training_service.py    # Система тренировок
 │
 ├── contracts/
-│   └── analysis_contracts.py   # Типы данных (AgentResponse, Highlight, etc.)
+│   └── analysis_contracts.py  # Типы данных
 │
 ├── utils/
-│   └── lemmatizer.py          # Лемматизация через spaCy
+│   └── lemmatizer.py          # spaCy лемматизация
 │
 ├── static/
-│   ├── components/            # Компоненты UI
-│   └── js/                    # JavaScript модули
+│   ├── components/
+│   └── js/
 │
-└── tests/
-    ├── test_basic_gpt.py      # Тест базовой модели
-    ├── test_qwen_agent.py     # Тест агентов
-    └── test_orchestrator.py   # Тест оркестратора
+└── templates/                 # HTML страницы
 ```
 
-## Тестирование
+## API Endpoints
 
-```bash
-# Базовая модель YandexGPT
-python test_basic_gpt.py
+### Анализ текста
+- `POST /api/analyze` - анализ текста с AI-агентами
 
-# Агенты через Assistant API
-python test_qwen_agent.py
+### Словарь
+- `POST /api/dictionary/add` - добавить слово
+- `GET /api/dictionary/words` - получить все слова
+- `GET /api/dictionary/word/<lemma>` - детали слова
+- `DELETE /api/dictionary/word/<lemma>` - удалить слово
+- `GET /api/dictionary/stats` - статистика
 
-# Оркестратор + лемматизация
-python test_orchestrator.py
-```
+### Авторизация
+- `POST /api/auth/login` - вход
+- `POST /api/auth/logout` - выход
+- `GET /api/auth/current` - текущий пользователь
 
-## Развертывание (Production)
+### Тестовые endpoints (debug)
+- `GET /api/test/add-word` - тест добавления слова
+- `GET /api/test/describe-table` - схема таблицы YDB
 
-Приложение развертывается в **Yandex Serverless Containers** через GitHub Actions.
+## Развертывание
 
-### Требования:
+Автоматический деплой через GitHub Actions при push в `main`:
 
-1. **Сервисный аккаунт** с ролями:
-   - `ai.languageModels.user` (для YandexGPT)
-   - `ydb.editor` (для YDB)
-   - `container-registry.images.puller` (для Container Registry)
+1. Сборка Docker образа
+2. Загрузка в Yandex Container Registry
+3. Деплой в Serverless Container
 
-2. **GitHub Secrets**:
-   - `YANDEX_CLOUD_API_KEY` - API ключ для YandexGPT
-   - `YANDEX_DICT_API_KEY` - ключ Yandex Dictionary API
-   - `TELEGRAM_BOT_TOKEN` - токен Telegram бота
-   - `YDB_ENDPOINT` - endpoint YDB базы
-   - `YDB_DATABASE` - путь к YDB базе
+**GitHub Secrets:**
+- `YANDEX_CLOUD_API_KEY`
+- `YANDEX_DICT_API_KEY`
+- `TELEGRAM_BOT_TOKEN`
+- `YDB_ENDPOINT`
+- `YDB_DATABASE`
 
-3. **YDB база данных**:
-   - Создайте serverless YDB в Yandex Cloud Console
-   - Настройте права доступа для сервисного аккаунта
-   - Запустите `create_ydb_schema.py` для создания таблиц
-
-### Автоматический деплой:
-
-При push в `main` ветку GitHub Actions:
-1. Собирает Docker образ
-2. Загружает в Container Registry
-3. Деплоит новую ревизию Serverless Container
-4. YDB credentials передаются через **MetadataUrlCredentials**
+**Сервисный аккаунт должен иметь роли:**
+- `ai.languageModels.user`
+- `ydb.editor`
+- `container-registry.images.puller`
 
 ## Лицензия
 
 MIT License
-
-## Контакты
-
-Wordoorio Team
