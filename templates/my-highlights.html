@@ -338,10 +338,10 @@
                     created_at: analysis.analysis_date,
                     total_highlights: analysis.total_highlights,
                     highlights: analysis.highlights.map(h => ({
-                        highlight: h.highlight_word,
+                        highlight: h.highlight,
                         context: h.context,
                         translation: h.highlight_translation,
-                        meanings: JSON.parse(h.dictionary_meanings || '[]')
+                        meanings: h.dictionary_meanings || []
                     })),
                     source: 'server'
                 }));
