@@ -106,8 +106,10 @@ def analyze_text():
 
             analysis_id = db.save_analysis(
                 original_text=text,
-                highlights=highlights_dicts,
-                stats=result.stats,
+                analysis_result={
+                    'highlights': highlights_dicts,
+                    'total_words': result.stats.get('total_words', 0)
+                },
                 user_id=session.get('user_id'),
                 session_id=session['session_id'],
                 ip_address=request.remote_addr
@@ -262,8 +264,10 @@ def analyze_v2():
 
             analysis_id = db.save_analysis(
                 original_text=text,
-                highlights=highlights_dicts,
-                stats=result.stats,
+                analysis_result={
+                    'highlights': highlights_dicts,
+                    'total_words': result.stats.get('total_words', 0)
+                },
                 user_id=session.get('user_id'),
                 session_id=session['session_id'],
                 ip_address=request.remote_addr

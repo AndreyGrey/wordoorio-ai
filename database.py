@@ -176,10 +176,10 @@ class WordoorioDatabase:
             self._execute_query(highlight_query, {
                 '$id': highlight_id,
                 '$analysis_id': analysis_id,
-                '$highlight_word': highlight.get('word', ''),
+                '$highlight_word': highlight.get('highlight', ''),
                 '$context': highlight.get('context', ''),
-                '$highlight_translation': highlight.get('translation', ''),
-                '$dictionary_meanings': str(highlight.get('meanings', []))
+                '$highlight_translation': highlight.get('highlight_translation', ''),
+                '$dictionary_meanings': str(highlight.get('dictionary_meanings', []))
             })
 
         logger.info(f"[YDB] Saved analysis {analysis_id} with {total_highlights} highlights")
