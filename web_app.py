@@ -1185,10 +1185,11 @@ def telegram_test_send():
     except Exception as e:
         ydb_status = f"ERROR: {str(e)}"
 
-    # Тест 3: отправляем сообщение
+    # Тест 3: отправляем сообщение (без Markdown чтобы избежать ошибок парсинга)
     result = telegram_send_message(
         int(chat_id),
-        f"🧪 Тест webhook!\n\nToken: {token_status}\nYDB: {ydb_status}"
+        f"🧪 Тест webhook!\n\nToken: {token_status}\nYDB: {ydb_status}",
+        parse_mode=None
     )
 
     return jsonify({

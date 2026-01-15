@@ -502,7 +502,7 @@ class WordoorioDatabase:
         """Get analysis by ID with all highlights"""
         # Get analysis
         analysis_query = """
-        DECLARE $id AS Uint64;
+        DECLARE $id AS Uint64?;
 
         SELECT *
         FROM analyses
@@ -516,7 +516,7 @@ class WordoorioDatabase:
 
         # Get highlights
         highlights_query = """
-        DECLARE $analysis_id AS Uint64;
+        DECLARE $analysis_id AS Uint64?;
 
         SELECT *
         FROM highlights
@@ -532,7 +532,7 @@ class WordoorioDatabase:
     def search_by_word(self, word: str, limit: int = 20) -> List[Dict]:
         """Search analyses by word in highlights"""
         query = f"""
-        DECLARE $word AS Utf8;
+        DECLARE $word AS Utf8?;
 
         SELECT DISTINCT a.*
         FROM analyses AS a
@@ -574,7 +574,7 @@ class WordoorioDatabase:
     def get_user_training_state(self, user_id: int) -> Dict:
         """Get user's training state"""
         query = """
-        DECLARE $user_id AS Uint64;
+        DECLARE $user_id AS Uint64?;
 
         SELECT *
         FROM user_training_state
@@ -596,9 +596,9 @@ class WordoorioDatabase:
     def update_training_position(self, user_id: int, position: int):
         """Update user's training position"""
         query = """
-        DECLARE $user_id AS Uint64;
-        DECLARE $position AS Uint32;
-        DECLARE $timestamp AS Utf8;
+        DECLARE $user_id AS Uint64?;
+        DECLARE $position AS Uint32?;
+        DECLARE $timestamp AS Utf8?;
 
         UPSERT INTO user_training_state (user_id, last_selection_position, last_training_at)
         VALUES ($user_id, $position, $timestamp)
@@ -621,15 +621,15 @@ class WordoorioDatabase:
         test_id = self._get_next_id('tests')
 
         query = """
-        DECLARE $id AS Uint64;
-        DECLARE $user_id AS Uint64;
-        DECLARE $word_id AS Uint64;
-        DECLARE $word AS Utf8;
-        DECLARE $correct_translation AS Utf8;
-        DECLARE $wrong_option_1 AS Utf8;
-        DECLARE $wrong_option_2 AS Utf8;
-        DECLARE $wrong_option_3 AS Utf8;
-        DECLARE $created_at AS Utf8;
+        DECLARE $id AS Uint64?;
+        DECLARE $user_id AS Uint64?;
+        DECLARE $word_id AS Uint64?;
+        DECLARE $word AS Utf8?;
+        DECLARE $correct_translation AS Utf8?;
+        DECLARE $wrong_option_1 AS Utf8?;
+        DECLARE $wrong_option_2 AS Utf8?;
+        DECLARE $wrong_option_3 AS Utf8?;
+        DECLARE $created_at AS Utf8?;
 
         UPSERT INTO tests (id, user_id, word_id, word, correct_translation, wrong_option_1, wrong_option_2, wrong_option_3, created_at)
         VALUES ($id, $user_id, $word_id, $word, $correct_translation, $wrong_option_1, $wrong_option_2, $wrong_option_3, $created_at)
@@ -652,7 +652,7 @@ class WordoorioDatabase:
     def get_test(self, test_id: int) -> Optional[Dict]:
         """Get test by ID"""
         query = """
-        DECLARE $id AS Uint64;
+        DECLARE $id AS Uint64?;
 
         SELECT *
         FROM tests
@@ -664,7 +664,7 @@ class WordoorioDatabase:
     def delete_test(self, test_id: int):
         """Delete test by ID"""
         query = """
-        DECLARE $id AS Uint64;
+        DECLARE $id AS Uint64?;
 
         DELETE FROM tests
         WHERE id = $id
@@ -675,7 +675,7 @@ class WordoorioDatabase:
     def get_pending_tests(self, user_id: int) -> List[Dict]:
         """Get all pending tests for user"""
         query = """
-        DECLARE $user_id AS Uint64;
+        DECLARE $user_id AS Uint64?;
 
         SELECT *
         FROM tests
@@ -695,9 +695,9 @@ class WordoorioDatabase:
             last_rating_change = datetime.now().isoformat()
 
         query = """
-        DECLARE $id AS Uint64;
-        DECLARE $rating AS Uint32;
-        DECLARE $last_rating_change AS Utf8;
+        DECLARE $id AS Uint64?;
+        DECLARE $rating AS Uint32?;
+        DECLARE $last_rating_change AS Utf8?;
 
         UPDATE dictionary_words
         SET rating = $rating, last_rating_change = $last_rating_change
@@ -713,8 +713,8 @@ class WordoorioDatabase:
     def update_word_status(self, word_id: int, status: str):
         """Update word status"""
         query = """
-        DECLARE $id AS Uint64;
-        DECLARE $status AS Utf8;
+        DECLARE $id AS Uint64?;
+        DECLARE $status AS Utf8?;
 
         UPDATE dictionary_words
         SET status = $status
@@ -730,8 +730,8 @@ class WordoorioDatabase:
         """Update word test statistics"""
         # Get existing statistics
         query = """
-        DECLARE $user_id AS Uint64;
-        DECLARE $word_id AS Uint64;
+        DECLARE $user_id AS Uint64?;
+        DECLARE $word_id AS Uint64?;
 
         SELECT *
         FROM word_test_statistics
@@ -746,12 +746,12 @@ class WordoorioDatabase:
         if stats:
             # Update existing
             update_query = """
-            DECLARE $id AS Uint64;
-            DECLARE $total_tests AS Uint32;
-            DECLARE $correct_answers AS Uint32;
-            DECLARE $wrong_answers AS Uint32;
-            DECLARE $last_test_at AS Utf8;
-            DECLARE $last_result AS Bool;
+            DECLARE $id AS Uint64?;
+            DECLARE $total_tests AS Uint32?;
+            DECLARE $correct_answers AS Uint32?;
+            DECLARE $wrong_answers AS Uint32?;
+            DECLARE $last_test_at AS Utf8?;
+            DECLARE $last_result AS Bool?;
 
             UPDATE word_test_statistics
             SET total_tests = $total_tests,
@@ -775,14 +775,14 @@ class WordoorioDatabase:
             stat_id = self._get_next_id('word_test_statistics')
 
             insert_query = """
-            DECLARE $id AS Uint64;
-            DECLARE $user_id AS Uint64;
-            DECLARE $word_id AS Uint64;
-            DECLARE $total_tests AS Uint32;
-            DECLARE $correct_answers AS Uint32;
-            DECLARE $wrong_answers AS Uint32;
-            DECLARE $last_test_at AS Utf8;
-            DECLARE $last_result AS Bool;
+            DECLARE $id AS Uint64?;
+            DECLARE $user_id AS Uint64?;
+            DECLARE $word_id AS Uint64?;
+            DECLARE $total_tests AS Uint32?;
+            DECLARE $correct_answers AS Uint32?;
+            DECLARE $wrong_answers AS Uint32?;
+            DECLARE $last_test_at AS Utf8?;
+            DECLARE $last_result AS Bool?;
 
             UPSERT INTO word_test_statistics (id, user_id, word_id, total_tests, correct_answers, wrong_answers, last_test_at, last_result)
             VALUES ($id, $user_id, $word_id, $total_tests, $correct_answers, $wrong_answers, $last_test_at, $last_result)
@@ -802,7 +802,7 @@ class WordoorioDatabase:
     def get_word_by_id(self, word_id: int) -> Optional[Dict]:
         """Get dictionary word by ID"""
         query = """
-        DECLARE $id AS Uint64;
+        DECLARE $id AS Uint64?;
 
         SELECT *
         FROM dictionary_words
@@ -825,7 +825,7 @@ class WordoorioDatabase:
         if step == 1:
             # Шаг 1: Новое слово, добавленное последним
             query = """
-            DECLARE $user_id AS Uint64;
+            DECLARE $user_id AS Uint64?;
 
             SELECT *
             FROM dictionary_words
@@ -838,7 +838,7 @@ class WordoorioDatabase:
         elif step == 2:
             # Шаг 2: Слово learning по давности повтора
             query = """
-            DECLARE $user_id AS Uint64;
+            DECLARE $user_id AS Uint64?;
 
             SELECT *
             FROM dictionary_words
@@ -851,7 +851,7 @@ class WordoorioDatabase:
         elif step == 3 or step == 7:
             # Шаг 3 и 7: Новое слово, добавленное давнее всего
             query = """
-            DECLARE $user_id AS Uint64;
+            DECLARE $user_id AS Uint64?;
 
             SELECT *
             FROM dictionary_words
@@ -865,7 +865,7 @@ class WordoorioDatabase:
             # Шаг 4 и 6: Learning с макс рейтингом (рандомно)
             # Используем подзапрос для получения MAX rating
             query = """
-            DECLARE $user_id AS Uint64;
+            DECLARE $user_id AS Uint64?;
 
             SELECT *
             FROM dictionary_words
@@ -884,7 +884,7 @@ class WordoorioDatabase:
         elif step == 5:
             # Шаг 5: Слово, обнулившее рейтинг последним
             query = """
-            DECLARE $user_id AS Uint64;
+            DECLARE $user_id AS Uint64?;
 
             SELECT *
             FROM dictionary_words
@@ -900,7 +900,7 @@ class WordoorioDatabase:
         elif step == 8:
             # Шаг 8: Рандомное выученное слово
             query = """
-            DECLARE $user_id AS Uint64;
+            DECLARE $user_id AS Uint64?;
 
             SELECT *
             FROM dictionary_words
@@ -916,7 +916,7 @@ class WordoorioDatabase:
     def get_translation_for_word(self, word_id: int) -> str:
         """Get first translation for a word"""
         query = """
-        DECLARE $word_id AS Uint64;
+        DECLARE $word_id AS Uint64?;
 
         SELECT translation
         FROM dictionary_translations
@@ -930,8 +930,8 @@ class WordoorioDatabase:
     def get_random_translations(self, user_id: int, exclude_translation: str, limit: int = 3) -> List[str]:
         """Get random translations from user's dictionary (for fallback test options)"""
         query = f"""
-        DECLARE $user_id AS Uint64;
-        DECLARE $exclude AS Utf8;
+        DECLARE $user_id AS Uint64?;
+        DECLARE $exclude AS Utf8?;
 
         SELECT DISTINCT dt.translation
         FROM dictionary_translations dt
@@ -964,8 +964,8 @@ class WordoorioDatabase:
             True if successful
         """
         query = """
-        DECLARE $user_id AS Uint64;
-        DECLARE $telegram_id AS Uint64;
+        DECLARE $user_id AS Uint64?;
+        DECLARE $telegram_id AS Uint64?;
 
         UPDATE users
         SET telegram_id = $telegram_id
@@ -986,7 +986,7 @@ class WordoorioDatabase:
     def get_user_by_telegram_id(self, telegram_id: int) -> Optional[Dict]:
         """Get user by Telegram ID"""
         query = """
-        DECLARE $telegram_id AS Uint64;
+        DECLARE $telegram_id AS Uint64?;
 
         SELECT *
         FROM users
@@ -1009,7 +1009,7 @@ class WordoorioDatabase:
         for account in test_accounts:
             # Check if user exists
             check_query = """
-            DECLARE $id AS Uint64;
+            DECLARE $id AS Uint64?;
 
             SELECT id FROM users WHERE id = $id
             """
@@ -1018,9 +1018,9 @@ class WordoorioDatabase:
             if not existing:
                 # Create user
                 insert_query = """
-                DECLARE $id AS Uint64;
-                DECLARE $username AS Utf8;
-                DECLARE $created_at AS Utf8;
+                DECLARE $id AS Uint64?;
+                DECLARE $username AS Utf8?;
+                DECLARE $created_at AS Utf8?;
 
                 UPSERT INTO users (id, username, created_at)
                 VALUES ($id, $username, $created_at)
