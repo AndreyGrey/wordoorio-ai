@@ -544,6 +544,20 @@
                 return;
             }
 
+            // Получаем кнопку и добавляем анимацию загрузки
+            const button = event.target.closest('.delete-word-btn');
+            const originalHTML = button.innerHTML;
+            button.disabled = true;
+            button.style.opacity = '0.6';
+
+            // SVG спиннер
+            button.innerHTML = `
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="animation: spin 1s linear infinite;">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="60" stroke-dashoffset="15" stroke-linecap="round" opacity="0.3"/>
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="15 45" stroke-linecap="round"/>
+                </svg>
+            `;
+
             try {
                 const response = await fetch(`/api/dictionary/word/${encodeURIComponent(lemma)}`, {
                     method: 'DELETE',
@@ -574,9 +588,17 @@
                         }
                     }, 300);
                 } else {
+                    // Восстанавливаем кнопку при ошибке
+                    button.innerHTML = originalHTML;
+                    button.disabled = false;
+                    button.style.opacity = '1';
                     alert('Ошибка удаления: ' + (data.error || 'Неизвестная ошибка'));
                 }
             } catch (error) {
+                // Восстанавливаем кнопку при ошибке
+                button.innerHTML = originalHTML;
+                button.disabled = false;
+                button.style.opacity = '1';
                 console.error('Ошибка удаления слова:', error);
                 alert('Ошибка соединения с сервером');
             }
