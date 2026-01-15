@@ -9,6 +9,9 @@ import os
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +40,19 @@ class WordoorioDatabase:
 
     def _init_driver(self):
         """Initialize YDB driver with credentials"""
-        # Use MetadataUrlCredentials for serverless containers
-        # This automatically uses the service account attached to the container
+        # Use IAM token for local development, metadata service for production
+        iam_token = os.getenv('YANDEX_IAM_TOKEN')
+        if iam_token:
+            credentials = ydb.AccessTokenCredentials(iam_token)
+        else:
+            # Use MetadataUrlCredentials for serverless containers
+            # This automatically uses the service account attached to the container
+            credentials = ydb.iam.MetadataUrlCredentials()
+
         driver_config = ydb.DriverConfig(
             endpoint=self.endpoint,
             database=self.database,
-            credentials=ydb.iam.MetadataUrlCredentials()
+            credentials=credentials
         )
 
         self.driver = ydb.Driver(driver_config)
