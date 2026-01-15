@@ -159,7 +159,7 @@ class DictionaryManager:
 
         additional_meanings = highlight_dict.get('dictionary_meanings', [])
 
-        print(f"[INFO add_word] Adding word: lemma='{lemma}', type='{word_type}', user_id={user_id}")
+        logger.info(f"[DEBUG add_word] Adding word: lemma='{lemma}', type='{word_type}', user_id={user_id}")
 
         # Проверяем: есть ли слово с такой lemma?
         if user_id is not None:
@@ -174,8 +174,8 @@ class DictionaryManager:
                 '$lemma': lemma,
                 '$user_id': user_id
             }
-            print(f"[DEBUG] Params before query: {params}", flush=True)
-            print(f"[DEBUG] lemma={repr(lemma)}, user_id={user_id}", flush=True)
+            logger.info(f"[DEBUG] Params before query: {params}")
+            logger.info(f"[DEBUG] lemma type={type(lemma)}, value={repr(lemma)}, user_id={user_id}")
             existing = self._fetch_one(check_query, params)
         else:
             check_query = """
