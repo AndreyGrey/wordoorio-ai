@@ -292,13 +292,17 @@ class WordoorioDatabase:
                         'highlight': row['highlight'],
                         'type': row['type'],
                         'highlight_translation': row['highlight_translation'],
-                        'translations': [row['highlight_translation']] if row['highlight_translation'] else [],
+                        'main_translation': row['highlight_translation'],  # Сохраняем основной перевод
+                        'translations': [],  # Дополнительные переводы (без основного)
                         'position': row['position']
                     }
                 else:
-                    # Добавляем дополнительные переводы
-                    if row['highlight_translation'] and row['highlight_translation'] not in highlights_map[word_id]['translations']:
-                        highlights_map[word_id]['translations'].append(row['highlight_translation'])
+                    # Добавляем дополнительные переводы (исключая основной)
+                    translation = row['highlight_translation']
+                    main_translation = highlights_map[word_id]['main_translation']
+
+                    if translation and translation != main_translation and translation not in highlights_map[word_id]['translations']:
+                        highlights_map[word_id]['translations'].append(translation)
 
             # Получаем примеры для каждого слова
             for word_id in highlights_map.keys():
@@ -320,9 +324,10 @@ class WordoorioDatabase:
             # Сортируем highlights по position
             highlights = sorted(highlights_map.values(), key=lambda x: x['position'])
 
-            # Удаляем служебное поле position перед отправкой
+            # Удаляем служебные поля перед отправкой
             for h in highlights:
                 h.pop('position', None)
+                h.pop('main_translation', None)  # Удаляем служебное поле
                 # Переименовываем translations → dictionary_meanings для обратной совместимости
                 h['dictionary_meanings'] = h.pop('translations', [])
 
