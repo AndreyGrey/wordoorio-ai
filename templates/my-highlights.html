@@ -340,8 +340,8 @@
                     highlights: analysis.highlights.map(h => ({
                         highlight: h.highlight,
                         context: h.context,
-                        translation: h.highlight_translation,
-                        meanings: h.dictionary_meanings || []
+                        highlight_translation: h.highlight_translation,
+                        dictionary_meanings: h.dictionary_meanings || []
                     })),
                     source: 'server'
                 }));
