@@ -321,7 +321,7 @@ class DictionaryManager:
             return {
                 'success': True,
                 'is_new': False,
-                '$word_id': word_id,
+                'word_id': word_id,
                 'message': f'Добавлен новый пример к слову "{lemma}"'
             }
 
@@ -422,7 +422,7 @@ class DictionaryManager:
             return {
                 'success': True,
                 'is_new': True,
-                '$word_id': word_id,
+                'word_id': word_id,
                 'message': f'Слово "{lemma}" добавлено в словарь'
             }
 
