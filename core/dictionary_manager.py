@@ -120,9 +120,9 @@ class DictionaryManager:
             highlight_dict: Словарь с данными хайлайта
                 {
                     'highlight': 'give up',  # УЖЕ лемматизировано!
-                    '$type': 'expression',
+                    'type': 'expression',
                     'highlight_translation': 'сдаться',
-                    '$context': 'Never give up on your dreams',
+                    'context': 'Never give up on your dreams',
                     'dictionary_meanings': ['бросить', 'оставить']
                 }
             session_id: ID сессии анализа
@@ -132,15 +132,34 @@ class DictionaryManager:
             {
                 'success': bool,
                 'is_new': bool,  # True если слово новое, False если добавлен пример к существующему
-                '$word_id': int,
+                'word_id': int,
                 'message': str
             }
         """
-        lemma = highlight_dict['highlight']
+        # Извлекаем и валидируем данные
+        lemma = highlight_dict.get('highlight')
+        if not lemma or not lemma.strip():
+            error_msg = f"Missing or empty 'highlight' field. Received keys: {list(highlight_dict.keys())}"
+            print(f"[ERROR add_word] {error_msg}")
+            print(f"[ERROR add_word] highlight_dict: {highlight_dict}")
+            raise ValueError(error_msg)
+
         word_type = highlight_dict.get('type', 'word')
-        main_translation = highlight_dict['highlight_translation']
-        context = highlight_dict['context']
+        main_translation = highlight_dict.get('highlight_translation')
+        if not main_translation or not main_translation.strip():
+            error_msg = f"Missing or empty 'highlight_translation' field for word '{lemma}'"
+            print(f"[ERROR add_word] {error_msg}")
+            raise ValueError(error_msg)
+
+        context = highlight_dict.get('context')
+        if not context or not context.strip():
+            error_msg = f"Missing or empty 'context' field for word '{lemma}'"
+            print(f"[ERROR add_word] {error_msg}")
+            raise ValueError(error_msg)
+
         additional_meanings = highlight_dict.get('dictionary_meanings', [])
+
+        print(f"[INFO add_word] Adding word: lemma='{lemma}', type='{word_type}', user_id={user_id}")
 
         # Проверяем: есть ли слово с такой lemma?
         if user_id is not None:
@@ -937,9 +956,9 @@ if __name__ == '__main__':
     print("\n📝 Тест 1: Добавление нового слова")
     test_highlight = {
         'highlight': 'give up',
-        '$type': 'expression',
+        'type': 'expression',
         'highlight_translation': 'сдаться',
-        '$context': 'Never give up on your dreams',
+        'context': 'Never give up on your dreams',
         'dictionary_meanings': ['бросить', 'оставить']
     }
 
@@ -950,9 +969,9 @@ if __name__ == '__main__':
     print("\n📝 Тест 2: Добавление примера к существующему слову")
     test_highlight2 = {
         'highlight': 'give up',
-        '$type': 'expression',
+        'type': 'expression',
         'highlight_translation': 'бросить дело',
-        '$context': 'Don\'t give up so easily',
+        'context': 'Don\'t give up so easily',
         'dictionary_meanings': []
     }
 
