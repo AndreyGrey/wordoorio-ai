@@ -8,6 +8,7 @@ import json
 import sys
 import os
 import logging
+import time
 from dotenv import load_dotenv
 from database import WordoorioDatabase
 import uuid
