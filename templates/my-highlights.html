@@ -292,15 +292,14 @@
                 }
             }
 
-            // Загружаем локальные данные
-            const localSessions = storage.getAllSessions();
-            console.log('📊 Локальные сессии:', localSessions.length);
+            // Определяем источник данных
+            let allSessions = [];
 
-            // Объединяем локальные и серверные данные
-            // Преобразуем серверные данные в единый формат
-            const allSessions = [
-                ...localSessions,
-                ...serverAnalyses.map(analysis => ({
+            if (isLoggedIn) {
+                // Залогиненные пользователи - ТОЛЬКО серверные данные
+                // (localStorage был мигрирован при логине)
+                console.log('✅ Залогинен - показываем только серверные данные');
+                allSessions = serverAnalyses.map(analysis => ({
                     session_id: analysis.session_id,
                     original_text: analysis.original_text,
                     created_at: analysis.analysis_date,
@@ -312,8 +311,14 @@
                         meanings: JSON.parse(h.dictionary_meanings || '[]')
                     })),
                     source: 'server'
-                }))
-            ];
+                }));
+            } else {
+                // Незалогиненные пользователи - только localStorage
+                console.log('🔓 Не залогинен - показываем только локальные данные');
+                const localSessions = storage.getAllSessions();
+                console.log('📊 Локальные сессии:', localSessions.length);
+                allSessions = localSessions;
+            }
 
             console.log('📊 Всего сессий для отображения:', allSessions.length);
             console.log('📋 Детали сессий:', allSessions);

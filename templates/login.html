@@ -10,6 +10,9 @@
     <link rel="stylesheet" href="/static/css/global.css">
     <link rel="stylesheet" href="/static/css/components.css">
 
+    <!-- HighlightsStorage для миграции -->
+    <script src="/static/js/HighlightsStorage.js"></script>
+
     <style>
         body {
             display: flex;
@@ -116,6 +119,73 @@
         const errorMessage = document.getElementById('error-message');
         const submitBtn = form.querySelector('button[type="submit"]');
 
+        /**
+         * Мигрировать localStorage хайлайты на сервер
+         */
+        async function migrateLocalHighlightsToServer() {
+            try {
+                const storage = new HighlightsStorage();
+                const localSessions = storage.getAllSessions();
+
+                if (localSessions.length === 0) {
+                    console.log('✅ Нет локальных хайлайтов для миграции');
+                    return;
+                }
+
+                console.log(`🔄 Миграция ${localSessions.length} сессий на сервер...`);
+
+                let migratedCount = 0;
+                let errorCount = 0;
+
+                // Мигрируем каждую сессию
+                for (const session of localSessions) {
+                    const highlights = storage.getSavedHighlights(session.session_id);
+
+                    if (!highlights || highlights.length === 0) {
+                        continue;
+                    }
+
+                    try {
+                        // Отправляем на сервер через save_analysis
+                        const response = await fetch('/api/migrate-highlights', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({
+                                original_text: session.original_text || 'Migrated from localStorage',
+                                highlights: highlights,
+                                session_id: session.session_id
+                            })
+                        });
+
+                        if (response.ok) {
+                            migratedCount++;
+                            console.log(`✅ Мигрирована сессия ${session.session_id} (${highlights.length} хайлайтов)`);
+                        } else {
+                            errorCount++;
+                            console.warn(`⚠️ Ошибка миграции сессии ${session.session_id}`);
+                        }
+                    } catch (err) {
+                        errorCount++;
+                        console.error(`❌ Ошибка миграции сессии ${session.session_id}:`, err);
+                    }
+                }
+
+                console.log(`✅ Миграция завершена: ${migratedCount} успешно, ${errorCount} ошибок`);
+
+                // Очищаем localStorage после успешной миграции
+                if (migratedCount > 0 && errorCount === 0) {
+                    localStorage.removeItem('wordoorio_sessions');
+                    localStorage.removeItem('wordoorio_highlights');
+                    console.log('🗑️ localStorage очищен');
+                }
+            } catch (error) {
+                console.error('❌ Критическая ошибка миграции:', error);
+            }
+        }
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -142,7 +212,11 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    // Успешный вход - редирект на главную
+                    // Успешный вход - мигрируем localStorage → сервер
+                    submitBtn.textContent = 'Миграция данных...';
+                    await migrateLocalHighlightsToServer();
+
+                    // Редирект на главную
                     window.location.href = '/';
                 } else {
                     // Показываем ошибку

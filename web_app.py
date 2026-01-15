@@ -774,6 +774,60 @@ def login_page():
     return render_template('login.html')
 
 
+@app.route('/api/migrate-highlights', methods=['POST'])
+def migrate_highlights():
+    """
+    Миграция localStorage хайлайтов на сервер
+    Вызывается после успешного логина
+    """
+    try:
+        user_id = session.get('user_id')
+
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': 'Требуется авторизация'
+            }), 401
+
+        data = request.get_json()
+        original_text = data.get('original_text', 'Migrated from localStorage')
+        highlights = data.get('highlights', [])
+        old_session_id = data.get('session_id')
+
+        if not highlights:
+            return jsonify({
+                'success': True,
+                'message': 'Нет хайлайтов для миграции'
+            })
+
+        # Сохраняем в БД
+        analysis_id = db.save_analysis(
+            original_text=original_text,
+            analysis_result={
+                'highlights': highlights,
+                'total_words': 0
+            },
+            user_id=user_id,
+            session_id=old_session_id or session.get('session_id'),
+            ip_address=request.remote_addr
+        )
+
+        logger.info(f"[MIGRATION] Мигрировано {len(highlights)} хайлайтов для user_id={user_id}, analysis_id={analysis_id}")
+
+        return jsonify({
+            'success': True,
+            'analysis_id': analysis_id,
+            'highlights_count': len(highlights)
+        })
+
+    except Exception as e:
+        logger.error(f"[MIGRATION] Ошибка: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 # ===== TELEGRAM WEBHOOK =====
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
