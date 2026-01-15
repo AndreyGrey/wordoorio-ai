@@ -12,10 +12,33 @@
 import ydb
 import os
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import logging
 
 logger = logging.getLogger(__name__)
+
+def _typed_params(params: Dict[str, Any]) -> Dict[str, tuple]:
+    """
+    Конвертирует словарь параметров в формат с явными типами для YDB
+
+    Args:
+        params: Словарь вида {'$lemma': 'test', '$user_id': 1}
+
+    Returns:
+        Словарь с явными типами: {'$lemma': ('test', ydb.PrimitiveType.Utf8)}
+    """
+    typed = {}
+    for key, value in params.items():
+        if isinstance(value, str):
+            typed[key] = (value, ydb.PrimitiveType.Utf8)
+        elif isinstance(value, int):
+            typed[key] = (value, ydb.PrimitiveType.Int64)
+        elif value is None:
+            # Для Optional[Int64] передаем None с типом
+            typed[key] = (None, ydb.OptionalType(ydb.PrimitiveType.Int64))
+        else:
+            typed[key] = value  # Оставляем как есть для других типов
+    return typed
 
 
 class DictionaryManager:
@@ -66,11 +89,15 @@ class DictionaryManager:
         Returns:
             Query result
         """
+        # Конвертируем параметры с явными типами
+        typed_parameters = _typed_params(parameters) if parameters else {}
+        logger.info(f"[DEBUG _execute_query] Typed params: {typed_parameters}")
+
         def callee(session):
             return session.transaction().execute(
                 query,
                 commit_tx=True,
-                parameters=parameters or {}
+                parameters=typed_parameters
             )
 
         return self.pool.retry_operation_sync(callee)
