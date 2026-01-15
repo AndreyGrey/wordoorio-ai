@@ -139,27 +139,36 @@
         }
 
         .delete-set-btn {
-            background: #ef4444;
+            /* Круглая кнопка с минусом (стиль как у кнопок в HighlightCard) */
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
+            border-radius: 50%;
+            background: #FF8A7D;
             color: white;
             border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
             cursor: pointer;
-            font-size: 0.9rem;
-            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             transition: all 0.2s ease;
-            white-space: nowrap;
             flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(255, 138, 125, 0.3);
         }
 
         .delete-set-btn:hover {
-            background: #dc2626;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+            background: #FF7964;
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(255, 138, 125, 0.4);
         }
 
         .delete-set-btn:active {
-            transform: translateY(0);
+            transform: scale(1.05);
+        }
+
+        .delete-set-btn svg {
+            width: 24px;
+            height: 24px;
         }
 
         .set-meta {
@@ -439,7 +448,11 @@
 
             // Кнопка удаления (только для серверных данных)
             const deleteButton = session.source === 'server'
-                ? `<button class="delete-set-btn" onclick="deleteAnalysis(${session.analysis_id}, this)">🗑️ Удалить</button>`
+                ? `<button class="delete-set-btn" onclick="deleteAnalysis(${session.analysis_id}, this)" aria-label="Удалить анализ">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M5 12h14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                    </svg>
+                </button>`
                 : '';
 
             // Header сета

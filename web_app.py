@@ -251,11 +251,18 @@ def api_dictionary_add():
             if not word_id:
                 raise ValueError("word_id not returned from dict_manager.add_word()")
 
-            # Ищем или создаем analysis для текущей сессии
-            analysis = db.get_analysis_by_session(session_id, user_id)
+            # Получаем page_id (уникальный ID анализа текста) из данных
+            page_id = data.get('page_id')
+
+            # Ищем или создаем analysis для конкретного page_id
+            analysis = None
+            if page_id:
+                # Ищем analysis по page_id (session_id совпадает с page_id для конкретного анализа)
+                analysis = db.get_analysis_by_session(page_id, user_id)
 
             if not analysis:
                 # Создаем новый analysis (БЕЗ highlights)
+                analysis_session_id = page_id if page_id else session_id
                 analysis_id = db.save_analysis(
                     original_text=data.get('context', 'Manually added words'),
                     analysis_result={
@@ -263,12 +270,13 @@ def api_dictionary_add():
                         'total_words': 0
                     },
                     user_id=user_id,
-                    session_id=session_id,
+                    session_id=analysis_session_id,  # Используем page_id как session_id для группировки
                     ip_address=request.remote_addr
                 )
-                logger.info(f"[/api/dictionary/add] Создан новый analysis #{analysis_id}")
+                logger.info(f"[/api/dictionary/add] Создан новый analysis #{analysis_id} (page_id={page_id})")
             else:
                 analysis_id = analysis['id']
+                logger.info(f"[/api/dictionary/add] Найден существующий analysis #{analysis_id}")
 
             # Добавляем highlight (с word_id) к analysis
             db.add_highlight_to_analysis(analysis_id, word_id, user_id, session_id)

@@ -294,7 +294,12 @@
             showNotification('✓ Сохранено');
 
             // Пытаемся синхронизировать с сервером (опционально, только если авторизован)
-            const result = await addToDictionary(highlight);
+            // Добавляем page_id к highlight для правильной группировки в analyses
+            const highlightWithPageId = {
+                ...highlight,
+                page_id: analysis.page_id  // Уникальный ID текущего анализа
+            };
+            const result = await addToDictionary(highlightWithPageId);
 
             if (result.success) {
                 console.log('✓ Слово синхронизировано с сервером');
