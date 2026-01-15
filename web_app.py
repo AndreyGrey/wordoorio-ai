@@ -161,42 +161,18 @@ def analyze_text():
                 'need_tokens': True
             })
 
-        # Сохраняем в БД
-        try:
-            highlights_dicts = [h.to_dict() for h in result.highlights]
+        # НЕ сохраняем в БД при анализе!
+        # Данные сохраняются ТОЛЬКО при клике "+" в /api/dictionary/add
+        highlights_dicts = [h.to_dict() for h in result.highlights]
 
-            analysis_id = db.save_analysis(
-                original_text=text,
-                analysis_result={
-                    'highlights': highlights_dicts,
-                    'total_words': result.stats.get('total_words', 0)
-                },
-                user_id=session.get('user_id'),
-                session_id=session['session_id'],
-                ip_address=request.remote_addr
-            )
-
-            return jsonify({
-                'success': True,
-                'api_version': 'v2',
-                'page_id': page_id,
-                'stats': result.stats,
-                'highlights': highlights_dicts,
-                'performance': result.performance,
-                'analysis_id': analysis_id
-            })
-        except Exception as db_error:
-            print(f"Database error: {db_error}")
-
-            return jsonify({
-                'success': True,
-                'api_version': 'v2',
-                'page_id': page_id,
-                'stats': result.stats,
-                'highlights': [h.to_dict() for h in result.highlights],
-                'performance': result.performance,
-                'warning': 'Анализ выполнен, но не сохранен в историю'
-            })
+        return jsonify({
+            'success': True,
+            'api_version': 'v2',
+            'page_id': page_id,
+            'stats': result.stats,
+            'highlights': highlights_dicts,
+            'performance': result.performance
+        })
 
     except Exception as e:
         import traceback
@@ -270,15 +246,20 @@ def api_dictionary_add():
 
         # 2. Также сохраняем в analyses + highlights (для истории)
         try:
+            # Получаем word_id из результата добавления в словарь
+            word_id = result.get('word_id')
+            if not word_id:
+                raise ValueError("word_id not returned from dict_manager.add_word()")
+
             # Ищем или создаем analysis для текущей сессии
             analysis = db.get_analysis_by_session(session_id, user_id)
 
             if not analysis:
-                # Создаем новый analysis для "ручного добавления слов"
+                # Создаем новый analysis (БЕЗ highlights)
                 analysis_id = db.save_analysis(
                     original_text=data.get('context', 'Manually added words'),
                     analysis_result={
-                        'highlights': [data],
+                        'highlights': [],  # Пустой массив - highlights добавим отдельно
                         'total_words': 0
                     },
                     user_id=user_id,
@@ -287,10 +268,11 @@ def api_dictionary_add():
                 )
                 logger.info(f"[/api/dictionary/add] Создан новый analysis #{analysis_id}")
             else:
-                # Добавляем highlight к существующему analysis
                 analysis_id = analysis['id']
-                db.add_highlight_to_analysis(analysis_id, data, user_id, session_id)
-                logger.info(f"[/api/dictionary/add] Добавлен highlight к analysis #{analysis_id}")
+
+            # Добавляем highlight (с word_id) к analysis
+            db.add_highlight_to_analysis(analysis_id, word_id, user_id, session_id)
+            logger.info(f"[/api/dictionary/add] Добавлен highlight word_id={word_id} к analysis #{analysis_id}")
 
             result['analysis_id'] = analysis_id
         except Exception as analysis_error:
