@@ -383,6 +383,57 @@ def api_dictionary_add():
         }), 500
 
 
+@app.route('/api/test/add-word', methods=['GET'])
+def api_test_add_word():
+    """
+    ТЕСТОВЫЙ endpoint для проверки добавления слова в YDB
+    Добавляет фиксированное тестовое слово
+
+    Использование: просто откройте /api/test/add-word в браузере
+    """
+    try:
+        from core.dictionary_manager import DictionaryManager
+
+        # Фиксированные тестовые данные
+        test_data = {
+            'highlight': 'test',
+            'type': 'word',
+            'highlight_translation': 'тест',
+            'context': 'This is a test sentence.',
+            'dictionary_meanings': ['проверка', 'испытание']
+        }
+
+        logger.info(f"[TEST] Попытка добавить тестовое слово: {test_data}")
+
+        # user_id=1 для теста
+        dict_manager = DictionaryManager()
+        result = dict_manager.add_word(
+            highlight_dict=test_data,
+            session_id='test_session_' + str(int(time.time())),
+            user_id=1
+        )
+
+        logger.info(f"[TEST] Результат: {result}")
+
+        return jsonify({
+            'test_endpoint': True,
+            'test_data': test_data,
+            'result': result,
+            'timestamp': time.time()
+        })
+
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"[TEST] Ошибка: {error_trace}")
+        return jsonify({
+            'test_endpoint': True,
+            'success': False,
+            'error': str(e),
+            'traceback': error_trace
+        }), 500
+
+
 @app.route('/api/dictionary/words', methods=['GET'])
 def api_dictionary_words():
     """
