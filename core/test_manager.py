@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
 TestManager - менеджер для создания и управления тестами
-Работает с YandexAIClient для генерации вариантов ответов
+Работает с YandexAIClient для генерации вариантов ответов (YDB версия)
 """
 
 import random
+import logging
 from typing import List, Dict
 from datetime import datetime
 from database import WordoorioDatabase
 from core.yandex_ai_client import YandexAIClient
+
+logger = logging.getLogger(__name__)
 
 
 class TestManager:
@@ -41,7 +44,7 @@ class TestManager:
         # 1. Подготовка данных для AI
         words_data = []
         for word in words:
-            translation = self._get_translation_for_word(word['id'])
+            translation = self.db.get_translation_for_word(word['id'])
             if translation:
                 words_data.append({
                     'word': word['lemma'],
@@ -50,6 +53,7 @@ class TestManager:
                 })
 
         if not words_data:
+            logger.warning("[TestManager] Нет слов с переводами для создания тестов")
             return []
 
         # 2. Запрос к AI (async)
@@ -58,15 +62,18 @@ class TestManager:
             ai_input = [{'word': w['word'], 'correct_translation': w['correct_translation']}
                        for w in words_data]
 
+            logger.info(f"[TestManager] Запрос к AI для {len(ai_input)} слов")
             response = await self.ai_client.generate_test_options(ai_input)
 
             if 'tests' not in response:
                 raise Exception("Неверный формат ответа от AI")
 
+            logger.info(f"[TestManager] AI вернул {len(response['tests'])} тестов")
+
         except Exception as e:
-            print(f"⚠️ Ошибка генерации тестов: {e}")
+            logger.warning(f"[TestManager] Ошибка генерации тестов через AI: {e}, используем fallback")
             # Fallback: используем случайные переводы из словаря пользователя
-            response = await self._generate_fallback_options(user_id, words_data)
+            response = self._generate_fallback_options(user_id, words_data)
 
         # 3. Сохранение тестов
         test_ids = []
@@ -74,6 +81,7 @@ class TestManager:
             # Находим word_id для этого слова
             word_id = next((w['word_id'] for w in words_data if w['word'] == test_data['word']), None)
             if not word_id:
+                logger.warning(f"[TestManager] Не найден word_id для слова {test_data['word']}")
                 continue
 
             test_id = self.db.insert_test(
@@ -86,32 +94,23 @@ class TestManager:
                 wrong_option_3=test_data['wrong_options'][2]
             )
             test_ids.append(test_id)
+            logger.info(f"[TestManager] Создан тест {test_id} для слова '{test_data['word']}'")
 
         return test_ids
 
-    async def _generate_fallback_options(self, user_id: int, words_data: List[Dict]) -> Dict:
+    def _generate_fallback_options(self, user_id: int, words_data: List[Dict]) -> Dict:
         """
         Генерация вариантов без AI (fallback)
         Использует случайные переводы из словаря пользователя
         """
-        import sqlite3
-
         tests = []
         for word_data in words_data:
-            # Получаем 3 случайных перевода других слов пользователя
-            with sqlite3.connect(self.db.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT DISTINCT dt.translation
-                    FROM dictionary_translations dt
-                    JOIN dictionary_words dw ON dt.word_id = dw.id
-                    WHERE dw.user_id = ?
-                      AND dt.translation != ?
-                    ORDER BY RANDOM()
-                    LIMIT 3
-                """, (user_id, word_data['correct_translation']))
-
-                wrong_options = [row[0] for row in cursor.fetchall()]
+            # Получаем 3 случайных перевода других слов пользователя через YDB
+            wrong_options = self.db.get_random_translations(
+                user_id,
+                word_data['correct_translation'],
+                limit=3
+            )
 
             # Если не хватает вариантов, добавляем заглушки
             while len(wrong_options) < 3:
@@ -206,28 +205,31 @@ class TestManager:
         if not word:
             raise Exception(f"Слово {test['word_id']} не найдено")
 
+        current_status = word.get('status', 'new')
+        current_rating = word.get('rating') or 0
+
         # Обновляем статус (new → learning)
-        if word['status'] == 'new':
+        if current_status == 'new':
             self.db.update_word_status(test['word_id'], 'learning')
-            word['status'] = 'learning'
+            current_status = 'learning'
 
         # Обновляем рейтинг
         if is_correct:
-            new_rating = word['rating'] + 1
+            new_rating = current_rating + 1
         else:
             new_rating = 0
             # Если слово было learned, возвращаем в learning
-            if word['status'] == 'learned':
+            if current_status == 'learned':
                 self.db.update_word_status(test['word_id'], 'learning')
-                word['status'] = 'learning'
+                current_status = 'learning'
 
         # Обновляем рейтинг в БД
         self.db.update_word_rating(test['word_id'], new_rating)
 
         # Переходим в learned если рейтинг >= 10
-        if word['status'] == 'learning' and new_rating >= 10:
+        if current_status == 'learning' and new_rating >= 10:
             self.db.update_word_status(test['word_id'], 'learned')
-            word['status'] = 'learned'
+            current_status = 'learned'
 
         # Обновляем статистику
         self.db.update_word_statistics(test['user_id'], test['word_id'], is_correct)
@@ -239,7 +241,7 @@ class TestManager:
             'is_correct': is_correct,
             'correct_translation': test['correct_translation'],
             'new_rating': new_rating,
-            'new_status': word['status'],
+            'new_status': current_status,
             'word': test['word']
         }
 
@@ -254,27 +256,3 @@ class TestManager:
             Список тестов
         """
         return self.db.get_pending_tests(user_id)
-
-    def _get_translation_for_word(self, word_id: int) -> str:
-        """
-        Получить перевод для слова
-
-        Args:
-            word_id: ID слова
-
-        Returns:
-            Перевод слова (первый из списка)
-        """
-        import sqlite3
-
-        with sqlite3.connect(self.db.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT translation
-                FROM dictionary_translations
-                WHERE word_id = ?
-                LIMIT 1
-            """, (word_id,))
-
-            row = cursor.fetchone()
-            return row[0] if row else ""

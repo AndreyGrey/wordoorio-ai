@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Telegram Bot для тренировки английских слов
-Polling mode, интеграция с TrainingService и TestManager
+Polling mode, интеграция с TrainingService и TestManager (YDB версия)
 """
 
 import os
@@ -22,7 +22,6 @@ from database import WordoorioDatabase
 from core.training_service import TrainingService
 from core.test_manager import TestManager
 from core.yandex_ai_client import YandexAIClient
-from core.auth_manager import AuthManager
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -39,20 +38,105 @@ db = WordoorioDatabase()
 ai_client = YandexAIClient()
 training_service = TrainingService(db)
 test_manager = TestManager(db, ai_client)
-auth_manager = AuthManager(db.db_path)  # AuthManager ожидает строку, а не объект
+
+# Тестовые аккаунты (синхронизированы с web_app.py)
+TEST_ACCOUNTS = {
+    'andrew': {'password': 'test123', 'user_id': 1},
+    'friend1': {'password': 'test123', 'user_id': 2},
+    'friend2': {'password': 'test123', 'user_id': 3},
+}
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""
-    keyboard = [[InlineKeyboardButton("НАЧАТЬ 🚀", callback_data="start_training")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    telegram_id = update.effective_user.id
 
-    await update.message.reply_text(
-        "Привет! 👋\n\n"
-        "Готов потренировать английские слова из твоего словаря?\n\n"
-        "Нажми НАЧАТЬ для запуска теста из 8 слов.",
-        reply_markup=reply_markup
-    )
+    # Проверяем, привязан ли Telegram к аккаунту
+    user = db.get_user_by_telegram_id(telegram_id)
+
+    if user:
+        # Пользователь уже авторизован
+        keyboard = [[InlineKeyboardButton("НАЧАТЬ 🚀", callback_data="start_training")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        username = user.get('username', 'пользователь')
+        await update.message.reply_text(
+            f"Привет, {username}! 👋\n\n"
+            "Готов потренировать английские слова из твоего словаря?\n\n"
+            "Нажми НАЧАТЬ для запуска теста из 8 слов.",
+            reply_markup=reply_markup
+        )
+    else:
+        # Нужна авторизация
+        await update.message.reply_text(
+            "Привет! 👋\n\n"
+            "Для начала тренировки нужно привязать Telegram к аккаунту.\n\n"
+            "Используй команду:\n"
+            "`/login username password`\n\n"
+            "Например:\n"
+            "`/login andrew test123`",
+            parse_mode='Markdown'
+        )
+
+
+async def login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обработчик команды /login username password
+    Привязывает Telegram ID к существующему аккаунту
+    """
+    telegram_id = update.effective_user.id
+
+    # Проверяем аргументы
+    if len(context.args) != 2:
+        await update.message.reply_text(
+            "❌ Неверный формат команды.\n\n"
+            "Используй:\n"
+            "`/login username password`\n\n"
+            "Например:\n"
+            "`/login andrew test123`",
+            parse_mode='Markdown'
+        )
+        return
+
+    username = context.args[0].lower()
+    password = context.args[1]
+
+    # Проверяем логин/пароль
+    if username not in TEST_ACCOUNTS:
+        await update.message.reply_text(
+            "❌ Неверный логин или пароль.\n\n"
+            "Доступные тестовые аккаунты:\n"
+            "• andrew / test123\n"
+            "• friend1 / test123\n"
+            "• friend2 / test123"
+        )
+        return
+
+    account = TEST_ACCOUNTS[username]
+
+    if account['password'] != password:
+        await update.message.reply_text("❌ Неверный логин или пароль.")
+        return
+
+    user_id = account['user_id']
+
+    # Привязываем Telegram к аккаунту
+    success = db.link_telegram_to_user(user_id, telegram_id)
+
+    if success:
+        keyboard = [[InlineKeyboardButton("НАЧАТЬ ТРЕНИРОВКУ 🚀", callback_data="start_training")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await update.message.reply_text(
+            f"✅ Отлично! Telegram привязан к аккаунту `{username}`.\n\n"
+            "Теперь можешь тренировать слова!",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    else:
+        await update.message.reply_text(
+            "❌ Ошибка привязки аккаунта. Попробуй позже."
+        )
 
 
 async def start_training_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -63,12 +147,13 @@ async def start_training_callback(update: Update, context: ContextTypes.DEFAULT_
     telegram_id = query.from_user.id
 
     # Получаем пользователя по telegram_id
-    user = auth_manager.get_user_by_telegram_id(telegram_id)
+    user = db.get_user_by_telegram_id(telegram_id)
 
     if not user:
         await query.edit_message_text(
-            "❌ Сначала авторизуйтесь на сайте wordoorio.ru\n\n"
-            "Используйте Telegram Login Widget для связи аккаунта."
+            "❌ Сначала авторизуйтесь командой:\n"
+            "`/login username password`",
+            parse_mode='Markdown'
         )
         return
 
@@ -85,12 +170,9 @@ async def start_training_callback(update: Update, context: ContextTypes.DEFAULT_
         return
 
     if not words:
-        keyboard = [[InlineKeyboardButton("Перейти на сайт", url="https://wordoorio.ru")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
             "📚 В твоем словаре пока нет слов.\n\n"
-            "Добавь слова на wordoorio.ru и возвращайся!",
-            reply_markup=reply_markup
+            "Добавь слова через веб-интерфейс и возвращайся!"
         )
         return
 
@@ -263,11 +345,16 @@ def main():
         logger.error("TELEGRAM_BOT_TOKEN не найден в переменных окружения")
         return
 
+    # Убеждаемся, что тестовые пользователи существуют в БД
+    logger.info("Проверяем тестовых пользователей в БД...")
+    db.ensure_test_users_exist()
+
     # Создаем приложение
     app = Application.builder().token(token).build()
 
     # Регистрируем обработчики
     app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("login", login_command))
     app.add_handler(CallbackQueryHandler(start_training_callback, pattern="^start_training$"))
     app.add_handler(CallbackQueryHandler(answer_callback, pattern="^answer_"))
 

@@ -31,7 +31,10 @@ def _typed_params(params: Dict[str, Any]) -> Dict[str, tuple]:
     """
     typed = {}
     for key, value in params.items():
-        if isinstance(value, str):
+        # ВАЖНО: bool проверяем ДО int, т.к. isinstance(True, int) == True в Python
+        if isinstance(value, bool):
+            typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Bool))
+        elif isinstance(value, str):
             # Все строки как Optional<Utf8>
             typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Utf8))
         elif isinstance(value, int):
@@ -309,6 +312,8 @@ class WordoorioDatabase:
         """Get analysis by ID with all highlights"""
         # Get analysis
         analysis_query = """
+        DECLARE $id AS Uint64;
+
         SELECT *
         FROM analyses
         WHERE id = $id
@@ -321,6 +326,8 @@ class WordoorioDatabase:
 
         # Get highlights
         highlights_query = """
+        DECLARE $analysis_id AS Uint64;
+
         SELECT *
         FROM highlights
         WHERE analysis_id = $analysis_id
@@ -335,6 +342,8 @@ class WordoorioDatabase:
     def search_by_word(self, word: str, limit: int = 20) -> List[Dict]:
         """Search analyses by word in highlights"""
         query = f"""
+        DECLARE $word AS Utf8;
+
         SELECT DISTINCT a.*
         FROM analyses AS a
         JOIN highlights AS h ON a.id = h.analysis_id
@@ -375,6 +384,8 @@ class WordoorioDatabase:
     def get_user_training_state(self, user_id: int) -> Dict:
         """Get user's training state"""
         query = """
+        DECLARE $user_id AS Uint64;
+
         SELECT *
         FROM user_training_state
         WHERE user_id = $user_id
@@ -395,6 +406,10 @@ class WordoorioDatabase:
     def update_training_position(self, user_id: int, position: int):
         """Update user's training position"""
         query = """
+        DECLARE $user_id AS Uint64;
+        DECLARE $position AS Uint32;
+        DECLARE $timestamp AS Utf8;
+
         UPSERT INTO user_training_state (user_id, last_selection_position, last_training_at)
         VALUES ($user_id, $position, $timestamp)
         """
@@ -416,6 +431,16 @@ class WordoorioDatabase:
         test_id = self._get_next_id('tests')
 
         query = """
+        DECLARE $id AS Uint64;
+        DECLARE $user_id AS Uint64;
+        DECLARE $word_id AS Uint64;
+        DECLARE $word AS Utf8;
+        DECLARE $correct_translation AS Utf8;
+        DECLARE $wrong_option_1 AS Utf8;
+        DECLARE $wrong_option_2 AS Utf8;
+        DECLARE $wrong_option_3 AS Utf8;
+        DECLARE $created_at AS Utf8;
+
         UPSERT INTO tests (id, user_id, word_id, word, correct_translation, wrong_option_1, wrong_option_2, wrong_option_3, created_at)
         VALUES ($id, $user_id, $word_id, $word, $correct_translation, $wrong_option_1, $wrong_option_2, $wrong_option_3, $created_at)
         """
@@ -437,6 +462,8 @@ class WordoorioDatabase:
     def get_test(self, test_id: int) -> Optional[Dict]:
         """Get test by ID"""
         query = """
+        DECLARE $id AS Uint64;
+
         SELECT *
         FROM tests
         WHERE id = $id
@@ -447,6 +474,8 @@ class WordoorioDatabase:
     def delete_test(self, test_id: int):
         """Delete test by ID"""
         query = """
+        DECLARE $id AS Uint64;
+
         DELETE FROM tests
         WHERE id = $id
         """
@@ -456,6 +485,8 @@ class WordoorioDatabase:
     def get_pending_tests(self, user_id: int) -> List[Dict]:
         """Get all pending tests for user"""
         query = """
+        DECLARE $user_id AS Uint64;
+
         SELECT *
         FROM tests
         WHERE user_id = $user_id
@@ -474,6 +505,10 @@ class WordoorioDatabase:
             last_rating_change = datetime.now().isoformat()
 
         query = """
+        DECLARE $id AS Uint64;
+        DECLARE $rating AS Uint32;
+        DECLARE $last_rating_change AS Utf8;
+
         UPDATE dictionary_words
         SET rating = $rating, last_rating_change = $last_rating_change
         WHERE id = $id
@@ -488,6 +523,9 @@ class WordoorioDatabase:
     def update_word_status(self, word_id: int, status: str):
         """Update word status"""
         query = """
+        DECLARE $id AS Uint64;
+        DECLARE $status AS Utf8;
+
         UPDATE dictionary_words
         SET status = $status
         WHERE id = $id
@@ -502,6 +540,9 @@ class WordoorioDatabase:
         """Update word test statistics"""
         # Get existing statistics
         query = """
+        DECLARE $user_id AS Uint64;
+        DECLARE $word_id AS Uint64;
+
         SELECT *
         FROM word_test_statistics
         WHERE user_id = $user_id AND word_id = $word_id
@@ -515,6 +556,13 @@ class WordoorioDatabase:
         if stats:
             # Update existing
             update_query = """
+            DECLARE $id AS Uint64;
+            DECLARE $total_tests AS Uint32;
+            DECLARE $correct_answers AS Uint32;
+            DECLARE $wrong_answers AS Uint32;
+            DECLARE $last_test_at AS Utf8;
+            DECLARE $last_result AS Bool;
+
             UPDATE word_test_statistics
             SET total_tests = $total_tests,
                 correct_answers = $correct_answers,
@@ -537,6 +585,15 @@ class WordoorioDatabase:
             stat_id = self._get_next_id('word_test_statistics')
 
             insert_query = """
+            DECLARE $id AS Uint64;
+            DECLARE $user_id AS Uint64;
+            DECLARE $word_id AS Uint64;
+            DECLARE $total_tests AS Uint32;
+            DECLARE $correct_answers AS Uint32;
+            DECLARE $wrong_answers AS Uint32;
+            DECLARE $last_test_at AS Utf8;
+            DECLARE $last_result AS Bool;
+
             UPSERT INTO word_test_statistics (id, user_id, word_id, total_tests, correct_answers, wrong_answers, last_test_at, last_result)
             VALUES ($id, $user_id, $word_id, $total_tests, $correct_answers, $wrong_answers, $last_test_at, $last_result)
             """
@@ -555,12 +612,235 @@ class WordoorioDatabase:
     def get_word_by_id(self, word_id: int) -> Optional[Dict]:
         """Get dictionary word by ID"""
         query = """
+        DECLARE $id AS Uint64;
+
         SELECT *
         FROM dictionary_words
         WHERE id = $id
         """
 
         return self._fetch_one(query, {'$id': word_id})
+
+    def get_words_by_training_step(self, user_id: int, step: int) -> List[Dict]:
+        """
+        Get words for training by step number (8-step algorithm)
+
+        Args:
+            user_id: User ID
+            step: Step number (1-8)
+
+        Returns:
+            List of words for the given step
+        """
+        if step == 1:
+            # Шаг 1: Новое слово, добавленное последним
+            query = """
+            DECLARE $user_id AS Uint64;
+
+            SELECT *
+            FROM dictionary_words
+            WHERE user_id = $user_id AND status = 'new'
+            ORDER BY added_at DESC
+            LIMIT 1
+            """
+            return self._fetch_all(query, {'$user_id': user_id})
+
+        elif step == 2:
+            # Шаг 2: Слово learning по давности повтора
+            query = """
+            DECLARE $user_id AS Uint64;
+
+            SELECT *
+            FROM dictionary_words
+            WHERE user_id = $user_id AND status = 'learning'
+            ORDER BY COALESCE(last_reviewed_at, added_at) ASC
+            LIMIT 1
+            """
+            return self._fetch_all(query, {'$user_id': user_id})
+
+        elif step == 3 or step == 7:
+            # Шаг 3 и 7: Новое слово, добавленное давнее всего
+            query = """
+            DECLARE $user_id AS Uint64;
+
+            SELECT *
+            FROM dictionary_words
+            WHERE user_id = $user_id AND status = 'new'
+            ORDER BY added_at ASC
+            LIMIT 1
+            """
+            return self._fetch_all(query, {'$user_id': user_id})
+
+        elif step == 4 or step == 6:
+            # Шаг 4 и 6: Learning с макс рейтингом (рандомно)
+            # Используем подзапрос для получения MAX rating
+            query = """
+            DECLARE $user_id AS Uint64;
+
+            SELECT *
+            FROM dictionary_words
+            WHERE user_id = $user_id
+              AND status = 'learning'
+              AND COALESCE(rating, 0) = (
+                  SELECT MAX(COALESCE(rating, 0))
+                  FROM dictionary_words
+                  WHERE user_id = $user_id AND status = 'learning'
+              )
+            ORDER BY Random()
+            LIMIT 1
+            """
+            return self._fetch_all(query, {'$user_id': user_id})
+
+        elif step == 5:
+            # Шаг 5: Слово, обнулившее рейтинг последним
+            query = """
+            DECLARE $user_id AS Uint64;
+
+            SELECT *
+            FROM dictionary_words
+            WHERE user_id = $user_id
+              AND status = 'learning'
+              AND COALESCE(rating, 0) = 0
+              AND last_rating_change IS NOT NULL
+            ORDER BY last_rating_change DESC
+            LIMIT 1
+            """
+            return self._fetch_all(query, {'$user_id': user_id})
+
+        elif step == 8:
+            # Шаг 8: Рандомное выученное слово
+            query = """
+            DECLARE $user_id AS Uint64;
+
+            SELECT *
+            FROM dictionary_words
+            WHERE user_id = $user_id AND status = 'learned'
+            ORDER BY Random()
+            LIMIT 1
+            """
+            return self._fetch_all(query, {'$user_id': user_id})
+
+        else:
+            return []
+
+    def get_translation_for_word(self, word_id: int) -> str:
+        """Get first translation for a word"""
+        query = """
+        DECLARE $word_id AS Uint64;
+
+        SELECT translation
+        FROM dictionary_translations
+        WHERE word_id = $word_id
+        LIMIT 1
+        """
+
+        result = self._fetch_one(query, {'$word_id': word_id})
+        return result['translation'] if result else ""
+
+    def get_random_translations(self, user_id: int, exclude_translation: str, limit: int = 3) -> List[str]:
+        """Get random translations from user's dictionary (for fallback test options)"""
+        query = f"""
+        DECLARE $user_id AS Uint64;
+        DECLARE $exclude AS Utf8;
+
+        SELECT DISTINCT dt.translation
+        FROM dictionary_translations dt
+        JOIN dictionary_words dw ON dt.word_id = dw.id
+        WHERE dw.user_id = $user_id
+          AND dt.translation != $exclude
+        ORDER BY Random()
+        LIMIT {limit}
+        """
+
+        results = self._fetch_all(query, {
+            '$user_id': user_id,
+            '$exclude': exclude_translation
+        })
+        return [r['translation'] for r in results]
+
+    # ====================
+    # User/Auth Methods
+    # ====================
+
+    def link_telegram_to_user(self, user_id: int, telegram_id: int) -> bool:
+        """
+        Link Telegram ID to existing user account
+
+        Args:
+            user_id: Internal user ID
+            telegram_id: Telegram user ID
+
+        Returns:
+            True if successful
+        """
+        query = """
+        DECLARE $user_id AS Uint64;
+        DECLARE $telegram_id AS Uint64;
+
+        UPDATE users
+        SET telegram_id = $telegram_id
+        WHERE id = $user_id
+        """
+
+        try:
+            self._execute_query(query, {
+                '$user_id': user_id,
+                '$telegram_id': telegram_id
+            })
+            logger.info(f"[YDB] Linked telegram_id={telegram_id} to user_id={user_id}")
+            return True
+        except Exception as e:
+            logger.error(f"[YDB] Error linking telegram: {e}")
+            return False
+
+    def get_user_by_telegram_id(self, telegram_id: int) -> Optional[Dict]:
+        """Get user by Telegram ID"""
+        query = """
+        DECLARE $telegram_id AS Uint64;
+
+        SELECT *
+        FROM users
+        WHERE telegram_id = $telegram_id
+        """
+
+        return self._fetch_one(query, {'$telegram_id': telegram_id})
+
+    def ensure_test_users_exist(self):
+        """
+        Ensure test users exist in the database
+        Called on startup to create test accounts if they don't exist
+        """
+        test_accounts = [
+            {'id': 1, 'username': 'andrew'},
+            {'id': 2, 'username': 'friend1'},
+            {'id': 3, 'username': 'friend2'},
+        ]
+
+        for account in test_accounts:
+            # Check if user exists
+            check_query = """
+            DECLARE $id AS Uint64;
+
+            SELECT id FROM users WHERE id = $id
+            """
+            existing = self._fetch_one(check_query, {'$id': account['id']})
+
+            if not existing:
+                # Create user
+                insert_query = """
+                DECLARE $id AS Uint64;
+                DECLARE $username AS Utf8;
+                DECLARE $created_at AS Utf8;
+
+                UPSERT INTO users (id, username, created_at)
+                VALUES ($id, $username, $created_at)
+                """
+                self._execute_query(insert_query, {
+                    '$id': account['id'],
+                    '$username': account['username'],
+                    '$created_at': datetime.now().isoformat()
+                })
+                logger.info(f"[YDB] Created test user: {account['username']} (id={account['id']})")
 
     def __del__(self):
         """Cleanup on destruction"""
