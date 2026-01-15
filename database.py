@@ -8,12 +8,46 @@ import ydb
 import os
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+
+def _typed_params(params: Dict[str, Any]) -> Dict[str, tuple]:
+    """
+    Конвертирует словарь параметров в формат с явными типами для YDB
+
+    ВАЖНО: ВСЕ поля в таблицах являются Optional (Utf8?, Uint64?, Uint32?).
+    Поэтому все параметры должны передаваться с OptionalType.
+
+    Args:
+        params: Словарь вида {'$lemma': 'test', '$user_id': 1}
+
+    Returns:
+        Словарь с явными типами: {'$lemma': ('test', Optional<Utf8>), '$user_id': (1, Optional<Uint64>)}
+    """
+    typed = {}
+    for key, value in params.items():
+        if isinstance(value, str):
+            # Все строки как Optional<Utf8>
+            typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Utf8))
+        elif isinstance(value, int):
+            # Используем Uint64 для ID и больших чисел, Uint32 для счетчиков
+            # ID полей: id, user_id, word_id, analysis_id
+            if 'id' in key.lower():
+                typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Uint64))
+            # Счетчики: review_count, correct_streak, rating, position, total_highlights, total_words, limit
+            else:
+                typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Uint32))
+        elif value is None:
+            # Для None используем Optional<Uint64> (можно изменить на другой тип если нужно)
+            typed[key] = (None, ydb.OptionalType(ydb.PrimitiveType.Uint64))
+        else:
+            typed[key] = value  # Оставляем как есть для других типов
+    return typed
 
 
 class WordoorioDatabase:
@@ -58,12 +92,13 @@ class WordoorioDatabase:
         self.driver = ydb.Driver(driver_config)
         self.driver.wait(fail_fast=True, timeout=5)
 
-        # Create session pool for efficient connection reuse
-        self.pool = ydb.SessionPool(self.driver)
+        # Create QuerySessionPool for efficient connection reuse
+        # QuerySessionPool is newer and handles typed parameters better
+        self.pool = ydb.QuerySessionPool(self.driver)
 
     def _execute_query(self, query: str, parameters: Dict = None):
         """
-        Execute YQL query with automatic retries
+        Execute YQL query with automatic retries using QuerySessionPool
 
         Args:
             query: YQL query string
@@ -72,14 +107,15 @@ class WordoorioDatabase:
         Returns:
             Query result
         """
-        def callee(session):
-            return session.transaction().execute(
-                query,
-                parameters or {},
-                commit_tx=True
-            )
+        # Конвертируем параметры в типизированный формат YDB
+        typed_params = _typed_params(parameters) if parameters else {}
 
-        return self.pool.retry_operation_sync(callee)
+        # Use execute_with_retries instead of session.transaction().execute()
+        # QuerySessionPool handles typed parameters correctly
+        return self.pool.execute_with_retries(
+            query,
+            parameters=typed_params
+        )
 
     def _fetch_one(self, query: str, parameters: Dict = None) -> Optional[Dict]:
         """Execute query and return first row as dict"""
@@ -88,8 +124,8 @@ class WordoorioDatabase:
         if not result or not result[0].rows:
             return None
 
-        row = result[0].rows[0]
-        return {col: getattr(row, col) for col in result[0].columns}
+        # YDB rows are already dict-like objects
+        return dict(result[0].rows[0])
 
     def _fetch_all(self, query: str, parameters: Dict = None) -> List[Dict]:
         """Execute query and return all rows as list of dicts"""
@@ -98,11 +134,8 @@ class WordoorioDatabase:
         if not result or not result[0].rows:
             return []
 
-        columns = [col.name for col in result[0].columns]
-        return [
-            {col: getattr(row, col) for col in columns}
-            for row in result[0].rows
-        ]
+        # YDB rows are already dict-like objects
+        return [dict(row) for row in result[0].rows]
 
     def _get_next_id(self, table_name: str) -> int:
         """
