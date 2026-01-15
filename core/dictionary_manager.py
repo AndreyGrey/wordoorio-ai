@@ -654,40 +654,56 @@ class DictionaryManager:
             word_row = self._fetch_one(check_query, {'$lemma': lemma})
 
         if not word_row:
+            logger.warning(f"[DELETE] Слово '{lemma}' не найдено для user_id={user_id}")
             return {
                 'success': False,
                 'message': f'Слово "{lemma}" не найдено в словаре'
             }
 
-        word_id = word_row['id']
+        word_id = word_row.get('id')
+        logger.info(f"[DELETE] Удаление слова '{lemma}' (id={word_id}) для user_id={user_id}")
 
-        # Delete translations
-        delete_translations_query = """
-            DECLARE $word_id AS Uint64?;
+        try:
+            # Delete translations
+            delete_translations_query = """
+                DECLARE $word_id AS Uint64?;
 
-        DELETE FROM dictionary_translations
-        WHERE word_id = $word_id
-        """
-        self._execute_query(delete_translations_query, {'$word_id': word_id})
+            DELETE FROM dictionary_translations
+            WHERE word_id = $word_id
+            """
+            self._execute_query(delete_translations_query, {'$word_id': word_id})
+            logger.info(f"[DELETE] Удалены translations для word_id={word_id}")
+        except Exception as e:
+            logger.error(f"[DELETE] Ошибка удаления translations: {e}")
 
-        # Delete examples
-        delete_examples_query = """
-            DECLARE $word_id AS Uint64?;
+        try:
+            # Delete examples
+            delete_examples_query = """
+                DECLARE $word_id AS Uint64?;
 
-        DELETE FROM dictionary_examples
-        WHERE word_id = $word_id
-        """
-        self._execute_query(delete_examples_query, {'$word_id': word_id})
+            DELETE FROM dictionary_examples
+            WHERE word_id = $word_id
+            """
+            self._execute_query(delete_examples_query, {'$word_id': word_id})
+            logger.info(f"[DELETE] Удалены examples для word_id={word_id}")
+        except Exception as e:
+            logger.error(f"[DELETE] Ошибка удаления examples: {e}")
 
-        # Delete word
-        delete_word_query = """
-            DECLARE $word_id AS Uint64?;
+        try:
+            # Delete word
+            delete_word_query = """
+                DECLARE $word_id AS Uint64?;
 
-        DELETE FROM dictionary_words
-        WHERE id = $word_id
-        """
-        self._execute_query(delete_word_query, {'$word_id': word_id})
+            DELETE FROM dictionary_words
+            WHERE id = $word_id
+            """
+            self._execute_query(delete_word_query, {'$word_id': word_id})
+            logger.info(f"[DELETE] Удалено слово word_id={word_id}")
+        except Exception as e:
+            logger.error(f"[DELETE] Ошибка удаления слова: {e}")
+            raise
 
+        logger.info(f"[DELETE] Успешно удалено слово '{lemma}'")
         return {
             'success': True,
             'message': f'Слово "{lemma}" удалено из словаря'
