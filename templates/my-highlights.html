@@ -255,13 +255,48 @@
     </div>
 
     <script>
-        function loadSavedHighlights() {
+        async function loadSavedHighlights() {
             const storage = new HighlightsStorage();
-            const sessions = storage.getAllSessions();
 
-            console.log('📊 Загружено сессий:', sessions.length);
+            // Загружаем хайлайты из локального хранилища
+            const localSessions = storage.getAllSessions();
+            console.log('📊 Локальные сессии:', localSessions.length);
 
-            if (sessions.length === 0) {
+            // Загружаем хайлайты с сервера
+            let serverAnalyses = [];
+            try {
+                const response = await fetch('/api/highlights');
+                const data = await response.json();
+                if (data.success && data.analyses) {
+                    serverAnalyses = data.analyses;
+                    console.log('📊 Серверные анализы:', serverAnalyses.length);
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки хайлайтов с сервера:', error);
+            }
+
+            // Объединяем локальные и серверные данные
+            // Преобразуем серверные данные в формат, совместимый с локальными
+            const allSessions = [
+                ...localSessions,
+                ...serverAnalyses.map(analysis => ({
+                    session_id: analysis.session_id,
+                    original_text: analysis.original_text,
+                    created_at: analysis.analysis_date,
+                    total_highlights: analysis.total_highlights,
+                    highlights: analysis.highlights.map(h => ({
+                        highlight: h.highlight_word,
+                        context: h.context,
+                        translation: h.highlight_translation,
+                        meanings: JSON.parse(h.dictionary_meanings || '[]')
+                    })),
+                    source: 'server'
+                }))
+            ];
+
+            console.log('📊 Всего сессий:', allSessions.length);
+
+            if (allSessions.length === 0) {
                 // Показываем empty state
                 document.getElementById('emptyState').style.display = 'block';
                 return;
@@ -275,10 +310,13 @@
             let totalWords = 0;
             let totalPhrases = 0;
 
-            sessions.forEach(session => {
-                const highlights = storage.getSavedHighlights(session.session_id);
+            allSessions.forEach(session => {
+                // Для локальных сессий берем хайлайты из storage
+                const highlights = session.source === 'server'
+                    ? session.highlights
+                    : storage.getSavedHighlights(session.session_id);
 
-                if (highlights.length === 0) {
+                if (!highlights || highlights.length === 0) {
                     return; // Пропускаем пустые сессии
                 }
 
@@ -299,9 +337,12 @@
             });
 
             // Обновляем статистику
-            document.getElementById('totalSets').textContent = sessions.filter(s =>
-                storage.getSavedHighlights(s.session_id).length > 0
-            ).length;
+            document.getElementById('totalSets').textContent = allSessions.filter(s => {
+                const highlights = s.source === 'server'
+                    ? s.highlights
+                    : storage.getSavedHighlights(s.session_id);
+                return highlights && highlights.length > 0;
+            }).length;
             document.getElementById('totalHighlights').textContent = totalHighlights;
             document.getElementById('totalWords').textContent = totalWords;
             document.getElementById('totalPhrases').textContent = totalPhrases;

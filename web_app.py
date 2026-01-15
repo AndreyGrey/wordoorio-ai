@@ -108,6 +108,7 @@ def analyze_text():
                 original_text=text,
                 highlights=highlights_dicts,
                 stats=result.stats,
+                user_id=session.get('user_id'),
                 session_id=session['session_id'],
                 ip_address=request.remote_addr
             )
@@ -263,6 +264,7 @@ def analyze_v2():
                 original_text=text,
                 highlights=highlights_dicts,
                 stats=result.stats,
+                user_id=session.get('user_id'),
                 session_id=session['session_id'],
                 ip_address=request.remote_addr
             )
@@ -711,6 +713,41 @@ def api_dictionary_stats():
         return jsonify({
             'success': False,
             'error': f'Ошибка получения статистики: {str(e)}'
+        }), 500
+
+
+# ===== HIGHLIGHTS API =====
+
+@app.route('/api/highlights', methods=['GET'])
+def get_user_highlights_api():
+    """
+    Получить все хайлайты пользователя из базы данных
+    """
+    try:
+        # Получаем user_id
+        user_id = session.get('user_id')
+
+        # Если пользователь не авторизован, возвращаем пустой список
+        if not user_id:
+            return jsonify({
+                'success': True,
+                'analyses': [],
+                'message': 'Войдите для доступа к истории'
+            })
+
+        # Получаем хайлайты из БД
+        analyses = db.get_user_highlights(user_id=user_id, limit=100)
+
+        return jsonify({
+            'success': True,
+            'analyses': analyses
+        })
+
+    except Exception as e:
+        logger.error(f"[/api/highlights] Error: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': f'Ошибка получения хайлайтов: {str(e)}'
         }), 500
 
 

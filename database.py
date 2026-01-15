@@ -114,6 +114,7 @@ class WordoorioDatabase:
     def save_analysis(self,
                      original_text: str,
                      analysis_result: Dict,
+                     user_id: Optional[int] = None,
                      session_id: Optional[str] = None,
                      ip_address: Optional[str] = None) -> int:
         """
@@ -122,6 +123,7 @@ class WordoorioDatabase:
         Args:
             original_text: Original input text
             analysis_result: Analysis results with highlights
+            user_id: User ID (for authenticated users)
             session_id: Session identifier
             ip_address: Client IP address
 
@@ -138,12 +140,13 @@ class WordoorioDatabase:
 
         # Insert analysis record
         query = """
-        UPSERT INTO analyses (id, original_text, analysis_date, total_highlights, total_words, session_id, ip_address)
-        VALUES ($id, $original_text, CurrentUtcTimestamp(), $total_highlights, $total_words, $session_id, $ip_address)
+        UPSERT INTO analyses (id, user_id, original_text, analysis_date, total_highlights, total_words, session_id, ip_address)
+        VALUES ($id, $user_id, $original_text, CurrentUtcTimestamp(), $total_highlights, $total_words, $session_id, $ip_address)
         """
 
         self._execute_query(query, {
             '$id': analysis_id,
+            '$user_id': user_id,
             '$original_text': original_text,
             '$total_highlights': total_highlights,
             '$total_words': total_words,
@@ -171,6 +174,62 @@ class WordoorioDatabase:
 
         logger.info(f"[YDB] Saved analysis {analysis_id} with {total_highlights} highlights")
         return analysis_id
+
+    def get_user_highlights(self, user_id: int, limit: int = 100) -> List[Dict]:
+        """
+        Get all highlights for a specific user
+
+        Args:
+            user_id: User ID
+            limit: Maximum number of analyses to fetch
+
+        Returns:
+            List of analyses with their highlights
+        """
+        # Get user's analyses
+        analyses_query = """
+        SELECT id, original_text, analysis_date, total_highlights, total_words, session_id
+        FROM analyses
+        WHERE user_id = $user_id
+        ORDER BY analysis_date DESC
+        LIMIT $limit
+        """
+
+        analyses = self._fetch_all(analyses_query, {
+            '$user_id': user_id,
+            '$limit': limit
+        })
+
+        if not analyses:
+            return []
+
+        # Get highlights for each analysis
+        result = []
+        for analysis in analyses:
+            analysis_id = analysis['id']
+
+            highlights_query = """
+            SELECT highlight_word, context, highlight_translation, dictionary_meanings
+            FROM highlights
+            WHERE analysis_id = $analysis_id
+            """
+
+            highlights = self._fetch_all(highlights_query, {
+                '$analysis_id': analysis_id
+            })
+
+            result.append({
+                'analysis_id': analysis_id,
+                'original_text': analysis['original_text'],
+                'analysis_date': analysis['analysis_date'],
+                'total_highlights': analysis['total_highlights'],
+                'total_words': analysis['total_words'],
+                'session_id': analysis['session_id'],
+                'highlights': highlights
+            })
+
+        logger.info(f"[YDB] Fetched {len(result)} analyses for user {user_id}")
+        return result
 
     def get_recent_analyses(self, limit: int = 10) -> List[Dict]:
         """Get recent text analyses"""
