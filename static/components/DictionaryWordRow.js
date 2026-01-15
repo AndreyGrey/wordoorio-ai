@@ -53,7 +53,7 @@ function createDictionaryWordRow(word) {
 
     return `
         <div class="dictionary-word-row" data-lemma="${escapeHtml(lemma)}" data-type="${type}">
-            <div class="word-row-clickable">
+            <div class="word-row-content">
                 <div class="word-row-left" style="border-left: 3px solid ${borderColor};">
                     <div class="word-row-header">
                         <span class="word-lemma">${escapeHtml(lemma)}</span>
@@ -62,14 +62,13 @@ function createDictionaryWordRow(word) {
                     <div class="word-row-translation">
                         ${escapeHtml(translationsText)}
                     </div>
-                </div>
-                <div class="word-row-right">
                     <div class="word-row-date">${formattedDate}</div>
-                    <div class="word-row-arrow">›</div>
                 </div>
             </div>
-            <button class="delete-word-btn" onclick="deleteWord('${lemma}', event)" title="Удалить слово">
-                🗑️
+            <button class="delete-word-btn" onclick="deleteWord('${lemma}', event)" title="Удалить слово" aria-label="Удалить слово">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 12h14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                </svg>
             </button>
         </div>
     `;
@@ -90,53 +89,50 @@ function getDictionaryWordRowStyles() {
             background: white;
             border-radius: 12px;
             padding: 12px;
-            gap: 8px;
-            transition: all 0.2s ease;
+            gap: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             position: relative;
         }
 
-        .word-row-clickable {
+        .word-row-content {
             display: flex;
-            justify-content: space-between;
             align-items: flex-start;
             flex: 1;
-            cursor: pointer;
             min-width: 0;
         }
 
-        .word-row-clickable:hover {
-            opacity: 0.8;
-        }
-
-        .dictionary-word-row:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-
         .delete-word-btn {
-            background: #ef4444;
+            /* Круглая кнопка с минусом (единый стиль) */
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            border-radius: 50%;
+            background: #FF8A7D;
             color: white;
             border: none;
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
             cursor: pointer;
-            font-size: 1rem;
-            transition: all 0.2s ease;
-            flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(255, 138, 125, 0.3);
+            position: relative;
         }
 
         .delete-word-btn:hover {
-            background: #dc2626;
+            background: #FF7964;
             transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(255, 138, 125, 0.4);
         }
 
         .delete-word-btn:active {
-            transform: scale(0.95);
+            transform: scale(1.05);
+        }
+
+        .delete-word-btn svg {
+            width: 20px;
+            height: 20px;
         }
 
         /* Left part */
@@ -188,46 +184,15 @@ function getDictionaryWordRowStyles() {
         .word-row-translation {
             font-size: 0.875rem;
             color: #718096;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
             line-height: 1.4;
         }
 
-        .more-indicator {
-            color: #a0aec0;
-            font-weight: 600;
-            margin-left: 4px;
-        }
-
-        /* Right part */
-        .word-row-right {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 4px;
-            margin-left: 12px;
-            flex-shrink: 0;
-        }
-
-        /* Date in top right */
+        /* Date below translation */
         .word-row-date {
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             color: #a0aec0;
             font-weight: 500;
-            white-space: nowrap;
-        }
-
-        /* Right arrow */
-        .word-row-arrow {
-            font-size: 1.5rem;
-            color: #cbd5e0;
-            font-weight: 300;
-            transition: transform 0.2s ease;
-            line-height: 1;
-        }
-
-        .dictionary-word-row:hover .word-row-arrow {
-            transform: translateX(4px);
-            color: #a0aec0;
         }
 
         /* Desktop optimizations */
