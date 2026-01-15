@@ -16,38 +16,38 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
-def _typed_params(params: Dict[str, Any]) -> Dict[str, tuple]:
+def _typed_params(params: Dict[str, Any]) -> Dict[str, ydb.TypedValue]:
     """
-    Конвертирует словарь параметров в формат с явными типами для YDB
+    Конвертирует словарь параметров в формат TypedValue для YDB
 
     ВАЖНО: ВСЕ поля в таблицах являются Optional (Utf8?, Uint64?, Uint32?).
-    Поэтому все параметры должны передаваться с OptionalType.
+    Используем TypedValue (вариант 2 по рекомендации поддержки YDB).
 
     Args:
         params: Словарь вида {'$lemma': 'test', '$user_id': 1}
 
     Returns:
-        Словарь с явными типами: {'$lemma': ('test', Optional<Utf8>), '$user_id': (1, Optional<Uint64>)}
+        Словарь с TypedValue: {'$lemma': TypedValue('test', Optional<Utf8>), '$user_id': TypedValue(1, Optional<Uint64>)}
     """
     typed = {}
     for key, value in params.items():
         # ВАЖНО: bool проверяем ДО int, т.к. isinstance(True, int) == True в Python
         if isinstance(value, bool):
-            typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Bool))
+            typed[key] = ydb.TypedValue(value, ydb.OptionalType(ydb.PrimitiveType.Bool))
         elif isinstance(value, str):
             # Все строки как Optional<Utf8>
-            typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Utf8))
+            typed[key] = ydb.TypedValue(value, ydb.OptionalType(ydb.PrimitiveType.Utf8))
         elif isinstance(value, int):
             # Используем Uint64 для ID и больших чисел, Uint32 для счетчиков
             # ID полей: id, user_id, word_id, analysis_id
             if 'id' in key.lower():
-                typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Uint64))
+                typed[key] = ydb.TypedValue(value, ydb.OptionalType(ydb.PrimitiveType.Uint64))
             # Счетчики: review_count, correct_streak, rating, position, total_highlights, total_words, limit
             else:
-                typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Uint32))
+                typed[key] = ydb.TypedValue(value, ydb.OptionalType(ydb.PrimitiveType.Uint32))
         elif value is None:
-            # Для None используем Optional<Uint64> (можно изменить на другой тип если нужно)
-            typed[key] = (None, ydb.OptionalType(ydb.PrimitiveType.Uint64))
+            # Для None используем Optional<Uint64>
+            typed[key] = ydb.TypedValue(None, ydb.OptionalType(ydb.PrimitiveType.Uint64))
         else:
             typed[key] = value  # Оставляем как есть для других типов
     return typed
