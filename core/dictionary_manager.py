@@ -69,8 +69,8 @@ class DictionaryManager:
         def callee(session):
             return session.transaction().execute(
                 query,
-                commit_tx=True,
-                parameters=parameters or {}
+                parameters or {},  # Параметры вторым позиционным аргументом!
+                commit_tx=True
             )
 
         return self.pool.retry_operation_sync(callee)
