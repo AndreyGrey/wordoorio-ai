@@ -253,14 +253,15 @@ class WordoorioDatabase:
             analysis_id = analysis['id']
 
             # НОВЫЙ ЗАПРОС: JOIN с dictionary_words для получения полных данных слова
+            # ВАЖНО: Явно задаем алиасы с AS для всех полей, чтобы YDB возвращал их без префиксов
             highlights_query = """
             DECLARE $analysis_id AS Uint64?;
 
             SELECT
-                h.word_id,
-                h.position,
+                h.word_id AS word_id,
+                h.position AS position,
                 w.lemma AS highlight,
-                w.type,
+                w.type AS type,
                 t.translation AS highlight_translation
             FROM highlights AS h
             INNER JOIN dictionary_words AS w ON h.word_id = w.id
@@ -276,7 +277,15 @@ class WordoorioDatabase:
             # Группируем переводы и примеры по word_id
             highlights_map = {}
             for row in raw_highlights:
-                word_id = row['word_id']
+                # DEBUG: проверяем какие ключи возвращает YDB
+                if not highlights_map:  # Логируем только первую запись
+                    logger.debug(f"[YDB] Row keys: {list(row.keys())}")
+                    logger.debug(f"[YDB] Row values: {row}")
+
+                word_id = row.get('word_id')
+                if not word_id:
+                    logger.warning(f"[YDB] word_id not found in row: {row}")
+                    continue
 
                 if word_id not in highlights_map:
                     highlights_map[word_id] = {
