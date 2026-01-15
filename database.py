@@ -298,6 +298,85 @@ class WordoorioDatabase:
         logger.info(f"[YDB] Fetched {len(result)} analyses for user {user_id}")
         return result
 
+    def get_analysis_by_session(self, session_id: str, user_id: int) -> Optional[Dict]:
+        """
+        Get analysis by session_id and user_id
+
+        Args:
+            session_id: Session identifier
+            user_id: User ID
+
+        Returns:
+            Analysis record or None if not found
+        """
+        query = """
+        DECLARE $session_id AS Utf8?;
+        DECLARE $user_id AS Uint64?;
+
+        SELECT id, original_text, analysis_date, total_highlights, total_words, session_id
+        FROM analyses
+        WHERE session_id = $session_id AND user_id = $user_id
+        ORDER BY analysis_date DESC
+        LIMIT 1
+        """
+
+        result = self._fetch_one(query, {
+            '$session_id': session_id,
+            '$user_id': user_id
+        })
+
+        return result
+
+    def add_highlight_to_analysis(self, analysis_id: int, highlight_dict: Dict) -> int:
+        """
+        Add a single highlight to an existing analysis
+
+        Args:
+            analysis_id: Analysis ID
+            highlight_dict: Highlight data dictionary
+
+        Returns:
+            highlight_id: ID of created highlight record
+        """
+        highlight_id = self._get_next_id('highlights')
+
+        highlight_query = """
+        DECLARE $id AS Uint64?;
+        DECLARE $analysis_id AS Uint64?;
+        DECLARE $highlight_word AS Utf8?;
+        DECLARE $context AS Utf8?;
+        DECLARE $highlight_translation AS Utf8?;
+        DECLARE $dictionary_meanings AS Utf8?;
+
+        UPSERT INTO highlights (id, analysis_id, highlight_word, context, highlight_translation, dictionary_meanings)
+        VALUES ($id, $analysis_id, $highlight_word, $context, $highlight_translation, $dictionary_meanings)
+        """
+
+        self._execute_query(highlight_query, {
+            '$id': highlight_id,
+            '$analysis_id': analysis_id,
+            '$highlight_word': highlight_dict.get('highlight', ''),
+            '$context': highlight_dict.get('context', ''),
+            '$highlight_translation': highlight_dict.get('highlight_translation', ''),
+            '$dictionary_meanings': json.dumps(highlight_dict.get('dictionary_meanings', []))
+        })
+
+        # Update total_highlights counter in analyses table
+        update_query = """
+        DECLARE $analysis_id AS Uint64?;
+
+        UPDATE analyses
+        SET total_highlights = total_highlights + 1
+        WHERE id = $analysis_id
+        """
+
+        self._execute_query(update_query, {
+            '$analysis_id': analysis_id
+        })
+
+        logger.info(f"[YDB] Added highlight {highlight_id} to analysis {analysis_id}")
+        return highlight_id
+
     def get_recent_analyses(self, limit: int = 10) -> List[Dict]:
         """Get recent text analyses"""
         query = f"""

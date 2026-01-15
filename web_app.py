@@ -369,7 +369,7 @@ def api_dictionary_add():
                 'require_auth': True
             }), 401
 
-        # Добавляем в словарь
+        # 1. Добавляем в словарь
         dict_manager = DictionaryManager()
         result = dict_manager.add_word(
             highlight_dict=data,
@@ -377,7 +377,36 @@ def api_dictionary_add():
             user_id=user_id
         )
 
-        logger.info(f"[/api/dictionary/add] Результат: success={result.get('success')}, word_id={result.get('word_id')}")
+        logger.info(f"[/api/dictionary/add] Словарь: success={result.get('success')}, word_id={result.get('word_id')}")
+
+        # 2. Также сохраняем в analyses + highlights (для истории)
+        try:
+            # Ищем или создаем analysis для текущей сессии
+            analysis = db.get_analysis_by_session(session_id, user_id)
+
+            if not analysis:
+                # Создаем новый analysis для "ручного добавления слов"
+                analysis_id = db.save_analysis(
+                    original_text=data.get('context', 'Manually added words'),
+                    analysis_result={
+                        'highlights': [data],
+                        'total_words': 0
+                    },
+                    user_id=user_id,
+                    session_id=session_id,
+                    ip_address=request.remote_addr
+                )
+                logger.info(f"[/api/dictionary/add] Создан новый analysis #{analysis_id}")
+            else:
+                # Добавляем highlight к существующему analysis
+                analysis_id = analysis['id']
+                db.add_highlight_to_analysis(analysis_id, data)
+                logger.info(f"[/api/dictionary/add] Добавлен highlight к analysis #{analysis_id}")
+
+            result['analysis_id'] = analysis_id
+        except Exception as analysis_error:
+            logger.warning(f"[/api/dictionary/add] Не удалось сохранить в analyses: {analysis_error}")
+            # Не прерываем выполнение - слово в словаре уже сохранено
 
         return jsonify(result)
 
