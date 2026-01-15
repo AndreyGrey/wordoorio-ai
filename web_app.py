@@ -435,6 +435,101 @@ def api_test_add_word():
         }), 500
 
 
+@app.route('/api/test/check-table', methods=['GET'])
+def api_test_check_table():
+    """
+    ТЕСТОВЫЙ endpoint для проверки существования таблицы dictionary_words
+    """
+    try:
+        from core.dictionary_manager import DictionaryManager
+
+        dict_manager = DictionaryManager()
+
+        # Простой запрос для проверки таблицы
+        def check_table(session):
+            query = "SELECT COUNT(*) as count FROM dictionary_words"
+            return session.transaction().execute(query, commit_tx=True)
+
+        result = dict_manager.pool.retry_operation_sync(check_table)
+
+        # Получаем количество записей
+        count = result[0].rows[0].count if result and result[0].rows else 0
+
+        return jsonify({
+            'test_endpoint': True,
+            'table_exists': True,
+            'records_count': count,
+            'message': f'Таблица dictionary_words существует. Записей: {count}'
+        })
+
+    except Exception as e:
+        error_msg = str(e)
+        table_exists = 'does not exist' not in error_msg.lower()
+
+        return jsonify({
+            'test_endpoint': True,
+            'table_exists': table_exists,
+            'error': error_msg,
+            'message': 'Таблица НЕ существует!' if not table_exists else 'Другая ошибка'
+        }), 500 if not table_exists else 200
+
+
+@app.route('/api/test/describe-table', methods=['GET'])
+def api_test_describe_table():
+    """
+    ТЕСТОВЫЙ endpoint для получения схемы таблицы dictionary_words
+    """
+    try:
+        from core.dictionary_manager import DictionaryManager
+
+        dict_manager = DictionaryManager()
+
+        # Получаем описание таблицы через table_client
+        table_path = dict_manager.database + '/dictionary_words'
+
+        def describe_table(session):
+            return session.describe_table(table_path)
+
+        description = dict_manager.driver.table_client.session().create().describe_table(table_path)
+
+        # Формируем схему
+        columns = []
+        for column in description.columns:
+            type_str = str(column.type)
+            columns.append({
+                'name': column.name,
+                'type': type_str,
+                'is_optional': 'Optional[' in type_str
+            })
+
+        primary_keys = list(description.primary_key)
+
+        indexes = []
+        for index in description.indexes:
+            indexes.append({
+                'name': index.name,
+                'columns': list(index.index_columns)
+            })
+
+        return jsonify({
+            'test_endpoint': True,
+            'success': True,
+            'table': 'dictionary_words',
+            'columns': columns,
+            'primary_key': primary_keys,
+            'indexes': indexes
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'test_endpoint': True,
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
 @app.route('/api/dictionary/words', methods=['GET'])
 def api_dictionary_words():
     """
