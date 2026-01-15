@@ -267,12 +267,18 @@
             try {
                 const response = await fetch('/api/highlights');
                 const data = await response.json();
+                console.log('📡 API Response:', data);
                 if (data.success && data.analyses) {
                     serverAnalyses = data.analyses;
                     console.log('📊 Серверные анализы:', serverAnalyses.length);
+                    if (serverAnalyses.length > 0) {
+                        console.log('📝 Первый анализ:', serverAnalyses[0]);
+                    }
+                } else {
+                    console.log('⚠️ API не вернул analyses или success=false');
                 }
             } catch (error) {
-                console.error('Ошибка загрузки хайлайтов с сервера:', error);
+                console.error('❌ Ошибка загрузки хайлайтов с сервера:', error);
             }
 
             // Объединяем локальные и серверные данные
@@ -353,10 +359,29 @@
             setDiv.className = 'highlight-set';
 
             // Генерируем название из исходного текста
-            const setTitle = storage.generateSetTitle(session.original_text, 120);
+            // Для серверных данных используем упрощённую логику
+            let setTitle;
+            if (session.source === 'server') {
+                // Упрощённая версия для серверных данных
+                setTitle = session.original_text?.substring(0, 120) || 'Анализ текста';
+                if (session.original_text?.length > 120) setTitle += '...';
+            } else {
+                setTitle = storage.generateSetTitle(session.original_text, 120);
+            }
 
             // Форматируем дату
-            const formattedDate = storage.formatDate(session.created_at);
+            let formattedDate;
+            if (session.source === 'server') {
+                // Парсим ISO дату с сервера
+                const date = new Date(session.created_at);
+                formattedDate = date.toLocaleDateString('ru-RU', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+            } else {
+                formattedDate = storage.formatDate(session.created_at);
+            }
 
             // Header сета
             const headerHTML = `
