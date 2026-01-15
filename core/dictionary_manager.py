@@ -21,28 +21,28 @@ def _typed_params(params: Dict[str, Any]) -> Dict[str, tuple]:
     """
     Конвертирует словарь параметров в формат с явными типами для YDB
 
+    ВАЖНО: Все поля в реальной схеме YDB являются Optional,
+    поэтому все типы оборачиваются в OptionalType
+
     Args:
         params: Словарь вида {'$lemma': 'test', '$user_id': 1}
 
     Returns:
-        Словарь с явными типами: {'$lemma': ('test', ydb.PrimitiveType.Utf8)}
+        Словарь с явными типами: {'$lemma': ('test', OptionalType(Utf8))}
     """
     typed = {}
     for key, value in params.items():
         if isinstance(value, str):
-            typed[key] = (value, ydb.PrimitiveType.Utf8)
+            # Все строки как Optional<Utf8>
+            typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Utf8))
         elif isinstance(value, int):
             # Используем Uint64 для ID и больших чисел, Uint32 для счетчиков
             # ID полей: id, user_id, word_id, analysis_id
             if 'id' in key.lower():
-                # $user_id всегда Optional в схеме, оборачиваем в OptionalType
-                if key == '$user_id':
-                    typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Uint64))
-                else:
-                    typed[key] = (value, ydb.PrimitiveType.Uint64)
+                typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Uint64))
             # Счетчики: review_count, correct_streak, rating, position
             else:
-                typed[key] = (value, ydb.PrimitiveType.Uint32)
+                typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Uint32))
         elif value is None:
             # Для Optional[Uint64] передаем None с типом
             typed[key] = (None, ydb.OptionalType(ydb.PrimitiveType.Uint64))
