@@ -1177,6 +1177,36 @@ def telegram_webhook_info():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/telegram/test-send', methods=['GET'])
+def telegram_test_send():
+    """Тест отправки сообщения в Telegram"""
+    chat_id = request.args.get('chat_id')
+    if not chat_id:
+        return jsonify({'error': 'Укажи chat_id: /telegram/test-send?chat_id=123456'}), 400
+
+    # Тест 1: проверяем токен
+    token_status = "OK" if TELEGRAM_BOT_TOKEN else "EMPTY!"
+
+    # Тест 2: проверяем YDB
+    ydb_status = "OK"
+    try:
+        db.ensure_test_users_exist()
+    except Exception as e:
+        ydb_status = f"ERROR: {str(e)}"
+
+    # Тест 3: отправляем сообщение
+    result = telegram_send_message(
+        int(chat_id),
+        f"🧪 Тест webhook!\n\nToken: {token_status}\nYDB: {ydb_status}"
+    )
+
+    return jsonify({
+        'token_status': token_status,
+        'ydb_status': ydb_status,
+        'telegram_response': result
+    })
+
+
 def send_telegram_test(chat_id: int, message_id: int, test_manager, test_ids: list, index: int):
     """Отправить тест в Telegram"""
     if index >= len(test_ids):
