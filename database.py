@@ -150,6 +150,14 @@ class WordoorioDatabase:
 
         # Insert analysis record
         query = """
+        DECLARE $id AS Uint64?;
+        DECLARE $user_id AS Uint64?;
+        DECLARE $original_text AS Utf8?;
+        DECLARE $total_highlights AS Uint32?;
+        DECLARE $total_words AS Uint32?;
+        DECLARE $session_id AS Utf8?;
+        DECLARE $ip_address AS Utf8?;
+
         UPSERT INTO analyses (id, user_id, original_text, analysis_date, total_highlights, total_words, session_id, ip_address)
         VALUES ($id, $user_id, $original_text, CurrentUtcTimestamp(), $total_highlights, $total_words, $session_id, $ip_address)
         """
@@ -169,6 +177,13 @@ class WordoorioDatabase:
             highlight_id = self._get_next_id('highlights')
 
             highlight_query = """
+            DECLARE $id AS Uint64?;
+            DECLARE $analysis_id AS Uint64?;
+            DECLARE $highlight_word AS Utf8?;
+            DECLARE $context AS Utf8?;
+            DECLARE $highlight_translation AS Utf8?;
+            DECLARE $dictionary_meanings AS Utf8?;
+
             UPSERT INTO highlights (id, analysis_id, highlight_word, context, highlight_translation, dictionary_meanings)
             VALUES ($id, $analysis_id, $highlight_word, $context, $highlight_translation, $dictionary_meanings)
             """
@@ -198,6 +213,9 @@ class WordoorioDatabase:
         """
         # Get user's analyses
         analyses_query = """
+        DECLARE $user_id AS Uint64?;
+        DECLARE $limit AS Uint32?;
+
         SELECT id, original_text, analysis_date, total_highlights, total_words, session_id
         FROM analyses
         WHERE user_id = $user_id
@@ -219,6 +237,8 @@ class WordoorioDatabase:
             analysis_id = analysis['id']
 
             highlights_query = """
+            DECLARE $analysis_id AS Uint64?;
+
             SELECT highlight_word, context, highlight_translation, dictionary_meanings
             FROM highlights
             WHERE analysis_id = $analysis_id
