@@ -664,7 +664,21 @@ class DictionaryManager:
         logger.info(f"[DELETE] Удаление слова '{lemma}' (id={word_id}) для user_id={user_id}")
 
         try:
-            # Delete translations
+            # 1. Delete all highlights referencing this word
+            # ВАЖНО: Удаляем highlights ПЕРВЫМИ, чтобы они не ссылались на несуществующий word_id
+            delete_highlights_query = """
+                DECLARE $word_id AS Uint64?;
+
+            DELETE FROM highlights
+            WHERE word_id = $word_id
+            """
+            self._execute_query(delete_highlights_query, {'$word_id': word_id})
+            logger.info(f"[DELETE] Удалены highlights для word_id={word_id}")
+        except Exception as e:
+            logger.error(f"[DELETE] Ошибка удаления highlights: {e}")
+
+        try:
+            # 2. Delete translations
             delete_translations_query = """
                 DECLARE $word_id AS Uint64?;
 
@@ -677,7 +691,7 @@ class DictionaryManager:
             logger.error(f"[DELETE] Ошибка удаления translations: {e}")
 
         try:
-            # Delete examples
+            # 3. Delete examples
             delete_examples_query = """
                 DECLARE $word_id AS Uint64?;
 
@@ -690,7 +704,7 @@ class DictionaryManager:
             logger.error(f"[DELETE] Ошибка удаления examples: {e}")
 
         try:
-            # Delete word
+            # 4. Delete word (последним)
             delete_word_query = """
                 DECLARE $word_id AS Uint64?;
 
@@ -703,7 +717,7 @@ class DictionaryManager:
             logger.error(f"[DELETE] Ошибка удаления слова: {e}")
             raise
 
-        logger.info(f"[DELETE] Успешно удалено слово '{lemma}'")
+        logger.info(f"[DELETE] Успешно удалено слово '{lemma}' и все связанные данные")
         return {
             'success': True,
             'message': f'Слово "{lemma}" удалено из словаря'

@@ -289,7 +289,7 @@ def api_dictionary_add():
             else:
                 # Добавляем highlight к существующему analysis
                 analysis_id = analysis['id']
-                db.add_highlight_to_analysis(analysis_id, data)
+                db.add_highlight_to_analysis(analysis_id, data, user_id, session_id)
                 logger.info(f"[/api/dictionary/add] Добавлен highlight к analysis #{analysis_id}")
 
             result['analysis_id'] = analysis_id

@@ -154,6 +154,197 @@ class WordoorioDatabase:
 
         return result['max_id'] + 1
 
+    def _find_or_create_word_for_highlight(self, highlight: Dict, user_id: Optional[int], session_id: str) -> int:
+        """
+        Найти существующее слово в dictionary_words или создать новое
+
+        Args:
+            highlight: Словарь с данными хайлайта
+            user_id: ID пользователя
+            session_id: ID сессии
+
+        Returns:
+            word_id
+        """
+        lemma = highlight.get('highlight', '')
+        translation = highlight.get('highlight_translation', '')
+        context = highlight.get('context', '')
+        word_type = highlight.get('type', 'word')
+
+        if not lemma or not translation:
+            logger.warning(f"[YDB] Skipping highlight: missing lemma or translation")
+            raise ValueError("Missing lemma or translation in highlight")
+
+        # Проверить, существует ли слово
+        if user_id is not None:
+            check_query = """
+            DECLARE $lemma AS Utf8?;
+            DECLARE $user_id AS Uint64?;
+
+            SELECT id FROM dictionary_words
+            WHERE lemma = $lemma AND user_id = $user_id
+            """
+            existing = self._fetch_one(check_query, {
+                '$lemma': lemma,
+                '$user_id': user_id
+            })
+        else:
+            check_query = """
+            DECLARE $lemma AS Utf8?;
+
+            SELECT id FROM dictionary_words
+            WHERE lemma = $lemma AND user_id IS NULL
+            """
+            existing = self._fetch_one(check_query, {'$lemma': lemma})
+
+        if existing:
+            word_id = existing['id']
+            logger.debug(f"[YDB] Word '{lemma}' already exists (id={word_id})")
+
+            # Добавить пример, если его еще нет
+            self._add_example_if_not_exists(word_id, lemma, context, session_id)
+
+            return word_id
+
+        # Создать новое слово
+        word_id = self._get_next_id('dictionary_words')
+        now = datetime.now().isoformat()
+
+        insert_word_query = """
+        DECLARE $id AS Uint64?;
+        DECLARE $user_id AS Uint64?;
+        DECLARE $lemma AS Utf8?;
+        DECLARE $type AS Utf8?;
+        DECLARE $status AS Utf8?;
+        DECLARE $added_at AS Utf8?;
+        DECLARE $review_count AS Uint32?;
+        DECLARE $correct_streak AS Uint32?;
+        DECLARE $rating AS Uint32?;
+
+        UPSERT INTO dictionary_words (id, user_id, lemma, type, status, added_at, review_count, correct_streak, rating)
+        VALUES ($id, $user_id, $lemma, $type, $status, $added_at, $review_count, $correct_streak, $rating)
+        """
+
+        self._execute_query(insert_word_query, {
+            '$id': word_id,
+            '$user_id': user_id,
+            '$lemma': lemma,
+            '$type': word_type,
+            '$status': 'new',
+            '$added_at': now,
+            '$review_count': 0,
+            '$correct_streak': 0,
+            '$rating': 0
+        })
+
+        # Добавить основной перевод
+        translation_id = self._get_next_id('dictionary_translations')
+        insert_translation_query = """
+        DECLARE $id AS Uint64?;
+        DECLARE $word_id AS Uint64?;
+        DECLARE $translation AS Utf8?;
+        DECLARE $session_id AS Utf8?;
+        DECLARE $added_at AS Utf8?;
+
+        UPSERT INTO dictionary_translations (id, word_id, translation, source_session_id, added_at)
+        VALUES ($id, $word_id, $translation, $session_id, $added_at)
+        """
+
+        self._execute_query(insert_translation_query, {
+            '$id': translation_id,
+            '$word_id': word_id,
+            '$translation': translation,
+            '$session_id': session_id,
+            '$added_at': now
+        })
+
+        # Добавить дополнительные переводы из dictionary_meanings
+        additional_meanings = highlight.get('dictionary_meanings', [])
+        for meaning in additional_meanings:
+            if meaning and meaning != translation:
+                meaning_id = self._get_next_id('dictionary_translations')
+                self._execute_query(insert_translation_query, {
+                    '$id': meaning_id,
+                    '$word_id': word_id,
+                    '$translation': meaning,
+                    '$session_id': session_id,
+                    '$added_at': now
+                })
+
+        # Добавить пример использования
+        if context:
+            example_id = self._get_next_id('dictionary_examples')
+            insert_example_query = """
+            DECLARE $id AS Uint64?;
+            DECLARE $word_id AS Uint64?;
+            DECLARE $original_form AS Utf8?;
+            DECLARE $context AS Utf8?;
+            DECLARE $session_id AS Utf8?;
+            DECLARE $added_at AS Utf8?;
+
+            UPSERT INTO dictionary_examples (id, word_id, original_form, context, session_id, added_at)
+            VALUES ($id, $word_id, $original_form, $context, $session_id, $added_at)
+            """
+
+            self._execute_query(insert_example_query, {
+                '$id': example_id,
+                '$word_id': word_id,
+                '$original_form': lemma,
+                '$context': context,
+                '$session_id': session_id,
+                '$added_at': now
+            })
+
+        logger.debug(f"[YDB] Created new word '{lemma}' (id={word_id})")
+        return word_id
+
+    def _add_example_if_not_exists(self, word_id: int, lemma: str, context: str, session_id: str):
+        """Добавить пример к слову, если его еще нет"""
+        if not context:
+            return
+
+        # Проверить, есть ли уже такой пример
+        check_query = """
+        DECLARE $word_id AS Uint64?;
+        DECLARE $context AS Utf8?;
+
+        SELECT COUNT(*) AS count FROM dictionary_examples
+        WHERE word_id = $word_id AND context = $context
+        """
+
+        existing = self._fetch_one(check_query, {
+            '$word_id': word_id,
+            '$context': context
+        })
+
+        if existing and existing['count'] > 0:
+            return
+
+        # Добавить новый пример
+        example_id = self._get_next_id('dictionary_examples')
+        now = datetime.now().isoformat()
+
+        insert_query = """
+        DECLARE $id AS Uint64?;
+        DECLARE $word_id AS Uint64?;
+        DECLARE $original_form AS Utf8?;
+        DECLARE $context AS Utf8?;
+        DECLARE $session_id AS Utf8?;
+        DECLARE $added_at AS Utf8?;
+
+        UPSERT INTO dictionary_examples (id, word_id, original_form, context, session_id, added_at)
+        VALUES ($id, $word_id, $original_form, $context, $session_id, $added_at)
+        """
+
+        self._execute_query(insert_query, {
+            '$id': example_id,
+            '$word_id': word_id,
+            '$original_form': lemma,
+            '$context': context,
+            '$session_id': session_id,
+            '$added_at': now
+        })
+
     # ====================
     # Analysis Methods
     # ====================
@@ -209,29 +400,34 @@ class WordoorioDatabase:
             '$ip_address': ip_address
         })
 
-        # Insert highlights
-        for highlight in highlights:
+        # Insert highlights (now using word_id reference)
+        # ВАЖНО: Сначала создаем/находим слова в словаре, потом создаем highlights
+        for idx, highlight in enumerate(highlights, 1):
+            # Найти или создать слово в dictionary_words
+            word_id = self._find_or_create_word_for_highlight(
+                highlight=highlight,
+                user_id=user_id,
+                session_id=session_id
+            )
+
+            # Создать highlight со ссылкой на word_id
             highlight_id = self._get_next_id('highlights')
 
             highlight_query = """
             DECLARE $id AS Uint64?;
             DECLARE $analysis_id AS Uint64?;
-            DECLARE $highlight_word AS Utf8?;
-            DECLARE $context AS Utf8?;
-            DECLARE $highlight_translation AS Utf8?;
-            DECLARE $dictionary_meanings AS Utf8?;
+            DECLARE $word_id AS Uint64?;
+            DECLARE $position AS Uint32?;
 
-            UPSERT INTO highlights (id, analysis_id, highlight_word, context, highlight_translation, dictionary_meanings)
-            VALUES ($id, $analysis_id, $highlight_word, $context, $highlight_translation, $dictionary_meanings)
+            UPSERT INTO highlights (id, analysis_id, word_id, position)
+            VALUES ($id, $analysis_id, $word_id, $position)
             """
 
             self._execute_query(highlight_query, {
                 '$id': highlight_id,
                 '$analysis_id': analysis_id,
-                '$highlight_word': highlight.get('highlight', ''),
-                '$context': highlight.get('context', ''),
-                '$highlight_translation': highlight.get('highlight_translation', ''),
-                '$dictionary_meanings': json.dumps(highlight.get('dictionary_meanings', []))
+                '$word_id': word_id,
+                '$position': idx
             })
 
         logger.info(f"[YDB] Saved analysis {analysis_id} with {total_highlights} highlights")
@@ -268,22 +464,75 @@ class WordoorioDatabase:
         if not analyses:
             return []
 
-        # Get highlights for each analysis
+        # Get highlights for each analysis (with JOIN to dictionary_words)
         result = []
         for analysis in analyses:
             analysis_id = analysis['id']
 
+            # НОВЫЙ ЗАПРОС: JOIN с dictionary_words для получения полных данных слова
             highlights_query = """
             DECLARE $analysis_id AS Uint64?;
 
-            SELECT highlight_word, context, highlight_translation, dictionary_meanings
-            FROM highlights
-            WHERE analysis_id = $analysis_id
+            SELECT
+                h.word_id,
+                h.position,
+                w.lemma AS highlight,
+                w.type,
+                t.translation AS highlight_translation
+            FROM highlights AS h
+            INNER JOIN dictionary_words AS w ON h.word_id = w.id
+            LEFT JOIN dictionary_translations AS t ON w.id = t.word_id
+            WHERE h.analysis_id = $analysis_id
+            ORDER BY h.position
             """
 
-            highlights = self._fetch_all(highlights_query, {
+            raw_highlights = self._fetch_all(highlights_query, {
                 '$analysis_id': analysis_id
             })
+
+            # Группируем переводы и примеры по word_id
+            highlights_map = {}
+            for row in raw_highlights:
+                word_id = row['word_id']
+
+                if word_id not in highlights_map:
+                    highlights_map[word_id] = {
+                        'highlight': row['highlight'],
+                        'type': row['type'],
+                        'highlight_translation': row['highlight_translation'],
+                        'translations': [row['highlight_translation']] if row['highlight_translation'] else [],
+                        'position': row['position']
+                    }
+                else:
+                    # Добавляем дополнительные переводы
+                    if row['highlight_translation'] and row['highlight_translation'] not in highlights_map[word_id]['translations']:
+                        highlights_map[word_id]['translations'].append(row['highlight_translation'])
+
+            # Получаем примеры для каждого слова
+            for word_id in highlights_map.keys():
+                examples_query = """
+                DECLARE $word_id AS Uint64?;
+
+                SELECT context
+                FROM dictionary_examples
+                WHERE word_id = $word_id
+                LIMIT 1
+                """
+
+                examples = self._fetch_all(examples_query, {'$word_id': word_id})
+                if examples and len(examples) > 0:
+                    highlights_map[word_id]['context'] = examples[0]['context']
+                else:
+                    highlights_map[word_id]['context'] = ''
+
+            # Сортируем highlights по position
+            highlights = sorted(highlights_map.values(), key=lambda x: x['position'])
+
+            # Удаляем служебное поле position перед отправкой
+            for h in highlights:
+                h.pop('position', None)
+                # Переименовываем translations → dictionary_meanings для обратной совместимости
+                h['dictionary_meanings'] = h.pop('translations', [])
 
             result.append({
                 'analysis_id': analysis_id,
@@ -327,38 +576,55 @@ class WordoorioDatabase:
 
         return result
 
-    def add_highlight_to_analysis(self, analysis_id: int, highlight_dict: Dict) -> int:
+    def add_highlight_to_analysis(self, analysis_id: int, highlight_dict: Dict, user_id: Optional[int], session_id: str) -> int:
         """
         Add a single highlight to an existing analysis
 
         Args:
             analysis_id: Analysis ID
             highlight_dict: Highlight data dictionary
+            user_id: User ID (for creating word in dictionary)
+            session_id: Session ID
 
         Returns:
             highlight_id: ID of created highlight record
         """
+        # Найти или создать слово в словаре
+        word_id = self._find_or_create_word_for_highlight(
+            highlight=highlight_dict,
+            user_id=user_id,
+            session_id=session_id
+        )
+
+        # Получить последнюю позицию в этом анализе
+        get_max_position_query = """
+        DECLARE $analysis_id AS Uint64?;
+
+        SELECT MAX(position) AS max_position FROM highlights
+        WHERE analysis_id = $analysis_id
+        """
+
+        result = self._fetch_one(get_max_position_query, {'$analysis_id': analysis_id})
+        position = (result['max_position'] or 0) + 1 if result else 1
+
+        # Создать highlight со ссылкой на word_id
         highlight_id = self._get_next_id('highlights')
 
         highlight_query = """
         DECLARE $id AS Uint64?;
         DECLARE $analysis_id AS Uint64?;
-        DECLARE $highlight_word AS Utf8?;
-        DECLARE $context AS Utf8?;
-        DECLARE $highlight_translation AS Utf8?;
-        DECLARE $dictionary_meanings AS Utf8?;
+        DECLARE $word_id AS Uint64?;
+        DECLARE $position AS Uint32?;
 
-        UPSERT INTO highlights (id, analysis_id, highlight_word, context, highlight_translation, dictionary_meanings)
-        VALUES ($id, $analysis_id, $highlight_word, $context, $highlight_translation, $dictionary_meanings)
+        UPSERT INTO highlights (id, analysis_id, word_id, position)
+        VALUES ($id, $analysis_id, $word_id, $position)
         """
 
         self._execute_query(highlight_query, {
             '$id': highlight_id,
             '$analysis_id': analysis_id,
-            '$highlight_word': highlight_dict.get('highlight', ''),
-            '$context': highlight_dict.get('context', ''),
-            '$highlight_translation': highlight_dict.get('highlight_translation', ''),
-            '$dictionary_meanings': json.dumps(highlight_dict.get('dictionary_meanings', []))
+            '$word_id': word_id,
+            '$position': position
         })
 
         # Update total_highlights counter in analyses table
@@ -374,7 +640,7 @@ class WordoorioDatabase:
             '$analysis_id': analysis_id
         })
 
-        logger.info(f"[YDB] Added highlight {highlight_id} to analysis {analysis_id}")
+        logger.info(f"[YDB] Added highlight {highlight_id} (word_id={word_id}) to analysis {analysis_id}")
         return highlight_id
 
     def delete_analysis(self, analysis_id: int, user_id: int) -> bool:

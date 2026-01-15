@@ -68,7 +68,7 @@ function createDictionaryWordRow(word) {
                     <div class="word-row-arrow">›</div>
                 </div>
             </div>
-            <button class="delete-word-btn" onclick="deleteWord('${escapeHtml(lemma)}', event)" title="Удалить слово">
+            <button class="delete-word-btn" onclick="deleteWord('${lemma}', event)" title="Удалить слово">
                 🗑️
             </button>
         </div>
