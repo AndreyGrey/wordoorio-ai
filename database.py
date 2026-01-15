@@ -377,6 +377,62 @@ class WordoorioDatabase:
         logger.info(f"[YDB] Added highlight {highlight_id} to analysis {analysis_id}")
         return highlight_id
 
+    def delete_analysis(self, analysis_id: int, user_id: int) -> bool:
+        """
+        Удалить анализ и все связанные хайлайты
+
+        Args:
+            analysis_id: ID анализа
+            user_id: ID пользователя (для проверки прав доступа)
+
+        Returns:
+            bool: True если удалено, False если не найдено или нет прав
+        """
+        # Сначала проверяем, что анализ принадлежит пользователю
+        check_query = """
+        DECLARE $id AS Uint64?;
+        DECLARE $user_id AS Uint64?;
+
+        SELECT id FROM analyses
+        WHERE id = $id AND user_id = $user_id
+        """
+
+        analysis = self._fetch_one(check_query, {
+            '$id': analysis_id,
+            '$user_id': user_id
+        })
+
+        if not analysis:
+            logger.warning(f"[YDB] Анализ {analysis_id} не найден или не принадлежит пользователю {user_id}")
+            return False
+
+        # Удаляем связанные хайлайты
+        delete_highlights_query = """
+        DECLARE $analysis_id AS Uint64?;
+
+        DELETE FROM highlights
+        WHERE analysis_id = $analysis_id
+        """
+
+        self._execute_query(delete_highlights_query, {
+            '$analysis_id': analysis_id
+        })
+
+        # Удаляем сам анализ
+        delete_analysis_query = """
+        DECLARE $id AS Uint64?;
+
+        DELETE FROM analyses
+        WHERE id = $id
+        """
+
+        self._execute_query(delete_analysis_query, {
+            '$id': analysis_id
+        })
+
+        logger.info(f"[YDB] Удален анализ {analysis_id} пользователя {user_id}")
+        return True
+
     def get_recent_analyses(self, limit: int = 10) -> List[Dict]:
         """Get recent text analyses"""
         query = f"""

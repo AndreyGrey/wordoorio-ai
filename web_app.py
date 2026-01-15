@@ -673,6 +673,43 @@ def get_user_highlights_api():
         }), 500
 
 
+@app.route('/api/analysis/<int:analysis_id>', methods=['DELETE'])
+def delete_analysis(analysis_id):
+    """
+    Удалить анализ (сет хайлайтов) по ID
+    """
+    try:
+        user_id = session.get('user_id')
+
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': 'Требуется авторизация'
+            }), 401
+
+        # Удаляем анализ
+        success = db.delete_analysis(analysis_id, user_id)
+
+        if success:
+            logger.info(f"[DELETE] Удален анализ {analysis_id} пользователя {user_id}")
+            return jsonify({
+                'success': True,
+                'message': 'Анализ удален'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Анализ не найден или доступ запрещен'
+            }), 404
+
+    except Exception as e:
+        logger.error(f"[DELETE] Ошибка удаления анализа {analysis_id}: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': f'Ошибка удаления: {str(e)}'
+        }), 500
+
+
 # ===== AUTH API =====
 
 @app.route('/api/auth/current', methods=['GET'])

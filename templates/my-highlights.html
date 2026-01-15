@@ -119,6 +119,14 @@
             margin-bottom: 24px;
             padding-bottom: 20px;
             border-bottom: 2px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .set-header-content {
+            flex: 1;
         }
 
         .set-title {
@@ -128,6 +136,30 @@
             margin-bottom: 12px;
             line-height: 1.5;
             word-break: break-word;
+        }
+
+        .delete-set-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .delete-set-btn:hover {
+            background: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+        }
+
+        .delete-set-btn:active {
+            transform: translateY(0);
         }
 
         .set-meta {
@@ -300,6 +332,7 @@
                 // (localStorage был мигрирован при логине)
                 console.log('✅ Залогинен - показываем только серверные данные');
                 allSessions = serverAnalyses.map(analysis => ({
+                    analysis_id: analysis.analysis_id,
                     session_id: analysis.session_id,
                     original_text: analysis.original_text,
                     created_at: analysis.analysis_date,
@@ -404,15 +437,23 @@
                 formattedDate = storage.formatDate(session.created_at);
             }
 
+            // Кнопка удаления (только для серверных данных)
+            const deleteButton = session.source === 'server'
+                ? `<button class="delete-set-btn" onclick="deleteAnalysis(${session.analysis_id}, this)">🗑️ Удалить</button>`
+                : '';
+
             // Header сета
             const headerHTML = `
                 <div class="set-header">
-                    <h2 class="set-title">${setTitle}</h2>
-                    <div class="set-meta">
-                        <span>${formattedDate}</span>
-                        <span>•</span>
-                        <span>${highlights.length} ${getWordEnding(highlights.length)}</span>
+                    <div class="set-header-content">
+                        <h2 class="set-title">${setTitle}</h2>
+                        <div class="set-meta">
+                            <span>${formattedDate}</span>
+                            <span>•</span>
+                            <span>${highlights.length} ${getWordEnding(highlights.length)}</span>
+                        </div>
                     </div>
+                    ${deleteButton}
                 </div>
             `;
 
@@ -453,6 +494,57 @@
             }
 
             return 'хайлайтов';
+        }
+
+        async function deleteAnalysis(analysisId, buttonElement) {
+            if (!confirm('Вы уверены, что хотите удалить этот анализ со всеми хайлайтами?')) {
+                return;
+            }
+
+            // Блокируем кнопку
+            const originalText = buttonElement.textContent;
+            buttonElement.disabled = true;
+            buttonElement.textContent = 'Удаление...';
+
+            try {
+                const response = await fetch(`/api/analysis/${analysisId}`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Удаляем весь сет из DOM с анимацией
+                    const setDiv = buttonElement.closest('.highlight-set');
+                    setDiv.style.opacity = '0';
+                    setDiv.style.transform = 'scale(0.95)';
+                    setDiv.style.transition = 'all 0.3s ease';
+
+                    setTimeout(() => {
+                        setDiv.remove();
+
+                        // Проверяем, остались ли еще сеты
+                        const setsContainer = document.getElementById('setsContainer');
+                        if (setsContainer.children.length === 0) {
+                            document.getElementById('stats').style.display = 'none';
+                            document.getElementById('emptyState').style.display = 'block';
+                        }
+
+                        // Перезагружаем для обновления статистики
+                        location.reload();
+                    }, 300);
+                } else {
+                    alert('Ошибка удаления: ' + (data.error || 'Неизвестная ошибка'));
+                    buttonElement.disabled = false;
+                    buttonElement.textContent = originalText;
+                }
+            } catch (error) {
+                console.error('Ошибка удаления:', error);
+                alert('Ошибка соединения с сервером');
+                buttonElement.disabled = false;
+                buttonElement.textContent = originalText;
+            }
         }
     </script>
 </body>

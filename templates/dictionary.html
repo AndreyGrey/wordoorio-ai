@@ -504,6 +504,11 @@
 
         // Обработка клика по слову (откроет modal с деталями)
         document.addEventListener('click', async function(e) {
+            // Игнорируем клики на кнопке удаления
+            if (e.target.closest('.delete-word-btn')) {
+                return;
+            }
+
             const wordRow = e.target.closest('.dictionary-word-row');
             if (wordRow) {
                 const lemma = wordRow.dataset.lemma;
@@ -528,6 +533,52 @@
                 }
             } catch (error) {
                 console.error('Ошибка загрузки деталей слова:', error);
+            }
+        }
+
+        async function deleteWord(lemma, event) {
+            // Останавливаем всплытие события, чтобы не открывался modal
+            event.stopPropagation();
+
+            if (!confirm(`Удалить "${lemma}" из словаря?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/dictionary/word/${encodeURIComponent(lemma)}`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Удаляем элемент из DOM с анимацией
+                    const wordRow = event.target.closest('.dictionary-word-row');
+                    wordRow.style.opacity = '0';
+                    wordRow.style.transform = 'scale(0.95)';
+                    wordRow.style.transition = 'all 0.3s ease';
+
+                    setTimeout(() => {
+                        wordRow.remove();
+
+                        // Обновляем фильтрованный список
+                        allWords = allWords.filter(w => w.lemma !== lemma);
+
+                        // Перезагружаем страницу для обновления статистики
+                        if (allWords.length === 0) {
+                            location.reload();
+                        } else {
+                            // Просто обновляем статистику
+                            loadStats();
+                        }
+                    }, 300);
+                } else {
+                    alert('Ошибка удаления: ' + (data.error || 'Неизвестная ошибка'));
+                }
+            } catch (error) {
+                console.error('Ошибка удаления слова:', error);
+                alert('Ошибка соединения с сервером');
             }
         }
     </script>

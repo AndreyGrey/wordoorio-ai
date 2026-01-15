@@ -53,19 +53,24 @@ function createDictionaryWordRow(word) {
 
     return `
         <div class="dictionary-word-row" data-lemma="${escapeHtml(lemma)}" data-type="${type}">
-            <div class="word-row-left" style="border-left: 3px solid ${borderColor};">
-                <div class="word-row-header">
-                    <span class="word-lemma">${escapeHtml(lemma)}</span>
-                    ${statusBadge}
+            <div class="word-row-clickable">
+                <div class="word-row-left" style="border-left: 3px solid ${borderColor};">
+                    <div class="word-row-header">
+                        <span class="word-lemma">${escapeHtml(lemma)}</span>
+                        ${statusBadge}
+                    </div>
+                    <div class="word-row-translation">
+                        ${escapeHtml(translationsText)}
+                    </div>
                 </div>
-                <div class="word-row-translation">
-                    ${escapeHtml(translationsText)}
+                <div class="word-row-right">
+                    <div class="word-row-date">${formattedDate}</div>
+                    <div class="word-row-arrow">›</div>
                 </div>
             </div>
-            <div class="word-row-right">
-                <div class="word-row-date">${formattedDate}</div>
-                <div class="word-row-arrow">›</div>
-            </div>
+            <button class="delete-word-btn" onclick="deleteWord('${escapeHtml(lemma)}', event)" title="Удалить слово">
+                🗑️
+            </button>
         </div>
     `;
 }
@@ -81,13 +86,27 @@ function getDictionaryWordRowStyles() {
         .dictionary-word-row {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
             background: white;
             border-radius: 12px;
             padding: 12px;
-            cursor: pointer;
+            gap: 8px;
             transition: all 0.2s ease;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            position: relative;
+        }
+
+        .word-row-clickable {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex: 1;
+            cursor: pointer;
+            min-width: 0;
+        }
+
+        .word-row-clickable:hover {
+            opacity: 0.8;
         }
 
         .dictionary-word-row:hover {
@@ -95,8 +114,29 @@ function getDictionaryWordRowStyles() {
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
 
-        .dictionary-word-row:active {
-            transform: translateY(0);
+        .delete-word-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .delete-word-btn:hover {
+            background: #dc2626;
+            transform: scale(1.1);
+        }
+
+        .delete-word-btn:active {
+            transform: scale(0.95);
         }
 
         /* Left part */
