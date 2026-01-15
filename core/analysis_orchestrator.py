@@ -281,7 +281,7 @@ class AnalysisOrchestrator:
 
             # Создаем Highlight из данных агента
             highlight = Highlight(
-                highlight=word_lemma,  # Лемма для изучения
+                highlight=word,  # Оригинальное слово (не лемма!) - то что видит пользователь
                 context=highlight_dict.get('context', ''),  # Контекст с оригинальной формой
                 highlight_translation=highlight_dict.get('highlight_translation', ''),
                 dictionary_meanings=dictionary_meanings
