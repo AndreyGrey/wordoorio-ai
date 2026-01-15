@@ -258,34 +258,47 @@
         async function loadSavedHighlights() {
             const storage = new HighlightsStorage();
 
-            // Загружаем хайлайты из локального хранилища
-            const localSessions = storage.getAllSessions();
-            console.log('📊 Локальные сессии:', localSessions.length);
-
-            // Загружаем хайлайты с сервера
-            let serverAnalyses = [];
+            // Проверяем, залогинен ли пользователь
+            let isLoggedIn = false;
             try {
-                const response = await fetch('/api/highlights');
-                const data = await response.json();
-                console.log('📡 API Response:', data);
-                if (data.success && data.analyses) {
-                    serverAnalyses = data.analyses;
-                    console.log('📊 Серверные анализы:', serverAnalyses.length);
-                    if (serverAnalyses.length > 0) {
-                        console.log('📝 Первый анализ:', serverAnalyses[0]);
-                    }
-                } else {
-                    console.log('⚠️ API не вернул analyses или success=false');
-                }
+                const authResponse = await fetch('/api/auth/current');
+                const authData = await authResponse.json();
+                isLoggedIn = authData.success && authData.user !== null;
+                console.log('🔐 Статус авторизации:', isLoggedIn ? 'Залогинен' : 'Не залогинен');
             } catch (error) {
-                console.error('❌ Ошибка загрузки хайлайтов с сервера:', error);
+                console.error('❌ Ошибка проверки авторизации:', error);
             }
 
-            // Объединяем локальные и серверные данные
-            // Преобразуем серверные данные в формат, совместимый с локальными
-            const allSessions = [
-                ...localSessions,
-                ...serverAnalyses.map(analysis => ({
+            // Загружаем хайлайты с сервера (только для залогиненных)
+            let serverAnalyses = [];
+            if (isLoggedIn) {
+                try {
+                    const response = await fetch('/api/highlights');
+                    const data = await response.json();
+                    console.log('📡 API Response:', data);
+
+                    if (data.success && data.analyses) {
+                        serverAnalyses = data.analyses;
+                        console.log('📊 Серверные анализы:', serverAnalyses.length);
+
+                        if (serverAnalyses.length > 0) {
+                            console.log('📝 Первый анализ:', serverAnalyses[0]);
+                        }
+                    } else {
+                        console.log('⚠️ API не вернул analyses или success=false');
+                    }
+                } catch (error) {
+                    console.error('❌ Ошибка загрузки хайлайтов с сервера:', error);
+                }
+            }
+
+            // Определяем источник данных в зависимости от статуса авторизации
+            let allSessions = [];
+
+            if (isLoggedIn) {
+                // Для залогиненных пользователей - только серверные данные
+                console.log('✅ Залогинен - показываем только серверные данные');
+                allSessions = serverAnalyses.map(analysis => ({
                     session_id: analysis.session_id,
                     original_text: analysis.original_text,
                     created_at: analysis.analysis_date,
@@ -297,8 +310,14 @@
                         meanings: JSON.parse(h.dictionary_meanings || '[]')
                     })),
                     source: 'server'
-                }))
-            ];
+                }));
+            } else {
+                // Для незалогиненных пользователей - только локальные данные
+                console.log('🔓 Не залогинен - показываем только локальные данные');
+                const localSessions = storage.getAllSessions();
+                console.log('📊 Локальные сессии:', localSessions.length);
+                allSessions = localSessions;
+            }
 
             console.log('📊 Всего сессий:', allSessions.length);
 
