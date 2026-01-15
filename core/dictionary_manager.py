@@ -75,12 +75,14 @@ class DictionaryManager:
         self.driver = ydb.Driver(driver_config)
         self.driver.wait(fail_fast=True, timeout=5)
 
-        # Create session pool for efficient connection reuse
-        self.pool = ydb.SessionPool(self.driver)
+        # Create QuerySessionPool for efficient connection reuse
+        # NOTE: Using QuerySessionPool instead of SessionPool to avoid SDK 3.23.0 bug
+        # with session.transaction().execute() and missing parameters
+        self.pool = ydb.QuerySessionPool(self.driver)
 
     def _execute_query(self, query: str, parameters: Dict = None):
         """
-        Execute YQL query with automatic retries
+        Execute YQL query with automatic retries using QuerySessionPool
 
         Args:
             query: YQL query string
@@ -93,14 +95,12 @@ class DictionaryManager:
         typed_parameters = _typed_params(parameters) if parameters else {}
         logger.info(f"[DEBUG _execute_query] Typed params: {typed_parameters}")
 
-        def callee(session):
-            return session.transaction().execute(
-                query,
-                commit_tx=True,
-                parameters=typed_parameters
-            )
-
-        return self.pool.retry_operation_sync(callee)
+        # Use execute_with_retries instead of session.transaction().execute()
+        # to avoid SDK 3.23.0 bug with missing parameters
+        return self.pool.execute_with_retries(
+            query,
+            parameters=typed_parameters
+        )
 
     def _fetch_one(self, query: str, parameters: Dict = None) -> Optional[Dict]:
         """Execute query and return first row as dict"""
