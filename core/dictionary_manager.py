@@ -21,34 +21,30 @@ def _typed_params(params: Dict[str, Any]) -> Dict[str, tuple]:
     """
     Конвертирует словарь параметров в формат с явными типами для YDB
 
-    ВАЖНО: Только $user_id является Optional в DECLARE запросах.
-    Остальные поля - обязательные типы (без Optional).
+    ВАЖНО: ВСЕ поля в таблице dictionary_words являются Optional (Utf8?, Uint64?, Uint32?).
+    Поэтому все параметры должны передаваться с OptionalType.
 
     Args:
         params: Словарь вида {'$lemma': 'test', '$user_id': 1}
 
     Returns:
-        Словарь с явными типами: {'$lemma': ('test', Utf8), '$user_id': (1, Optional<Uint64>)}
+        Словарь с явными типами: {'$lemma': ('test', Optional<Utf8>), '$user_id': (1, Optional<Uint64>)}
     """
     typed = {}
     for key, value in params.items():
         if isinstance(value, str):
-            # Строки как обычный Utf8 (не Optional)
-            typed[key] = (value, ydb.PrimitiveType.Utf8)
+            # Все строки как Optional<Utf8>
+            typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Utf8))
         elif isinstance(value, int):
             # Используем Uint64 для ID и больших чисел, Uint32 для счетчиков
             # ID полей: id, user_id, word_id, analysis_id
             if 'id' in key.lower():
-                # Только $user_id является Optional в схеме
-                if key == '$user_id':
-                    typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Uint64))
-                else:
-                    typed[key] = (value, ydb.PrimitiveType.Uint64)
+                typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Uint64))
             # Счетчики: review_count, correct_streak, rating, position
             else:
-                typed[key] = (value, ydb.PrimitiveType.Uint32)
+                typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Uint32))
         elif value is None:
-            # Для None всегда Optional<Uint64>
+            # Для None используем Optional<Uint64> (можно изменить на другой тип если нужно)
             typed[key] = (None, ydb.OptionalType(ydb.PrimitiveType.Uint64))
         else:
             typed[key] = value  # Оставляем как есть для других типов
@@ -205,8 +201,8 @@ class DictionaryManager:
         # Проверяем: есть ли слово с такой lemma?
         if user_id is not None:
             check_query = """
-            DECLARE $lemma AS Utf8;
-            DECLARE $user_id AS Uint64;
+            DECLARE $lemma AS Utf8?;
+            DECLARE $user_id AS Uint64?;
 
             SELECT id FROM dictionary_words
             WHERE lemma = $lemma AND user_id = $user_id
@@ -220,7 +216,7 @@ class DictionaryManager:
             existing = self._fetch_one(check_query, params)
         else:
             check_query = """
-            DECLARE $lemma AS Utf8;
+            DECLARE $lemma AS Utf8?;
 
             SELECT id FROM dictionary_words
             WHERE lemma = $lemma AND user_id IS NULL
@@ -235,8 +231,8 @@ class DictionaryManager:
 
             # Добавляем основной перевод (если еще нет)
             check_translation_query = """
-            DECLARE $word_id AS Uint64;
-            DECLARE $translation AS Utf8;
+            DECLARE $word_id AS Uint64?;
+            DECLARE $translation AS Utf8?;
 
             SELECT COUNT(*) AS count FROM dictionary_translations
             WHERE word_id = $word_id AND translation = $translation
@@ -249,11 +245,11 @@ class DictionaryManager:
             if translation_exists['count'] == 0:
                 translation_id = self._get_next_id('dictionary_translations')
                 insert_translation_query = """
-                DECLARE $id AS Uint64;
-                DECLARE $word_id AS Uint64;
-                DECLARE $translation AS Utf8;
-                DECLARE $session_id AS Utf8;
-                DECLARE $added_at AS Utf8;
+                DECLARE $id AS Uint64?;
+                DECLARE $word_id AS Uint64?;
+                DECLARE $translation AS Utf8?;
+                DECLARE $session_id AS Utf8?;
+                DECLARE $added_at AS Utf8?;
 
                 UPSERT INTO dictionary_translations (id, word_id, translation, source_session_id, added_at)
                 VALUES ($id, $word_id, $translation, $session_id, $added_at)
@@ -269,8 +265,8 @@ class DictionaryManager:
             # Добавляем дополнительные переводы
             for meaning in additional_meanings:
                 check_meaning_query = """
-                DECLARE $word_id AS Uint64;
-                DECLARE $translation AS Utf8;
+                DECLARE $word_id AS Uint64?;
+                DECLARE $translation AS Utf8?;
 
                 SELECT COUNT(*) AS count FROM dictionary_translations
                 WHERE word_id = $word_id AND translation = $translation
@@ -283,11 +279,11 @@ class DictionaryManager:
                 if meaning_exists['count'] == 0:
                     meaning_id = self._get_next_id('dictionary_translations')
                     insert_meaning_query = """
-                    DECLARE $id AS Uint64;
-                    DECLARE $word_id AS Uint64;
-                    DECLARE $translation AS Utf8;
-                    DECLARE $session_id AS Utf8;
-                    DECLARE $added_at AS Utf8;
+                    DECLARE $id AS Uint64?;
+                    DECLARE $word_id AS Uint64?;
+                    DECLARE $translation AS Utf8?;
+                    DECLARE $session_id AS Utf8?;
+                    DECLARE $added_at AS Utf8?;
 
                     UPSERT INTO dictionary_translations (id, word_id, translation, source_session_id, added_at)
                     VALUES ($id, $word_id, $translation, $session_id, $added_at)
@@ -303,12 +299,12 @@ class DictionaryManager:
             # Добавляем новый пример использования
             example_id = self._get_next_id('dictionary_examples')
             insert_example_query = """
-            DECLARE $id AS Uint64;
-            DECLARE $word_id AS Uint64;
-            DECLARE $original_form AS Utf8;
-            DECLARE $context AS Utf8;
-            DECLARE $session_id AS Utf8;
-            DECLARE $added_at AS Utf8;
+            DECLARE $id AS Uint64?;
+            DECLARE $word_id AS Uint64?;
+            DECLARE $original_form AS Utf8?;
+            DECLARE $context AS Utf8?;
+            DECLARE $session_id AS Utf8?;
+            DECLARE $added_at AS Utf8?;
 
             UPSERT INTO dictionary_examples (id, word_id, original_form, context, session_id, added_at)
             VALUES ($id, $word_id, $original_form, $context, $session_id, $added_at)
@@ -334,15 +330,15 @@ class DictionaryManager:
             word_id = self._get_next_id('dictionary_words')
 
             insert_word_query = """
-            DECLARE $id AS Uint64;
+            DECLARE $id AS Uint64?;
             DECLARE $user_id AS Uint64?;
-            DECLARE $lemma AS Utf8;
-            DECLARE $type AS Utf8;
-            DECLARE $status AS Utf8;
-            DECLARE $added_at AS Utf8;
-            DECLARE $review_count AS Uint32;
-            DECLARE $correct_streak AS Uint32;
-            DECLARE $rating AS Uint32;
+            DECLARE $lemma AS Utf8?;
+            DECLARE $type AS Utf8?;
+            DECLARE $status AS Utf8?;
+            DECLARE $added_at AS Utf8?;
+            DECLARE $review_count AS Uint32?;
+            DECLARE $correct_streak AS Uint32?;
+            DECLARE $rating AS Uint32?;
 
             UPSERT INTO dictionary_words (id, user_id, lemma, type, status, added_at, review_count, correct_streak, rating)
             VALUES ($id, $user_id, $lemma, $type, $status, $added_at, $review_count, $correct_streak, $rating)
@@ -363,11 +359,11 @@ class DictionaryManager:
             # Добавляем основной перевод
             translation_id = self._get_next_id('dictionary_translations')
             insert_translation_query = """
-            DECLARE $id AS Uint64;
-            DECLARE $word_id AS Uint64;
-            DECLARE $translation AS Utf8;
-            DECLARE $session_id AS Utf8;
-            DECLARE $added_at AS Utf8;
+            DECLARE $id AS Uint64?;
+            DECLARE $word_id AS Uint64?;
+            DECLARE $translation AS Utf8?;
+            DECLARE $session_id AS Utf8?;
+            DECLARE $added_at AS Utf8?;
 
             UPSERT INTO dictionary_translations (id, word_id, translation, source_session_id, added_at)
             VALUES ($id, $word_id, $translation, $session_id, $added_at)
@@ -384,11 +380,11 @@ class DictionaryManager:
             for meaning in additional_meanings:
                 meaning_id = self._get_next_id('dictionary_translations')
                 insert_meaning_query = """
-                DECLARE $id AS Uint64;
-                DECLARE $word_id AS Uint64;
-                DECLARE $translation AS Utf8;
-                DECLARE $session_id AS Utf8;
-                DECLARE $added_at AS Utf8;
+                DECLARE $id AS Uint64?;
+                DECLARE $word_id AS Uint64?;
+                DECLARE $translation AS Utf8?;
+                DECLARE $session_id AS Utf8?;
+                DECLARE $added_at AS Utf8?;
 
                 UPSERT INTO dictionary_translations (id, word_id, translation, source_session_id, added_at)
                 VALUES ($id, $word_id, $translation, $session_id, $added_at)
@@ -404,12 +400,12 @@ class DictionaryManager:
             # Добавляем первый пример использования
             example_id = self._get_next_id('dictionary_examples')
             insert_example_query = """
-            DECLARE $id AS Uint64;
-            DECLARE $word_id AS Uint64;
-            DECLARE $original_form AS Utf8;
-            DECLARE $context AS Utf8;
-            DECLARE $session_id AS Utf8;
-            DECLARE $added_at AS Utf8;
+            DECLARE $id AS Uint64?;
+            DECLARE $word_id AS Uint64?;
+            DECLARE $original_form AS Utf8?;
+            DECLARE $context AS Utf8?;
+            DECLARE $session_id AS Utf8?;
+            DECLARE $added_at AS Utf8?;
 
             UPSERT INTO dictionary_examples (id, word_id, original_form, context, session_id, added_at)
             VALUES ($id, $word_id, $original_form, $context, $session_id, $added_at)
@@ -464,8 +460,8 @@ class DictionaryManager:
         # Получаем основную информацию о слове
         if user_id is not None:
             word_query = """
-            DECLARE $lemma AS Utf8;
-            DECLARE $user_id AS Uint64;
+            DECLARE $lemma AS Utf8?;
+            DECLARE $user_id AS Uint64?;
 
             SELECT id, type, status, added_at, last_reviewed_at, review_count, correct_streak
             FROM dictionary_words
@@ -477,7 +473,7 @@ class DictionaryManager:
             })
         else:
             word_query = """
-            DECLARE $lemma AS Utf8;
+            DECLARE $lemma AS Utf8?;
 
             SELECT id, type, status, added_at, last_reviewed_at, review_count, correct_streak
             FROM dictionary_words
@@ -492,7 +488,7 @@ class DictionaryManager:
 
         # Получаем переводы
         translations_query = """
-        DECLARE $word_id AS Uint64;
+        DECLARE $word_id AS Uint64?;
 
         SELECT translation, source_session_id, added_at
         FROM dictionary_translations
@@ -512,7 +508,7 @@ class DictionaryManager:
 
         # Получаем примеры
         examples_query = """
-        DECLARE $word_id AS Uint64;
+        DECLARE $word_id AS Uint64?;
 
         SELECT original_form, context, session_id, added_at
         FROM dictionary_examples
@@ -593,7 +589,7 @@ class DictionaryManager:
 
             # Получаем переводы
             translations_query = """
-            DECLARE $word_id AS Uint64;
+            DECLARE $word_id AS Uint64?;
 
             SELECT translation FROM dictionary_translations
             WHERE word_id = $word_id
@@ -604,7 +600,7 @@ class DictionaryManager:
 
             # Получаем количество примеров
             examples_count_query = """
-            DECLARE $word_id AS Uint64;
+            DECLARE $word_id AS Uint64?;
 
             SELECT COUNT(*) AS count FROM dictionary_examples
             WHERE word_id = $word_id
@@ -638,7 +634,7 @@ class DictionaryManager:
         # First check if word exists and get its ID
         if user_id is not None:
             check_query = """
-            DECLARE $lemma AS Utf8;
+            DECLARE $lemma AS Utf8?;
             DECLARE $user_id AS Uint64?;
 
             SELECT id FROM dictionary_words
@@ -650,7 +646,7 @@ class DictionaryManager:
             })
         else:
             check_query = """
-            DECLARE $lemma AS Utf8;
+            DECLARE $lemma AS Utf8?;
 
             SELECT id FROM dictionary_words
             WHERE lemma = $lemma AND user_id IS NULL
@@ -667,7 +663,7 @@ class DictionaryManager:
 
         # Delete translations
         delete_translations_query = """
-            DECLARE $word_id AS Uint64;
+            DECLARE $word_id AS Uint64?;
 
         DELETE FROM dictionary_translations
         WHERE word_id = $word_id
@@ -676,7 +672,7 @@ class DictionaryManager:
 
         # Delete examples
         delete_examples_query = """
-            DECLARE $word_id AS Uint64;
+            DECLARE $word_id AS Uint64?;
 
         DELETE FROM dictionary_examples
         WHERE word_id = $word_id
@@ -685,7 +681,7 @@ class DictionaryManager:
 
         # Delete word
         delete_word_query = """
-            DECLARE $word_id AS Uint64;
+            DECLARE $word_id AS Uint64?;
 
         DELETE FROM dictionary_words
         WHERE id = $word_id
@@ -800,8 +796,8 @@ class DictionaryManager:
 
         if user_id is not None:
             update_query = """
-            DECLARE $lemma AS Utf8;
-            DECLARE $status AS Utf8;
+            DECLARE $lemma AS Utf8?;
+            DECLARE $status AS Utf8?;
             DECLARE $user_id AS Uint64?;
 
             UPDATE dictionary_words
@@ -815,8 +811,8 @@ class DictionaryManager:
             })
         else:
             update_query = """
-            DECLARE $lemma AS Utf8;
-            DECLARE $status AS Utf8;
+            DECLARE $lemma AS Utf8?;
+            DECLARE $status AS Utf8?;
 
             UPDATE dictionary_words
             SET status = $status
@@ -830,7 +826,7 @@ class DictionaryManager:
         # Check if update was successful by checking if word exists
         if user_id is not None:
             check_query = """
-            DECLARE $lemma AS Utf8;
+            DECLARE $lemma AS Utf8?;
             DECLARE $user_id AS Uint64?;
 
             SELECT COUNT(*) AS count FROM dictionary_words
@@ -842,7 +838,7 @@ class DictionaryManager:
             })
         else:
             check_query = """
-            DECLARE $lemma AS Utf8;
+            DECLARE $lemma AS Utf8?;
 
             SELECT COUNT(*) AS count FROM dictionary_words
             WHERE lemma = $lemma AND user_id IS NULL
@@ -880,7 +876,7 @@ class DictionaryManager:
         # Получаем текущую статистику
         if user_id is not None:
             word_query = """
-            DECLARE $lemma AS Utf8;
+            DECLARE $lemma AS Utf8?;
             DECLARE $user_id AS Uint64?;
 
             SELECT correct_streak, review_count, status
@@ -893,7 +889,7 @@ class DictionaryManager:
             })
         else:
             word_query = """
-            DECLARE $lemma AS Utf8;
+            DECLARE $lemma AS Utf8?;
 
             SELECT correct_streak, review_count, status
             FROM dictionary_words
@@ -929,11 +925,11 @@ class DictionaryManager:
         # Обновляем запись
         if user_id is not None:
             update_query = """
-            DECLARE $correct_streak AS Uint32;
-            DECLARE $last_reviewed_at AS Utf8;
-            DECLARE $lemma AS Utf8;
-            DECLARE $review_count AS Uint32;
-            DECLARE $status AS Utf8;
+            DECLARE $correct_streak AS Uint32?;
+            DECLARE $last_reviewed_at AS Utf8?;
+            DECLARE $lemma AS Utf8?;
+            DECLARE $review_count AS Uint32?;
+            DECLARE $status AS Utf8?;
             DECLARE $user_id AS Uint64?;
 
             UPDATE dictionary_words
@@ -954,11 +950,11 @@ class DictionaryManager:
             })
         else:
             update_query = """
-            DECLARE $correct_streak AS Uint32;
-            DECLARE $last_reviewed_at AS Utf8;
-            DECLARE $lemma AS Utf8;
-            DECLARE $review_count AS Uint32;
-            DECLARE $status AS Utf8;
+            DECLARE $correct_streak AS Uint32?;
+            DECLARE $last_reviewed_at AS Utf8?;
+            DECLARE $lemma AS Utf8?;
+            DECLARE $review_count AS Uint32?;
+            DECLARE $status AS Utf8?;
 
             UPDATE dictionary_words
             SET
