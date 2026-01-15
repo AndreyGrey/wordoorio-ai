@@ -7,6 +7,7 @@ Manages all database operations using Yandex Database (YDB)
 import ydb
 import os
 import logging
+import json
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
@@ -230,7 +231,7 @@ class WordoorioDatabase:
                 '$highlight_word': highlight.get('highlight', ''),
                 '$context': highlight.get('context', ''),
                 '$highlight_translation': highlight.get('highlight_translation', ''),
-                '$dictionary_meanings': str(highlight.get('dictionary_meanings', []))
+                '$dictionary_meanings': json.dumps(highlight.get('dictionary_meanings', []))
             })
 
         logger.info(f"[YDB] Saved analysis {analysis_id} with {total_highlights} highlights")
