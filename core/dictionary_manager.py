@@ -519,22 +519,22 @@ class DictionaryManager:
 
         examples = [
             {
-                '$original_form': row['original_form'],
-                '$context': row['context'],
-                '$session_id': row['session_id'],
-                '$added_at': row['added_at']
+                'original_form': row['original_form'],
+                'context': row['context'],
+                'session_id': row['session_id'],
+                'added_at': row['added_at']
             }
             for row in example_rows
         ]
 
         return {
-            '$lemma': lemma,
-            '$type': word_row['type'],
-            '$status': word_row['status'],
-            '$added_at': word_row['added_at'],
-            '$last_reviewed_at': word_row['last_reviewed_at'],
-            '$review_count': word_row['review_count'],
-            '$correct_streak': word_row['correct_streak'],
+            'lemma': lemma,
+            'type': word_row['type'],
+            'status': word_row['status'],
+            'added_at': word_row['added_at'],
+            'last_reviewed_at': word_row['last_reviewed_at'],
+            'review_count': word_row['review_count'],
+            'correct_streak': word_row['correct_streak'],
             'translations': translations,
             'examples': examples
         }
@@ -550,12 +550,12 @@ class DictionaryManager:
         Returns:
             [
                 {
-                    '$lemma': 'give up',
-                    '$type': 'expression',
+                    'lemma': 'give up',
+                    'type': 'expression',
                     'translations': ['сдаться', 'бросить'],
                     'examples_count': 3,
-                    '$status': 'new',
-                    '$added_at': '2024-12-09T10:00:00'
+                    'status': 'new',
+                    'added_at': '2024-12-09T10:00:00'
                 }
             ]
         """
@@ -609,12 +609,12 @@ class DictionaryManager:
             examples_count = examples_count_row['count'] if examples_count_row else 0
 
             words.append({
-                '$lemma': lemma,
-                '$type': word_type,
+                'lemma': lemma,
+                'type': word_type,
                 'translations': translations,
                 'examples_count': examples_count,
-                '$status': status,
-                '$added_at': added_at
+                'status': status,
+                'added_at': added_at
             })
 
         return words
@@ -869,7 +869,7 @@ class DictionaryManager:
             {
                 'success': bool,
                 'new_status': str,  # Если изменился
-                '$correct_streak': int,
+                'correct_streak': int,
                 'message': str
             }
         """
@@ -975,7 +975,7 @@ class DictionaryManager:
         return {
             'success': True,
             'new_status': new_status,
-            '$correct_streak': new_streak,
+            'correct_streak': new_streak,
             'message': f'Статистика обновлена. Серия: {new_streak}'
         }
 
