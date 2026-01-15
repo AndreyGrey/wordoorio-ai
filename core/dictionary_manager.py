@@ -35,7 +35,11 @@ def _typed_params(params: Dict[str, Any]) -> Dict[str, tuple]:
             # Используем Uint64 для ID и больших чисел, Uint32 для счетчиков
             # ID полей: id, user_id, word_id, analysis_id
             if 'id' in key.lower():
-                typed[key] = (value, ydb.PrimitiveType.Uint64)
+                # $user_id всегда Optional в схеме, оборачиваем в OptionalType
+                if key == '$user_id':
+                    typed[key] = (value, ydb.OptionalType(ydb.PrimitiveType.Uint64))
+                else:
+                    typed[key] = (value, ydb.PrimitiveType.Uint64)
             # Счетчики: review_count, correct_streak, rating, position
             else:
                 typed[key] = (value, ydb.PrimitiveType.Uint32)
