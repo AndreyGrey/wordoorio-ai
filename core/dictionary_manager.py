@@ -170,10 +170,13 @@ class DictionaryManager:
             SELECT id FROM dictionary_words
             WHERE lemma = $lemma AND user_id = $user_id
             """
-            existing = self._fetch_one(check_query, {
+            params = {
                 '$lemma': lemma,
                 '$user_id': user_id
-            })
+            }
+            print(f"[DEBUG] Params before query: {params}", flush=True)
+            print(f"[DEBUG] lemma={repr(lemma)}, user_id={user_id}", flush=True)
+            existing = self._fetch_one(check_query, params)
         else:
             check_query = """
             DECLARE $lemma AS Utf8;
