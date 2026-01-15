@@ -856,6 +856,358 @@ def login_page():
     return render_template('login.html')
 
 
+# ===== TELEGRAM WEBHOOK =====
+
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+
+# Тестовые аккаунты (синхронизированы с login API)
+TELEGRAM_TEST_ACCOUNTS = {
+    'andrew': {'password': 'test123', 'user_id': 1},
+    'friend1': {'password': 'test123', 'user_id': 2},
+    'friend2': {'password': 'test123', 'user_id': 3},
+}
+
+
+def telegram_send_message(chat_id: int, text: str, reply_markup: dict = None, parse_mode: str = 'Markdown'):
+    """Отправить сообщение в Telegram"""
+    import requests
+    payload = {
+        'chat_id': chat_id,
+        'text': text,
+        'parse_mode': parse_mode
+    }
+    if reply_markup:
+        payload['reply_markup'] = json.dumps(reply_markup)
+
+    try:
+        resp = requests.post(f"{TELEGRAM_API_URL}/sendMessage", json=payload, timeout=10)
+        return resp.json()
+    except Exception as e:
+        logger.error(f"[TG] Ошибка отправки: {e}")
+        return None
+
+
+def telegram_edit_message(chat_id: int, message_id: int, text: str, reply_markup: dict = None):
+    """Редактировать сообщение в Telegram"""
+    import requests
+    payload = {
+        'chat_id': chat_id,
+        'message_id': message_id,
+        'text': text,
+        'parse_mode': 'Markdown'
+    }
+    if reply_markup:
+        payload['reply_markup'] = json.dumps(reply_markup)
+
+    try:
+        resp = requests.post(f"{TELEGRAM_API_URL}/editMessageText", json=payload, timeout=10)
+        return resp.json()
+    except Exception as e:
+        logger.error(f"[TG] Ошибка редактирования: {e}")
+        return None
+
+
+def telegram_answer_callback(callback_query_id: str):
+    """Ответить на callback query"""
+    import requests
+    try:
+        requests.post(f"{TELEGRAM_API_URL}/answerCallbackQuery",
+                     json={'callback_query_id': callback_query_id}, timeout=5)
+    except:
+        pass
+
+
+@app.route('/telegram/webhook', methods=['POST'])
+def telegram_webhook():
+    """
+    Webhook endpoint для Telegram бота
+
+    Обрабатывает:
+    - /start - приветствие
+    - /login username password - авторизация
+    - callback_query - нажатия на кнопки
+    """
+    try:
+        update = request.get_json()
+        logger.info(f"[TG Webhook] Update: {json.dumps(update, ensure_ascii=False)[:500]}")
+
+        # Обработка сообщений
+        if 'message' in update:
+            message = update['message']
+            chat_id = message['chat']['id']
+            telegram_id = message['from']['id']
+            text = message.get('text', '')
+
+            # /start
+            if text.startswith('/start'):
+                user = db.get_user_by_telegram_id(telegram_id)
+                if user:
+                    keyboard = {'inline_keyboard': [[{'text': 'НАЧАТЬ 🚀', 'callback_data': 'start_training'}]]}
+                    telegram_send_message(
+                        chat_id,
+                        f"Привет, {user.get('username', 'пользователь')}! 👋\n\n"
+                        "Готов потренировать английские слова?\n\n"
+                        "Нажми НАЧАТЬ для запуска теста из 8 слов.",
+                        reply_markup=keyboard
+                    )
+                else:
+                    telegram_send_message(
+                        chat_id,
+                        "Привет! 👋\n\n"
+                        "Для тренировки нужно привязать Telegram к аккаунту.\n\n"
+                        "Используй команду:\n"
+                        "`/login username password`\n\n"
+                        "Например:\n"
+                        "`/login andrew test123`"
+                    )
+
+            # /login
+            elif text.startswith('/login'):
+                parts = text.split()
+                if len(parts) != 3:
+                    telegram_send_message(
+                        chat_id,
+                        "❌ Формат: `/login username password`\n\n"
+                        "Пример: `/login andrew test123`"
+                    )
+                else:
+                    username = parts[1].lower()
+                    password = parts[2]
+
+                    if username not in TELEGRAM_TEST_ACCOUNTS:
+                        telegram_send_message(chat_id, "❌ Неверный логин или пароль.")
+                    elif TELEGRAM_TEST_ACCOUNTS[username]['password'] != password:
+                        telegram_send_message(chat_id, "❌ Неверный логин или пароль.")
+                    else:
+                        user_id = TELEGRAM_TEST_ACCOUNTS[username]['user_id']
+                        db.ensure_test_users_exist()
+                        success = db.link_telegram_to_user(user_id, telegram_id)
+
+                        if success:
+                            keyboard = {'inline_keyboard': [[{'text': 'НАЧАТЬ ТРЕНИРОВКУ 🚀', 'callback_data': 'start_training'}]]}
+                            telegram_send_message(
+                                chat_id,
+                                f"✅ Telegram привязан к аккаунту `{username}`!\n\n"
+                                "Теперь можешь тренировать слова!",
+                                reply_markup=keyboard
+                            )
+                        else:
+                            telegram_send_message(chat_id, "❌ Ошибка привязки. Попробуй позже.")
+
+        # Обработка callback_query (нажатия кнопок)
+        elif 'callback_query' in update:
+            callback = update['callback_query']
+            callback_id = callback['id']
+            chat_id = callback['message']['chat']['id']
+            message_id = callback['message']['message_id']
+            telegram_id = callback['from']['id']
+            data = callback.get('data', '')
+
+            telegram_answer_callback(callback_id)
+
+            # start_training
+            if data == 'start_training':
+                user = db.get_user_by_telegram_id(telegram_id)
+                if not user:
+                    telegram_edit_message(chat_id, message_id, "❌ Сначала авторизуйтесь: `/login username password`")
+                    return jsonify({'ok': True})
+
+                user_id = user['id']
+
+                # Импортируем сервисы
+                from core.training_service import TrainingService
+                from core.test_manager import TestManager
+                from core.yandex_ai_client import YandexAIClient
+                import asyncio
+
+                training_service = TrainingService(db)
+                words = training_service.select_words_for_training(user_id, count=8)
+
+                if not words:
+                    telegram_edit_message(chat_id, message_id, "📚 В твоем словаре пока нет слов.\n\nДобавь слова через веб-интерфейс!")
+                    return jsonify({'ok': True})
+
+                telegram_edit_message(chat_id, message_id, f"⏳ Генерирую тесты...\n\nСлов: {len(words)}")
+
+                # Создаем тесты
+                ai_client = YandexAIClient()
+                test_manager = TestManager(db, ai_client)
+
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                test_ids = loop.run_until_complete(test_manager.create_tests_batch(user_id, words))
+                loop.close()
+
+                if not test_ids:
+                    telegram_edit_message(chat_id, message_id, "⚠️ Не удалось создать тесты.")
+                    return jsonify({'ok': True})
+
+                # Отправляем первый тест
+                send_telegram_test(chat_id, message_id, test_manager, test_ids, 0)
+
+            # answer_X_Y (ответ на тест)
+            elif data.startswith('answer_'):
+                parts = data.split('_')
+                if len(parts) == 3:
+                    test_id = int(parts[1])
+                    option_idx = int(parts[2])
+
+                    from core.test_manager import TestManager
+                    from core.yandex_ai_client import YandexAIClient
+
+                    ai_client = YandexAIClient()
+                    test_manager = TestManager(db, ai_client)
+
+                    # Получаем тест для определения выбранного варианта
+                    test = test_manager.get_test_with_shuffled_options(test_id)
+                    if not test:
+                        telegram_edit_message(chat_id, message_id, "⚠️ Тест не найден")
+                        return jsonify({'ok': True})
+
+                    # Находим выбранный вариант по индексу
+                    selected = None
+                    for opt in test['options']:
+                        if opt['index'] == option_idx:
+                            selected = opt['text']
+                            break
+
+                    if not selected:
+                        telegram_edit_message(chat_id, message_id, "⚠️ Вариант не найден")
+                        return jsonify({'ok': True})
+
+                    # Проверяем ответ
+                    result = test_manager.submit_answer(test_id, selected)
+
+                    if result['is_correct']:
+                        text = f"✅ Правильно!\n\n"
+                    else:
+                        text = f"❌ Неправильно\n\nПравильный ответ: **{result['correct_translation']}**\n\n"
+
+                    text += f"Слово: **{result['word']}**\n"
+                    text += f"Рейтинг: {result['new_rating']}/10\n"
+                    text += f"Статус: {result['new_status']}"
+
+                    # Кнопка "Дальше"
+                    keyboard = {'inline_keyboard': [[{'text': 'Дальше ➡️', 'callback_data': f'next_{test_id}'}]]}
+                    telegram_edit_message(chat_id, message_id, text, reply_markup=keyboard)
+
+            # next_X (следующий тест)
+            elif data.startswith('next_'):
+                user = db.get_user_by_telegram_id(telegram_id)
+                if not user:
+                    return jsonify({'ok': True})
+
+                # Проверяем есть ли ещё тесты
+                from core.test_manager import TestManager
+                from core.yandex_ai_client import YandexAIClient
+
+                ai_client = YandexAIClient()
+                test_manager = TestManager(db, ai_client)
+
+                pending = test_manager.get_pending_tests(user['id'])
+                if not pending:
+                    keyboard = {'inline_keyboard': [[{'text': 'ЕЩЁ 8 СЛОВ 🚀', 'callback_data': 'start_training'}]]}
+                    telegram_edit_message(chat_id, message_id, "🎉 Все тесты пройдены!\n\nХочешь ещё?", reply_markup=keyboard)
+                else:
+                    test_ids = [t['id'] for t in pending]
+                    send_telegram_test(chat_id, message_id, test_manager, test_ids, 0)
+
+        return jsonify({'ok': True})
+
+    except Exception as e:
+        logger.error(f"[TG Webhook] Error: {e}", exc_info=True)
+        return jsonify({'ok': True})  # Всегда возвращаем 200 чтобы Telegram не ретраил
+
+
+@app.route('/telegram/set-webhook', methods=['GET'])
+def telegram_set_webhook():
+    """
+    Установить webhook для Telegram бота
+    Вызывать один раз после деплоя: /telegram/set-webhook?url=https://your-domain.com
+    """
+    import requests
+
+    # Получаем URL из параметра или используем дефолтный
+    base_url = request.args.get('url', '')
+    if not base_url:
+        return jsonify({
+            'error': 'Укажи URL: /telegram/set-webhook?url=https://your-domain.com'
+        }), 400
+
+    webhook_url = f"{base_url}/telegram/webhook"
+
+    try:
+        resp = requests.post(
+            f"{TELEGRAM_API_URL}/setWebhook",
+            json={'url': webhook_url},
+            timeout=10
+        )
+        result = resp.json()
+
+        if result.get('ok'):
+            return jsonify({
+                'success': True,
+                'message': f'Webhook установлен: {webhook_url}',
+                'telegram_response': result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('description', 'Unknown error'),
+                'telegram_response': result
+            }), 400
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/telegram/webhook-info', methods=['GET'])
+def telegram_webhook_info():
+    """Получить информацию о текущем webhook"""
+    import requests
+
+    try:
+        resp = requests.get(f"{TELEGRAM_API_URL}/getWebhookInfo", timeout=10)
+        return jsonify(resp.json())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def send_telegram_test(chat_id: int, message_id: int, test_manager, test_ids: list, index: int):
+    """Отправить тест в Telegram"""
+    if index >= len(test_ids):
+        keyboard = {'inline_keyboard': [[{'text': 'ЕЩЁ 8 СЛОВ 🚀', 'callback_data': 'start_training'}]]}
+        telegram_edit_message(chat_id, message_id, "🎉 Все тесты пройдены!\n\nХочешь ещё?", reply_markup=keyboard)
+        return
+
+    test_id = test_ids[index]
+    test = test_manager.get_test_with_shuffled_options(test_id)
+
+    if not test:
+        # Пропускаем этот тест
+        send_telegram_test(chat_id, message_id, test_manager, test_ids, index + 1)
+        return
+
+    # Создаем кнопки
+    buttons = []
+    for opt in test['options']:
+        buttons.append([{'text': opt['text'], 'callback_data': f"answer_{test_id}_{opt['index']}"}])
+
+    keyboard = {'inline_keyboard': buttons}
+
+    text = (
+        f"📝 Тест {index + 1}/{len(test_ids)}\n\n"
+        f"🇬🇧 **{test['word']}**\n\n"
+        f"Выберите правильный перевод:"
+    )
+
+    telegram_edit_message(chat_id, message_id, text, reply_markup=keyboard)
+
+
 @app.route('/dictionary')
 def dictionary_page():
     """📚 Страница личного словаря"""
