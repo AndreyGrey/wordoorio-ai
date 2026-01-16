@@ -63,12 +63,18 @@ class TestManager:
                        for w in words_data]
 
             logger.info(f"[TestManager] Запрос к AI для {len(ai_input)} слов")
+            logger.info(f"[TestManager] AI input: {ai_input}")
             response = await self.ai_client.generate_test_options(ai_input)
 
             if 'tests' not in response:
                 raise Exception("Неверный формат ответа от AI")
 
             logger.info(f"[TestManager] AI вернул {len(response['tests'])} тестов")
+
+            # Если AI вернул пустой массив, используем fallback
+            if not response['tests']:
+                logger.warning(f"[TestManager] AI вернул пустой массив тестов, используем fallback")
+                raise Exception("AI вернул пустой массив тестов")
 
         except Exception as e:
             logger.error(f"[TestManager] Ошибка генерации тестов через AI: {e}")
