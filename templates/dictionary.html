@@ -28,9 +28,9 @@
         }
 
         .container {
-            max-width: 1000px;
+            max-width: var(--container-max-width, 1000px);
             margin: 0 auto;
-            padding: 40px 20px;
+            padding: 40px var(--container-padding, 20px);
         }
 
         /* Mobile-first: компактная шапка */
@@ -195,10 +195,6 @@
 
         /* Desktop адаптация */
         @media (min-width: 768px) {
-            .container {
-                padding: 40px 40px;
-            }
-
             .page-title {
                 font-size: 2.5rem; /* 40px на десктопе */
             }
