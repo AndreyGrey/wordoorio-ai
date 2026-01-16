@@ -1445,6 +1445,107 @@ def api_training_answer():
         return jsonify({'error': f'Ошибка проверки ответа: {str(e)}'}), 500
 
 
+# =============================================================================
+# TEST ENDPOINTS - AI Agent Testing
+# =============================================================================
+
+@app.route('/test-ai-agent')
+def test_ai_agent_page():
+    """Страница для тестирования AI агента"""
+    return render_template('test-ai-agent.html')
+
+
+@app.route('/api/test/ai-agent', methods=['POST'])
+async def test_ai_agent():
+    """
+    Прямой вызов AI агента для тестирования
+
+    Body: {
+        "words": [
+            {"word": "velocity", "correct_translation": "скорость"}
+        ]
+    }
+    """
+    try:
+        data = request.get_json()
+        words = data.get('words', [])
+
+        if not words:
+            return jsonify({'error': 'Нужен массив words'}), 400
+
+        # Вызываем агента напрямую
+        from core.yandex_ai_client import YandexAIClient
+        ai_client = YandexAIClient()
+
+        logger.info(f"[TEST] Вызов агента с {len(words)} словами")
+        result = await ai_client.generate_test_options(words)
+
+        logger.info(f"[TEST] Агент вернул: {result}")
+
+        return jsonify({
+            'success': True,
+            'raw_response': result,
+            'tests_count': len(result.get('tests', []))
+        })
+
+    except Exception as e:
+        logger.error(f"[TEST] Ошибка: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'error_type': type(e).__name__
+        }), 500
+
+
+@app.route('/api/test/create-tests', methods=['POST'])
+async def test_create_tests():
+    """
+    Тест создания тестов через TestManager (как в боте)
+
+    Body: {
+        "user_id": 1,
+        "count": 3
+    }
+    """
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id', 1)
+        count = data.get('count', 3)
+
+        # Получаем слова
+        from core.training_service import TrainingService
+        training_service = TrainingService(db)
+
+        words = training_service.select_words_for_training(user_id, count)
+        logger.info(f"[TEST] Отобрано {len(words)} слов для тренировки")
+
+        # Создаём тесты
+        from core.yandex_ai_client import YandexAIClient
+        from core.test_manager import TestManager
+
+        ai_client = YandexAIClient()
+        test_manager = TestManager(db, ai_client)
+
+        test_ids = await test_manager.create_tests_batch(user_id, words)
+
+        logger.info(f"[TEST] Создано {len(test_ids)} тестов")
+
+        return jsonify({
+            'success': True,
+            'test_ids': test_ids,
+            'words_selected': len(words),
+            'tests_created': len(test_ids)
+        })
+
+    except Exception as e:
+        logger.error(f"[TEST] Ошибка создания тестов: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'error_type': type(e).__name__
+        }), 500
+
+
 if __name__ == '__main__':
     print("🚀 Запуск веб-интерфейса Wordoorio...")
     print("📱 Откройте http://localhost:8081 в браузере")
