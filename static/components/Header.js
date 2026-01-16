@@ -1,267 +1,342 @@
 /**
- * 🎨 UNIFIED HEADER COMPONENT
+ * Header Component v2.0
  *
- * Унифицированный header для всех страниц проекта.
- * Логотип + навигация "Мои хайлайты"
+ * Unified header with:
+ * - Logo + Navigation on the left
+ * - Auth dropdown on the right
  *
- * @version 1.0.0
+ * @version 2.0.0
  */
 
 /**
- * Создать HTML header компонента
- * @param {Object} user - Текущий пользователь (null если не авторизован)
+ * Create header HTML
+ * @param {Object} user - Current user (null if not authenticated)
  * @returns {string} HTML header
  */
 function createUnifiedHeader(user = null) {
-    // Auth button или user info
+    // Auth section - dropdown or login button
     let authSection = '';
 
     if (user) {
-        // Пользователь авторизован - показываем имя и кнопку выхода
         const displayName = user.username || 'User';
-
         authSection = `
-            <div class="user-info">
-                <span class="user-name">${displayName}</span>
-                <button class="logout-btn" onclick="handleLogout()">Выйти</button>
+            <div class="auth-section" id="authSection">
+                <button class="user-trigger" type="button" onclick="toggleUserMenu()">
+                    ${displayName}
+                    <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M6 9l6 6 6-6"/>
+                    </svg>
+                </button>
+                <div class="user-menu" id="userMenu">
+                    <a href="#" class="user-menu-item" onclick="handleLogout(); return false;">Выйти</a>
+                </div>
             </div>
         `;
     } else {
-        // Пользователь не авторизован - показываем кнопку входа
         authSection = `
-            <a href="/login" class="login-btn">Войти</a>
+            <div class="auth-section">
+                <a href="/login" class="login-btn">Войти</a>
+            </div>
         `;
     }
 
     return `
-        <div class="unified-header">
-            <div class="header-content">
+        <header class="site-header">
+            <div class="header-left">
                 <a href="/" class="logo-link">
-                    <img src="/static/images/wordoorio-logo.svg" alt="Wordoorio" class="logo" />
+                    <img src="/static/images/wordoorio-logo.svg" alt="Wordoorio" class="logo-img">
                 </a>
-                <nav class="header-nav">
-                    <a href="/my-highlights" class="nav-link">
-                        <span class="nav-icon">📚</span>
-                        <span class="nav-text">Мои хайлайты</span>
-                    </a>
-                    <a href="/dictionary" class="nav-link">
-                        <span class="nav-icon">📖</span>
-                        <span class="nav-text">Словарь</span>
-                    </a>
-                    ${authSection}
+                <nav class="site-nav">
+                    <a href="/analyze" class="nav-item">Новый анализ</a>
+                    <a href="/my-highlights" class="nav-item">Хайлайты</a>
+                    <a href="/dictionary" class="nav-item">Словарь</a>
                 </nav>
             </div>
-        </div>
+            ${authSection}
+        </header>
     `;
 }
 
 /**
- * Стили для unified header
+ * Header styles
  * @returns {string} CSS styles
  */
 function getUnifiedHeaderStyles() {
     return `
-        /* ===== UNIFIED HEADER ===== */
-        .unified-header {
-            background: transparent;
-            padding: 20px 0;
-            margin-bottom: 30px;
-        }
-
-        .header-content {
+        /* ===== SITE HEADER v2.0 ===== */
+        .site-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 0 20px;
+            padding: 16px 0;
+            margin-bottom: 24px;
+            max-width: var(--container-max-width, 1000px);
+            margin-left: auto;
+            margin-right: auto;
+            padding-left: var(--container-padding, 20px);
+            padding-right: var(--container-padding, 20px);
         }
 
+        /* Left section: Logo + Nav */
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        /* Logo */
         .logo-link {
             display: block;
             text-decoration: none;
             transition: transform 0.2s ease;
+            flex-shrink: 0;
         }
 
         .logo-link:hover {
             transform: scale(1.05);
         }
 
-        .logo {
-            width: 140px;
-            height: 140px;
+        .logo-img {
+            width: 72px;
+            height: 72px;
             filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
         }
 
-        .header-nav {
+        /* Navigation */
+        .site-nav {
             display: flex;
             gap: 20px;
             align-items: center;
         }
 
-        .nav-link {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
-            background: rgba(255, 255, 255, 0.95);
-            color: #2d3748;
+        .nav-item {
+            color: rgba(255, 255, 255, 0.85);
             text-decoration: none;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 15px;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            font-size: 0.9375rem;
+            font-weight: 500;
+            transition: var(--transition-base, all 0.2s ease);
+            padding: 4px 0;
+            position: relative;
         }
 
-        .nav-link:hover {
-            background: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        .nav-item:hover {
+            color: #ffffff;
         }
 
-        .nav-icon {
-            font-size: 18px;
+        .nav-item::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.5);
+            transition: width 0.2s ease;
         }
 
-        /* Адаптивность */
-        @media (max-width: 768px) {
-            .header-content {
-                padding: 0 16px;
-            }
-
-            .logo {
-                width: 100px;
-                height: 100px;
-            }
-
-            .nav-link {
-                padding: 8px 16px;
-                font-size: 14px;
-            }
-
-            .nav-icon {
-                font-size: 16px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .unified-header {
-                padding: 16px 0;
-                margin-bottom: 24px;
-            }
-
-            .logo {
-                width: 80px;
-                height: 80px;
-            }
-
-            .nav-text {
-                display: none;
-            }
-
-            .nav-link {
-                padding: 10px;
-                border-radius: 10px;
-            }
-
-            .nav-icon {
-                font-size: 20px;
-            }
+        .nav-item:hover::after {
+            width: 100%;
         }
 
         /* ===== AUTH SECTION ===== */
+        .auth-section {
+            position: relative;
+        }
 
-        /* Login button */
-        .login-btn {
-            padding: 10px 24px;
-            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 15px;
+        /* User dropdown trigger */
+        .user-trigger {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: var(--radius-pill, 999px);
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition-base, all 0.2s ease);
+        }
+
+        .user-trigger:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+        }
+
+        .user-trigger .dropdown-arrow {
+            width: 14px;
+            height: 14px;
+            transition: transform 0.2s ease;
+        }
+
+        .auth-section.open .user-trigger .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+
+        /* Dropdown menu */
+        .user-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            background: #ffffff;
+            border-radius: var(--radius-md, 12px);
+            box-shadow: var(--shadow-lg, 0 10px 20px rgba(0, 0, 0, 0.12));
+            min-width: 140px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-8px);
             transition: all 0.2s ease;
-            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+            z-index: var(--z-dropdown, 10);
+            overflow: hidden;
+        }
+
+        .auth-section.open .user-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .user-menu-item {
+            display: block;
+            padding: 12px 16px;
+            color: var(--color-text-secondary, #4a5568);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: background 0.15s ease;
+        }
+
+        .user-menu-item:hover {
+            background: var(--color-bg-light, #f7fafc);
+            color: var(--color-text-primary, #2d3748);
+        }
+
+        /* Login button (not authenticated) */
+        .login-btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: var(--gradient-primary, linear-gradient(135deg, #4CAF50 0%, #45a049 100%));
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: var(--radius-md, 12px);
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-button, 0 4px 12px rgba(76, 175, 80, 0.3));
         }
 
         .login-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+            box-shadow: var(--shadow-button-hover, 0 6px 16px rgba(76, 175, 80, 0.4));
+            color: #ffffff;
         }
 
-        /* User info section */
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 8px 16px;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 640px) {
+            .site-header {
+                padding: 12px 16px;
+                margin-bottom: 20px;
+            }
 
-        .user-name {
-            font-weight: 600;
-            color: #2d3748;
-            font-size: 15px;
-        }
+            .header-left {
+                gap: 16px;
+            }
 
-        .logout-btn {
-            padding: 6px 14px;
-            background: #f7fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            color: #718096;
-            font-weight: 600;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
+            .logo-img {
+                width: 52px;
+                height: 52px;
+            }
 
-        .logout-btn:hover {
-            background: #edf2f7;
-            border-color: #cbd5e0;
-            color: #4a5568;
-        }
+            .site-nav {
+                gap: 12px;
+            }
 
-        @media (max-width: 768px) {
-            .user-info {
-                gap: 8px;
+            .nav-item {
+                font-size: 0.8125rem;
+            }
+
+            .user-trigger {
                 padding: 6px 12px;
+                font-size: 0.8125rem;
             }
 
-            .user-avatar {
-                width: 32px;
-                height: 32px;
-            }
-
-            .user-name {
-                font-size: 14px;
-            }
-
-            .logout-btn {
-                padding: 5px 10px;
-                font-size: 12px;
+            .login-btn {
+                padding: 8px 16px;
+                font-size: 0.8125rem;
             }
         }
 
         @media (max-width: 480px) {
-            .user-name {
-                display: none;
+            .header-left {
+                gap: 12px;
             }
 
-            .logout-btn {
-                padding: 6px 10px;
-                font-size: 11px;
+            .logo-img {
+                width: 44px;
+                height: 44px;
+            }
+
+            .site-nav {
+                gap: 8px;
+            }
+
+            .nav-item {
+                font-size: 0.75rem;
+            }
+        }
+
+        /* ===== NOTIFICATION ===== */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(100px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(100px);
             }
         }
     `;
 }
 
 /**
- * Инициализировать header (вставить в DOM)
- * @param {string} containerId - ID контейнера для header
+ * Toggle user dropdown menu
+ */
+function toggleUserMenu() {
+    const authSection = document.getElementById('authSection');
+    if (authSection) {
+        authSection.classList.toggle('open');
+    }
+}
+
+/**
+ * Close dropdown when clicking outside
+ */
+function setupDropdownClose() {
+    document.addEventListener('click', function(e) {
+        const authSection = document.getElementById('authSection');
+        if (authSection && !authSection.contains(e.target)) {
+            authSection.classList.remove('open');
+        }
+    });
+}
+
+/**
+ * Initialize header (insert into DOM)
+ * @param {string} containerId - Container ID for header
  */
 async function initUnifiedHeader(containerId = 'header-container') {
     const container = document.getElementById(containerId);
@@ -270,7 +345,7 @@ async function initUnifiedHeader(containerId = 'header-container') {
         return;
     }
 
-    // Добавляем стили если еще не добавлены
+    // Add styles if not already added
     if (!document.getElementById('unified-header-styles')) {
         const styleEl = document.createElement('style');
         styleEl.id = 'unified-header-styles';
@@ -278,7 +353,7 @@ async function initUnifiedHeader(containerId = 'header-container') {
         document.head.appendChild(styleEl);
     }
 
-    // Проверяем текущего пользователя через API
+    // Check current user via API
     let currentUser = null;
     try {
         const response = await fetch('/api/auth/current', {
@@ -292,12 +367,15 @@ async function initUnifiedHeader(containerId = 'header-container') {
         console.error('Failed to check auth:', error);
     }
 
-    // Рендерим header
+    // Render header
     container.innerHTML = createUnifiedHeader(currentUser);
+
+    // Setup dropdown close on outside click
+    setupDropdownClose();
 }
 
 /**
- * Обработчик выхода из системы
+ * Handle logout
  */
 async function handleLogout() {
     try {
@@ -310,7 +388,6 @@ async function handleLogout() {
 
         if (result.success) {
             showNotification('Вы вышли из системы');
-            // Перезагружаем страницу чтобы обновить header
             setTimeout(() => window.location.reload(), 500);
         } else {
             showNotification('Ошибка выхода', 'error');
@@ -322,7 +399,7 @@ async function handleLogout() {
 }
 
 /**
- * Показать уведомление
+ * Show notification
  */
 function showNotification(message, type = 'success') {
     const notification = document.createElement('div');
@@ -349,7 +426,7 @@ function showNotification(message, type = 'success') {
     }, 3000);
 }
 
-// Экспорт для использования в других модулях
+// Export for module usage
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         createUnifiedHeader,

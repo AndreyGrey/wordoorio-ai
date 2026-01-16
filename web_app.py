@@ -1337,7 +1337,7 @@ def send_telegram_test(chat_id: int, message_id: int, test_manager, test_ids: li
 @app.route('/dictionary')
 def dictionary_page():
     """📚 Страница личного словаря"""
-    return render_template('dictionary.html')
+    return render_template('dictionary-v2.html')
 
 
 @app.route('/training')
