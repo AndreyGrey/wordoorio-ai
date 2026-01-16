@@ -425,40 +425,57 @@ class YandexAIClient:
         Raises:
             Exception: если запрос не удался
         """
-        import openai
-
         # ID Агента #3 для генерации тестов (создан в Yandex AI Studio)
         agent_id = "fvtludf1115lb39bei78"
 
-        # API ключ (приоритет: YANDEX_CLOUD_API_KEY > IAM токен)
-        api_key = os.getenv('YANDEX_CLOUD_API_KEY', self.iam_token)
-
-        if not api_key:
-            raise Exception("Для генерации тестов нужен API ключ Yandex AI")
-
-        # Подготавливаем входные данные
+        # Подготавливаем входные данные (как JSON строку)
         input_data = json.dumps({"words": words_with_translations}, ensure_ascii=False)
 
+        # Вызываем агента через общий метод call_agent
         try:
-            # Создаем клиент OpenAI для Yandex AI
-            client = openai.OpenAI(
-                api_key=api_key,
-                base_url="https://rest-assistant.api.cloud.yandex.net/v1",
-                project=self.folder_id
-            )
+            # call_agent возвращает AgentResponse, но нам нужен сырой dict
+            # Поэтому дублируем логику call_agent, но без парсинга в AgentResponse
 
-            # Вызываем агента
-            response = client.responses.create(
-                prompt={"id": agent_id},
-                input=input_data
-            )
+            api_key = os.getenv('YANDEX_CLOUD_API_KEY', self.iam_token)
+            if not api_key:
+                raise Exception("Для генерации тестов нужен API ключ Yandex AI")
 
-            # Получаем текст ответа
-            response_text = response.output_text
+            url = "https://rest-assistant.api.cloud.yandex.net/v1/responses"
+            headers = {
+                "Authorization": f"Api-Key {api_key}",
+                "x-folder-id": self.folder_id,
+                "Content-Type": "application/json"
+            }
 
-            # Парсим JSON из ответа
-            return json.loads(response_text)
+            payload = {
+                "prompt": {"id": agent_id},
+                "input": input_data
+            }
 
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=120)) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise Exception(f"Agent API error {response.status}: {error_text}")
+
+                    result = await response.json()
+
+                    # Извлекаем текст ответа
+                    response_text = None
+                    if 'output' in result and result['output']:
+                        if isinstance(result['output'], list) and len(result['output']) > 0:
+                            content = result['output'][0].get('content', [])
+                            if isinstance(content, list) and len(content) > 0:
+                                response_text = content[0].get('text', '')
+
+                    if not response_text:
+                        raise Exception(f"Пустой ответ от агента")
+
+                    # Парсим JSON из ответа
+                    return json.loads(response_text)
+
+        except asyncio.TimeoutError:
+            raise Exception("Timeout при генерации тестов (120s)")
         except json.JSONDecodeError as e:
             raise Exception(f"Не удалось распарсить ответ агента: {e}")
         except Exception as e:
