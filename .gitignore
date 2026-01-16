@@ -72,4 +72,8 @@ dmypy.json
 
 # Test files
 test_*.py
-test_page_id_grouping.py
+debug_*.py
+check_*.py
+delete_*.py
+list_*.py
+*_test.py

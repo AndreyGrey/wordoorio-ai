@@ -94,6 +94,7 @@ def create_tables(pool, session):
         """
         CREATE TABLE analyses (
             id Uint64,
+            user_id Uint64,
             original_text Utf8,
             analysis_date Timestamp,
             total_highlights Uint32,
@@ -101,22 +102,22 @@ def create_tables(pool, session):
             session_id Utf8,
             ip_address Utf8,
             PRIMARY KEY (id),
-            INDEX idx_analysis_date GLOBAL ON (analysis_date)
+            INDEX idx_user_id GLOBAL ON (user_id),
+            INDEX idx_analysis_date GLOBAL ON (analysis_date),
+            INDEX idx_session_id GLOBAL ON (session_id)
         )
         """,
 
-        # 6. Хайлайты (найденные слова)
+        # 6. Хайлайты (связь анализов и слов из словаря)
         """
         CREATE TABLE highlights (
             id Uint64,
             analysis_id Uint64,
-            highlight_word Utf8,
-            context Utf8,
-            highlight_translation Utf8,
-            dictionary_meanings Utf8,
+            word_id Uint64,
+            position Uint32,
             PRIMARY KEY (id),
             INDEX idx_analysis_id GLOBAL ON (analysis_id),
-            INDEX idx_highlight_word GLOBAL ON (highlight_word)
+            INDEX idx_word_id GLOBAL ON (word_id)
         )
         """,
 
