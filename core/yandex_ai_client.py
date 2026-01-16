@@ -466,18 +466,32 @@ class YandexAIClient:
                         raise Exception(f"Agent API error {response.status}: {error_text}")
 
                     result = await response.json()
-                    logger.info(f"[generate_test_options] RAW response: {json.dumps(result, ensure_ascii=False)[:500]}")
+                    logger.info(f"[generate_test_options] RAW response: {json.dumps(result, ensure_ascii=False)[:2000]}")
 
                     # Извлекаем текст ответа (точно так же как в call_agent)
                     response_text = None
+
+                    # DEBUG: пошаговая проверка структуры
+                    logger.info(f"[generate_test_options] Проверка структуры: 'output' in result = {'output' in result}")
+
                     if 'output' in result and result['output']:
+                        logger.info(f"[generate_test_options] result['output'] type: {type(result['output'])}, len: {len(result['output']) if isinstance(result['output'], list) else 'N/A'}")
+
                         if isinstance(result['output'], list) and len(result['output']) > 0:
-                            content = result['output'][0].get('content', [])
+                            first_output = result['output'][0]
+                            logger.info(f"[generate_test_options] first_output keys: {first_output.keys() if isinstance(first_output, dict) else 'NOT_DICT'}")
+
+                            content = first_output.get('content', [])
+                            logger.info(f"[generate_test_options] content type: {type(content)}, len: {len(content) if isinstance(content, list) else 'N/A'}")
+
                             if isinstance(content, list) and len(content) > 0:
-                                response_text = content[0].get('text', '')
+                                first_content = content[0]
+                                logger.info(f"[generate_test_options] first_content keys: {first_content.keys() if isinstance(first_content, dict) else 'NOT_DICT'}")
+                                response_text = first_content.get('text', '')
+                                logger.info(f"[generate_test_options] Extracted text length: {len(response_text) if response_text else 0}")
 
                     if not response_text:
-                        logger.error(f"[generate_test_options] Пустой response_text. Полная структура: {json.dumps(result, ensure_ascii=False)}")
+                        logger.error(f"[generate_test_options] Пустой response_text. Полная структура: {json.dumps(result, ensure_ascii=False)[:3000]}")
                         raise Exception(f"Пустой ответ от агента")
 
                     logger.info(f"[generate_test_options] response_text длина: {len(response_text)} символов")
