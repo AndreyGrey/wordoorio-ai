@@ -428,11 +428,11 @@ class YandexAIClient:
         # ID Агента #3 для генерации тестов (создан в Yandex AI Studio)
         agent_id = "fvtludf1115lb39bei78"
 
-        # Подготавливаем входные данные (передаем dict, aiohttp сам сериализует в JSON)
-        input_data = {"words": words_with_translations}
+        # Подготавливаем входные данные (СТРОКА JSON, как в call_agent!)
+        input_data = json.dumps({"words": words_with_translations}, ensure_ascii=False)
 
         logger.info(f"[generate_test_options] Вызываем агент {agent_id} с {len(words_with_translations)} словами")
-        logger.info(f"[generate_test_options] input_data: {json.dumps(input_data, ensure_ascii=False)[:200]}...")
+        logger.info(f"[generate_test_options] input_data: {input_data[:200]}...")
 
         try:
             # Используем общий метод call_agent (как Agent #1 и #2)
@@ -453,7 +453,7 @@ class YandexAIClient:
 
             payload = {
                 "prompt": {"id": agent_id},
-                "input": input_data  # Передаем dict напрямую, aiohttp сериализует
+                "input": input_data  # Передаем СТРОКУ JSON, как в call_agent!
             }
 
             logger.info(f"[generate_test_options] FULL payload: {json.dumps(payload, ensure_ascii=False)[:1000]}")
