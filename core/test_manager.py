@@ -103,6 +103,14 @@ class TestManager:
         Генерация вариантов без AI (fallback)
         Использует случайные переводы из словаря пользователя
         """
+        # Базовые неправильные варианты (запасные, если не хватает из словаря)
+        common_wrong_options = [
+            "делать", "идти", "говорить", "думать", "знать", "видеть",
+            "хотеть", "большой", "маленький", "хороший", "плохой", "новый",
+            "старый", "быстрый", "медленный", "красивый", "время", "место",
+            "человек", "день", "год", "работа", "жизнь", "дом", "мир"
+        ]
+
         tests = []
         for word_data in words_data:
             # Получаем 3 случайных перевода других слов пользователя через YDB
@@ -112,7 +120,23 @@ class TestManager:
                 limit=3
             )
 
-            # Если не хватает вариантов, добавляем заглушки
+            # Если не хватает вариантов, используем базовые слова
+            if len(wrong_options) < 3:
+                # Фильтруем базовые слова, чтобы не было совпадений с правильным ответом
+                available_options = [
+                    opt for opt in common_wrong_options
+                    if opt != word_data['correct_translation']
+                    and opt not in wrong_options
+                ]
+
+                # Добавляем случайные базовые слова
+                import random
+                while len(wrong_options) < 3 and available_options:
+                    wrong_option = random.choice(available_options)
+                    wrong_options.append(wrong_option)
+                    available_options.remove(wrong_option)
+
+            # Если все еще не хватает (крайний случай), добавляем заглушки
             while len(wrong_options) < 3:
                 wrong_options.append(f"вариант {len(wrong_options) + 1}")
 
