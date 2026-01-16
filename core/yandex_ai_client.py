@@ -425,6 +425,8 @@ class YandexAIClient:
         Raises:
             Exception: если запрос не удался
         """
+        import openai
+
         # ID Агента #3 для генерации тестов (создан в Yandex AI Studio)
         agent_id = "fvtludf1115lb39bei78"
 
@@ -437,45 +439,26 @@ class YandexAIClient:
         # Подготавливаем входные данные
         input_data = json.dumps({"words": words_with_translations}, ensure_ascii=False)
 
-        # URL для Assistant API REST
-        url = "https://rest-assistant.api.cloud.yandex.net/v1/responses"
-
-        headers = {
-            "Authorization": f"Api-Key {api_key}",
-            "x-folder-id": self.folder_id,
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "prompt": {"id": agent_id},
-            "input": input_data
-        }
-
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url,
-                    headers=headers,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=120)  # 120s для генерации
-                ) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        raise Exception(f"Agent API error {response.status}: {error_text}")
+            # Создаем клиент OpenAI для Yandex AI
+            client = openai.OpenAI(
+                api_key=api_key,
+                base_url="https://rest-assistant.api.cloud.yandex.net/v1",
+                project=self.folder_id
+            )
 
-                    result = await response.json()
+            # Вызываем агента
+            response = client.responses.create(
+                prompt={"id": agent_id},
+                input=input_data
+            )
 
-                    # Извлекаем текст ответа
-                    if 'output' not in result or not result['output']:
-                        raise Exception("Пустой ответ от агента")
+            # Получаем текст ответа
+            response_text = response.output_text
 
-                    response_text = result['output'][0]['content'][0]['text']
+            # Парсим JSON из ответа
+            return json.loads(response_text)
 
-                    # Парсим JSON из ответа
-                    return json.loads(response_text)
-
-        except asyncio.TimeoutError:
-            raise Exception("Timeout при генерации тестов (120s)")
         except json.JSONDecodeError as e:
             raise Exception(f"Не удалось распарсить ответ агента: {e}")
         except Exception as e:
