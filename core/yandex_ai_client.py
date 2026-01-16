@@ -491,8 +491,10 @@ class YandexAIClient:
                                         if isinstance(content, list) and len(content) > 0:
                                             first_content = content[0]
                                             logger.info(f"[generate_test_options] first_content keys: {first_content.keys() if isinstance(first_content, dict) else 'NOT_DICT'}")
+                                            logger.info(f"[generate_test_options] first_content RAW: {json.dumps(first_content, ensure_ascii=False)[:500]}")
                                             response_text = first_content.get('text', '')
                                             logger.info(f"[generate_test_options] Extracted text length: {len(response_text) if response_text else 0}")
+                                            logger.info(f"[generate_test_options] Extracted text preview: {response_text[:500]}")
                                             break
 
                     if not response_text:
