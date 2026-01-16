@@ -456,6 +456,8 @@ class YandexAIClient:
                 "input": input_data  # Передаем dict напрямую, aiohttp сериализует
             }
 
+            logger.info(f"[generate_test_options] FULL payload: {json.dumps(payload, ensure_ascii=False)[:1000]}")
+
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=120)) as response:
                     logger.info(f"[generate_test_options] HTTP status: {response.status}")
