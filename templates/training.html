@@ -25,41 +25,105 @@
         .training-card {
             max-width: 600px;
             margin: 0 auto;
+            animation: slideInRight 0.4s ease-out;
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
 
         .word-display {
             text-align: center;
-            padding: var(--spacing-8) 0;
-            border-bottom: 2px solid var(--color-border-light);
+            padding: var(--spacing-10) var(--spacing-6);
+            background: linear-gradient(135deg, #f7fafc 0%, #ffffff 100%);
+            border-radius: var(--radius-lg);
             margin-bottom: var(--spacing-6);
+            position: relative;
+        }
+
+        .word-display::before {
+            content: '🎓';
+            position: absolute;
+            top: var(--spacing-4);
+            left: var(--spacing-4);
+            font-size: 1.5rem;
+            opacity: 0.3;
         }
 
         .word-en {
             font-size: var(--font-size-3xl);
             font-weight: var(--font-weight-bold);
             color: var(--color-primary);
-            margin-bottom: var(--spacing-2);
+            margin-bottom: var(--spacing-3);
+            animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
 
         .word-type {
-            font-size: var(--font-size-sm);
-            color: var(--color-text-muted);
+            display: inline-block;
+            font-size: var(--font-size-xs);
+            color: var(--color-text-white);
+            background: var(--gradient-primary);
+            padding: var(--spacing-1) var(--spacing-3);
+            border-radius: var(--radius-pill);
             text-transform: uppercase;
             letter-spacing: 1px;
+            font-weight: var(--font-weight-semibold);
         }
 
         .progress-bar {
             background: var(--color-bg-light);
-            height: 8px;
+            height: 10px;
             border-radius: var(--radius-pill);
             overflow: hidden;
             margin-bottom: var(--spacing-4);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .progress-fill {
             height: 100%;
             background: var(--gradient-primary);
-            transition: width 0.3s ease;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                90deg,
+                rgba(255, 255, 255, 0) 0%,
+                rgba(255, 255, 255, 0.3) 50%,
+                rgba(255, 255, 255, 0) 100%
+            );
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
 
         .progress-text {
@@ -67,7 +131,8 @@
             color: var(--color-text-white);
             font-size: var(--font-size-sm);
             margin-bottom: var(--spacing-6);
-            font-weight: var(--font-weight-medium);
+            font-weight: var(--font-weight-semibold);
+            letter-spacing: 0.5px;
         }
 
         .options-container {
@@ -77,58 +142,126 @@
         }
 
         .option-btn {
-            padding: var(--spacing-5);
+            padding: var(--spacing-5) var(--spacing-6);
             border: 2px solid var(--color-border-light);
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-lg);
             background: var(--color-bg-white);
             cursor: pointer;
-            transition: var(--transition-base);
-            font-size: var(--font-size-base);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: var(--font-size-md);
             text-align: left;
             color: var(--color-text-primary);
             font-weight: var(--font-weight-medium);
+            position: relative;
+            opacity: 0;
+            animation: fadeInOption 0.4s ease-out forwards;
         }
 
-        .option-btn:hover {
+        @keyframes fadeInOption {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .option-btn:nth-child(1) { animation-delay: 0.1s; }
+        .option-btn:nth-child(2) { animation-delay: 0.2s; }
+        .option-btn:nth-child(3) { animation-delay: 0.3s; }
+        .option-btn:nth-child(4) { animation-delay: 0.4s; }
+
+        .option-btn:hover:not(:disabled) {
             border-color: var(--color-primary);
             background: var(--color-bg-light);
-            transform: translateY(-2px);
+            transform: translateX(4px) scale(1.02);
             box-shadow: var(--shadow-md);
+        }
+
+        .option-btn:active:not(:disabled) {
+            transform: scale(0.98);
         }
 
         .option-btn.correct {
             border-color: var(--color-primary);
             background: var(--color-success);
             color: var(--color-success-text);
+            animation: successPulse 0.6s ease;
+        }
+
+        @keyframes successPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
 
         .option-btn.incorrect {
             border-color: #e53e3e;
             background: var(--color-error);
             color: var(--color-error-text);
+            animation: shake 0.5s ease;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
         }
 
         .option-btn:disabled {
             cursor: not-allowed;
-            opacity: 0.7;
+            opacity: 0.6;
         }
 
         .result-feedback {
             text-align: center;
             padding: var(--spacing-6);
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-lg);
             margin-top: var(--spacing-6);
             font-weight: var(--font-weight-semibold);
+            animation: slideUp 0.3s ease-out;
+            border: 2px solid transparent;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .result-feedback.correct {
             background: var(--color-success);
             color: var(--color-success-text);
+            border-color: var(--color-primary);
         }
 
         .result-feedback.incorrect {
             background: var(--color-error);
             color: var(--color-error-text);
+            border-color: #e53e3e;
+        }
+
+        .feedback-icon {
+            font-size: 2.5rem;
+            margin-bottom: var(--spacing-3);
+            display: block;
+        }
+
+        .feedback-message {
+            font-size: var(--font-size-lg);
+            font-weight: var(--font-weight-bold);
+            margin-bottom: var(--spacing-2);
+        }
+
+        .feedback-submessage {
+            font-size: var(--font-size-sm);
+            opacity: 0.9;
         }
 
         .word-stats {
@@ -160,39 +293,240 @@
         .completion-screen {
             text-align: center;
             padding: var(--spacing-12) var(--spacing-6);
+            animation: fadeInUp 0.6s ease-out;
         }
 
         .completion-icon {
-            font-size: 4rem;
+            font-size: 5rem;
             margin-bottom: var(--spacing-6);
+            animation: celebration 1s ease-out;
+            display: inline-block;
+        }
+
+        @keyframes celebration {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            25% { transform: scale(1.2) rotate(-10deg); }
+            50% { transform: scale(1.1) rotate(10deg); }
+            75% { transform: scale(1.2) rotate(-10deg); }
         }
 
         .completion-title {
             font-size: var(--font-size-2xl);
             color: var(--color-text-primary);
-            margin-bottom: var(--spacing-4);
+            font-weight: var(--font-weight-bold);
+            margin-bottom: var(--spacing-3);
+        }
+
+        .completion-subtitle {
+            font-size: var(--font-size-lg);
+            color: var(--color-text-secondary);
+            margin-bottom: var(--spacing-6);
         }
 
         .completion-stats {
-            background: var(--color-bg-light);
+            background: linear-gradient(135deg, #f7fafc 0%, #ffffff 100%);
             padding: var(--spacing-6);
+            border-radius: var(--radius-lg);
+            margin: var(--spacing-6) 0;
+            border: 2px solid var(--color-border-light);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--spacing-4);
+            margin-top: var(--spacing-4);
+        }
+
+        .stat-box {
+            padding: var(--spacing-4);
+            background: var(--color-bg-white);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--color-border-light);
+        }
+
+        .stat-box-value {
+            font-size: var(--font-size-2xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-primary);
+            display: block;
+        }
+
+        .stat-box-label {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-muted);
+            margin-top: var(--spacing-2);
+        }
+
+        .completion-message {
+            background: var(--color-success);
+            color: var(--color-success-text);
+            padding: var(--spacing-4);
             border-radius: var(--radius-md);
             margin: var(--spacing-6) 0;
+            font-weight: var(--font-weight-medium);
         }
 
         .empty-state {
             text-align: center;
             padding: var(--spacing-16) var(--spacing-6);
+            animation: fadeInUp 0.6s ease-out;
         }
 
         .empty-state-icon {
-            font-size: 4rem;
+            font-size: 5rem;
+            margin-bottom: var(--spacing-6);
+            animation: float 3s ease-in-out infinite;
+            display: inline-block;
+        }
+
+        .empty-state h2 {
+            font-size: var(--font-size-2xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-text-primary);
+            margin-bottom: var(--spacing-4);
+        }
+
+        .empty-state-subtitle {
+            font-size: var(--font-size-lg);
+            color: var(--color-text-secondary);
+            margin-bottom: var(--spacing-3);
+            font-weight: var(--font-weight-medium);
+        }
+
+        .empty-state-description {
+            color: var(--color-text-muted);
+            font-size: var(--font-size-base);
+            margin: var(--spacing-6) auto;
+            max-width: 400px;
+            line-height: var(--line-height-relaxed);
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Состояние загрузки */
+        .loading-state {
+            text-align: center;
+            padding: var(--spacing-12) var(--spacing-6);
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto var(--spacing-6);
+            border: 4px solid var(--color-bg-light);
+            border-top-color: var(--color-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-title {
+            font-size: var(--font-size-xl);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-primary);
+            margin-bottom: var(--spacing-3);
+        }
+
+        .loading-subtitle {
+            font-size: var(--font-size-base);
+            color: var(--color-text-muted);
             margin-bottom: var(--spacing-6);
         }
 
+        .loading-tips {
+            background: var(--color-bg-light);
+            padding: var(--spacing-5);
+            border-radius: var(--radius-md);
+            margin-top: var(--spacing-6);
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+            line-height: var(--line-height-relaxed);
+        }
+
         @media (max-width: 768px) {
+            .training-header h1 {
+                font-size: var(--font-size-xl);
+            }
+
+            .training-header p {
+                font-size: var(--font-size-sm);
+            }
+
+            .training-card {
+                padding: var(--spacing-5);
+            }
+
+            .word-display {
+                padding: var(--spacing-6) var(--spacing-4);
+            }
+
             .word-en {
                 font-size: var(--font-size-2xl);
+            }
+
+            .option-btn {
+                padding: var(--spacing-4) var(--spacing-5);
+                font-size: var(--font-size-base);
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: var(--spacing-3);
+            }
+
+            .stat-box {
+                padding: var(--spacing-3);
+            }
+
+            .completion-icon {
+                font-size: 4rem;
+            }
+
+            .completion-title {
+                font-size: var(--font-size-xl);
+            }
+
+            .completion-subtitle {
+                font-size: var(--font-size-base);
+            }
+
+            .empty-state {
+                padding: var(--spacing-12) var(--spacing-4);
+            }
+
+            .empty-state-icon {
+                font-size: 4rem;
+            }
+
+            .empty-state h2 {
+                font-size: var(--font-size-xl);
+            }
+
+            .loading-spinner {
+                width: 50px;
+                height: 50px;
+            }
+
+            .loading-title {
+                font-size: var(--font-size-lg);
             }
         }
     </style>
@@ -246,22 +580,41 @@
 
         <!-- Экран завершения -->
         <div id="completion-screen" class="card card-lg training-card completion-screen" style="display: none;">
-            <div class="completion-icon">✓</div>
-            <h2 class="completion-title">Отлично! Все тесты пройдены!</h2>
+            <div class="completion-icon">🎉</div>
+            <h2 class="completion-title">Поздравляем!</h2>
+            <p class="completion-subtitle">Ты прошел все 8 тестов</p>
+
             <div class="completion-stats">
-                <p>Вы завершили тренировку!</p>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <span id="correct-count" class="stat-box-value">0</span>
+                        <div class="stat-box-label">✅ Верно</div>
+                    </div>
+                    <div class="stat-box">
+                        <span id="incorrect-count" class="stat-box-value">0</span>
+                        <div class="stat-box-label">❌ Ошибок</div>
+                    </div>
+                    <div class="stat-box">
+                        <span id="accuracy-percent" class="stat-box-value">0%</span>
+                        <div class="stat-box-label">📊 Точность</div>
+                    </div>
+                </div>
             </div>
-            <button id="restart-btn" class="btn btn-primary btn-lg">Начать ещё 8 слов</button>
+
+            <div id="completion-message" class="completion-message"></div>
+
+            <button id="restart-btn" class="btn btn-primary btn-lg">Еще раунд! 🚀</button>
         </div>
 
         <!-- Пустое состояние / Загрузка -->
         <div id="empty-state" class="card card-lg training-card empty-state">
-            <div class="empty-state-icon">?</div>
-            <h2>Готовы к тренировке?</h2>
-            <p style="color: var(--color-text-muted); margin: var(--spacing-6) 0;">
-                Мы выберем 8 слов из вашего словаря для тренировки
+            <div class="empty-state-icon">🎯</div>
+            <h2>Проверим твои знания?</h2>
+            <p class="empty-state-subtitle">8 слов, 2 минуты, максимум пользы</p>
+            <p class="empty-state-description">
+                Умный алгоритм выберет именно те слова, которые нужно повторить прямо сейчас
             </p>
-            <button id="start-btn" class="btn btn-primary btn-lg">Начать тренировку</button>
+            <button id="start-btn" class="btn btn-primary btn-lg">Поехали!</button>
         </div>
     </div>
 
@@ -276,6 +629,8 @@
         // Состояние тренировки
         let currentTraining = null;
         let currentTestIndex = 0;
+        let correctAnswers = 0;
+        let incorrectAnswers = 0;
 
         // Элементы DOM
         const startBtn = document.getElementById('start-btn');
@@ -316,8 +671,23 @@
 
         async function startTraining() {
             try {
-                startBtn.disabled = true;
-                startBtn.textContent = 'Создаем тесты (это может занять до 30 секунд)...';
+                // Показываем красивое состояние загрузки
+                const tips = [
+                    'Интересный факт: изучение новых слов создает новые нейронные связи в мозге',
+                    'Совет: повторение через промежутки времени эффективнее, чем зубрежка',
+                    'Знаете ли вы? Средний носитель английского знает 20,000-35,000 слов',
+                    'Факт: изучение языков улучшает память и когнитивные способности'
+                ];
+                const randomTip = tips[Math.floor(Math.random() * tips.length)];
+
+                emptyState.innerHTML = `
+                    <div class="loading-state">
+                        <div class="loading-spinner"></div>
+                        <h3 class="loading-title">Готовим твои тесты...</h3>
+                        <p class="loading-subtitle">Искусственный интеллект подбирает идеальные варианты ответов</p>
+                        <div class="loading-tips">💡 ${randomTip}</div>
+                    </div>
+                `;
 
                 // Создаем контроллер для timeout 30 секунд
                 const controller = new AbortController();
@@ -339,6 +709,8 @@
 
                 currentTraining = data;
                 currentTestIndex = 0;
+                correctAnswers = 0;
+                incorrectAnswers = 0;
 
                 // Показываем интерфейс тренировки
                 emptyState.style.display = 'none';
@@ -350,9 +722,13 @@
                 showTest();
 
             } catch (error) {
-                alert(error.message);
-                startBtn.disabled = false;
-                startBtn.textContent = 'Начать тренировку 🚀';
+                emptyState.innerHTML = `
+                    <div class="empty-state-icon">⚠️</div>
+                    <h2>Что-то пошло не так</h2>
+                    <p class="empty-state-description">${error.message}</p>
+                    <button id="retry-btn" class="btn btn-primary btn-lg">Попробовать снова</button>
+                `;
+                document.getElementById('retry-btn').addEventListener('click', startTraining);
             }
         }
 
@@ -371,7 +747,20 @@
 
             // Показываем слово
             wordEnglish.textContent = test.word;
-            wordType.textContent = test.type || '';
+
+            // Переводим типы слов на русский
+            const typeTranslations = {
+                'noun': 'существительное',
+                'verb': 'глагол',
+                'adjective': 'прилагательное',
+                'adverb': 'наречие',
+                'pronoun': 'местоимение',
+                'preposition': 'предлог',
+                'conjunction': 'союз',
+                'interjection': 'междометие'
+            };
+            const russianType = test.type ? (typeTranslations[test.type.toLowerCase()] || test.type) : '';
+            wordType.textContent = russianType;
 
             // Скрываем результат предыдущего теста
             resultFeedback.style.display = 'none';
@@ -409,20 +798,61 @@
                     throw new Error(result.error || 'Ошибка отправки ответа');
                 }
 
-                // Показываем результат
+                // Подсчитываем статистику
+                if (result.is_correct) {
+                    correctAnswers++;
+                } else {
+                    incorrectAnswers++;
+                }
+
+                // Показываем результат с эмоциями
                 if (result.is_correct) {
                     buttonElement.classList.add('correct');
                     resultFeedback.className = 'result-feedback correct';
-                    feedbackText.textContent = 'Правильно!';
+
+                    const encouragements = [
+                        { icon: '🎉', text: 'Отлично!', sub: 'Ты на верном пути!' },
+                        { icon: '✨', text: 'Супер!', sub: 'Продолжай в том же духе!' },
+                        { icon: '🔥', text: 'Огонь!', sub: 'Так держать!' },
+                        { icon: '💪', text: 'Класс!', sub: 'У тебя получается!' },
+                        { icon: '🌟', text: 'Великолепно!', sub: 'Ты молодец!' }
+                    ];
+                    const random = encouragements[Math.floor(Math.random() * encouragements.length)];
+
+                    feedbackText.innerHTML = `
+                        <span class="feedback-icon">${random.icon}</span>
+                        <div class="feedback-message">${random.text}</div>
+                        <div class="feedback-submessage">${random.sub}</div>
+                    `;
                 } else {
                     buttonElement.classList.add('incorrect');
                     resultFeedback.className = 'result-feedback incorrect';
-                    feedbackText.innerHTML = `Неправильно<br><small>Правильный ответ: ${result.correct_translation}</small>`;
+
+                    const supports = [
+                        { icon: '💡', text: 'Почти!', sub: 'Ничего страшного, учимся на ошибках' },
+                        { icon: '🎯', text: 'Не страшно!', sub: 'В следующий раз точно получится' },
+                        { icon: '📚', text: 'Бывает!', sub: 'Главное — запомнить правильный ответ' }
+                    ];
+                    const random = supports[Math.floor(Math.random() * supports.length)];
+
+                    feedbackText.innerHTML = `
+                        <span class="feedback-icon">${random.icon}</span>
+                        <div class="feedback-message">${random.text}</div>
+                        <div class="feedback-submessage">${random.sub}</div>
+                        <div style="margin-top: var(--spacing-4); padding: var(--spacing-3); background: rgba(255,255,255,0.2); border-radius: var(--radius-md);">
+                            <strong>Правильный ответ:</strong> ${result.correct_translation}
+                        </div>
+                    `;
                 }
 
                 // Показываем статистику
+                const statusNames = {
+                    'new': '🆕 Новое',
+                    'learning': '📖 Учу',
+                    'learned': '✅ Выучено'
+                };
                 statRating.textContent = `${result.new_rating}/10`;
-                statStatus.textContent = result.new_status;
+                statStatus.textContent = statusNames[result.new_status] || result.new_status;
                 resultFeedback.style.display = 'block';
 
                 // Переходим к следующему тесту через 2 секунды
@@ -443,6 +873,27 @@
             trainingCard.style.display = 'none';
             progressContainer.style.display = 'none';
             completionScreen.style.display = 'block';
+
+            // Вычисляем статистику
+            const total = correctAnswers + incorrectAnswers;
+            const accuracy = total > 0 ? Math.round((correctAnswers / total) * 100) : 0;
+
+            // Заполняем статистику
+            document.getElementById('correct-count').textContent = correctAnswers;
+            document.getElementById('incorrect-count').textContent = incorrectAnswers;
+            document.getElementById('accuracy-percent').textContent = accuracy + '%';
+
+            // Показываем мотивационное сообщение в зависимости от результата
+            const messageEl = document.getElementById('completion-message');
+            if (accuracy === 100) {
+                messageEl.innerHTML = '🏆 <strong>Идеально!</strong> Ты знаешь все слова на отлично!';
+            } else if (accuracy >= 75) {
+                messageEl.innerHTML = '🌟 <strong>Отличный результат!</strong> Ты большой молодец, продолжай в том же духе!';
+            } else if (accuracy >= 50) {
+                messageEl.innerHTML = '💪 <strong>Хороший прогресс!</strong> Ты на правильном пути, повторение — мать учения!';
+            } else {
+                messageEl.innerHTML = '📚 <strong>Начало положено!</strong> Не останавливайся, с каждой тренировкой будет лучше!';
+            }
         }
     </script>
 </body>

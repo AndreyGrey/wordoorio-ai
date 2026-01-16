@@ -1364,7 +1364,7 @@ def api_training_start():
 
         # Отбираем слова для тренировки
         training_service = TrainingService(db)
-        words = training_service.select_words_for_training(user_id, count=3)  # ВРЕМЕННО: 3 слова для отладки
+        words = training_service.select_words_for_training(user_id, count=8)
         logger.info(f"[/api/training/start] TrainingService вернул {len(words)} слов")
 
         if not words:
