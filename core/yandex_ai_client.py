@@ -440,6 +440,12 @@ class YandexAIClient:
             if not api_key:
                 raise Exception("Для генерации тестов нужен API ключ Yandex AI")
 
+            # Диагностика
+            logger.info(f"[generate_test_options] agent_id: {agent_id}")
+            logger.info(f"[generate_test_options] folder_id: {self.folder_id}")
+            logger.info(f"[generate_test_options] api_key prefix: {api_key[:20] if api_key else 'None'}...")
+            logger.info(f"[generate_test_options] input_data: {input_data[:200]}...")
+
             url = "https://rest-assistant.api.cloud.yandex.net/v1/responses"
             headers = {
                 "Authorization": f"Api-Key {api_key}",
@@ -452,10 +458,15 @@ class YandexAIClient:
                 "input": input_data
             }
 
+            logger.info(f"[generate_test_options] Отправляем POST запрос к {url}")
+
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=120)) as response:
+                    logger.info(f"[generate_test_options] HTTP status: {response.status}")
+
                     if response.status != 200:
                         error_text = await response.text()
+                        logger.error(f"[generate_test_options] Agent API error {response.status}: {error_text}")
                         raise Exception(f"Agent API error {response.status}: {error_text}")
 
                     result = await response.json()
