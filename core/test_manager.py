@@ -71,9 +71,9 @@ class TestManager:
 
             logger.info(f"[TestManager] AI вернул {len(response['tests'])} тестов")
 
-            # Если AI вернул пустой массив, используем fallback
+            # Если AI вернул пустой массив - это ошибка
             if not response['tests']:
-                logger.warning(f"[TestManager] AI вернул пустой массив тестов, используем fallback")
+                logger.error(f"[TestManager] AI вернул пустой массив тестов")
                 raise Exception("AI вернул пустой массив тестов")
 
         except Exception as e:
@@ -81,9 +81,8 @@ class TestManager:
             logger.error(f"[TestManager] Детали ошибки: {type(e).__name__}: {str(e)}")
             import traceback
             logger.error(f"[TestManager] Traceback:\n{traceback.format_exc()}")
-            logger.warning(f"[TestManager] Используем fallback для генерации вариантов")
-            # Fallback: используем случайные переводы из словаря пользователя
-            response = self._generate_fallback_options(user_id, words_data)
+            # НЕ используем fallback - без AI тесты создавать нельзя
+            raise
 
         # 3. Сохранение тестов
         test_ids = []
@@ -107,36 +106,6 @@ class TestManager:
             logger.info(f"[TestManager] Создан тест {test_id} для слова '{test_data['word']}'")
 
         return test_ids
-
-    def _generate_fallback_options(self, user_id: int, words_data: List[Dict]) -> Dict:
-        """
-        Генерация вариантов без AI (fallback)
-        Использует только переводы из словаря пользователя
-        """
-        tests = []
-        for word_data in words_data:
-            # Получаем 3 случайных перевода других слов пользователя через YDB
-            wrong_options = self.db.get_random_translations(
-                user_id,
-                word_data['correct_translation'],
-                limit=3
-            )
-
-            # Если недостаточно переводов в словаре - пропускаем это слово
-            if len(wrong_options) < 3:
-                logger.warning(
-                    f"[TestManager] Недостаточно переводов в словаре для слова '{word_data['word']}' "
-                    f"(найдено {len(wrong_options)}, нужно 3). Слово пропущено."
-                )
-                continue
-
-            tests.append({
-                'word': word_data['word'],
-                'correct_translation': word_data['correct_translation'],
-                'wrong_options': wrong_options[:3]
-            })
-
-        return {'tests': tests}
 
     def get_test_with_shuffled_options(self, test_id: int) -> Dict:
         """
