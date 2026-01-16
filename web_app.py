@@ -253,16 +253,19 @@ def api_dictionary_add():
 
             # Получаем page_id (уникальный ID анализа текста) из данных
             page_id = data.get('page_id')
+            logger.info(f"[/api/dictionary/add] page_id из запроса: {page_id}, user_id: {user_id}")
 
             # Ищем или создаем analysis для конкретного page_id
             analysis = None
             if page_id:
                 # Ищем analysis по page_id (session_id совпадает с page_id для конкретного анализа)
                 analysis = db.get_analysis_by_session(page_id, user_id)
+                logger.info(f"[/api/dictionary/add] Результат поиска analysis: {analysis}")
 
             if not analysis:
                 # Создаем новый analysis (БЕЗ highlights)
                 analysis_session_id = page_id if page_id else session_id
+                logger.info(f"[/api/dictionary/add] Создаем новый analysis с session_id={analysis_session_id}")
                 analysis_id = db.save_analysis(
                     original_text=data.get('context', 'Manually added words'),
                     analysis_result={
@@ -273,10 +276,10 @@ def api_dictionary_add():
                     session_id=analysis_session_id,  # Используем page_id как session_id для группировки
                     ip_address=request.remote_addr
                 )
-                logger.info(f"[/api/dictionary/add] Создан новый analysis #{analysis_id} (page_id={page_id})")
+                logger.info(f"[/api/dictionary/add] Создан новый analysis #{analysis_id} (page_id={page_id}, session_id={analysis_session_id})")
             else:
                 analysis_id = analysis['id']
-                logger.info(f"[/api/dictionary/add] Найден существующий analysis #{analysis_id}")
+                logger.info(f"[/api/dictionary/add] Найден существующий analysis #{analysis_id} (session_id={analysis.get('session_id')})")
 
             # Добавляем highlight (с word_id) к analysis
             db.add_highlight_to_analysis(analysis_id, word_id, user_id, session_id)

@@ -297,7 +297,7 @@
             // Добавляем page_id к highlight для правильной группировки в analyses
             const highlightWithPageId = {
                 ...highlight,
-                page_id: analysis.page_id  // Уникальный ID текущего анализа
+                page_id: analysis.session_id  // Уникальный ID текущего анализа (session_id)
             };
             const result = await addToDictionary(highlightWithPageId);
 

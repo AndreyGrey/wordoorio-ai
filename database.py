@@ -366,10 +366,12 @@ class WordoorioDatabase:
         LIMIT 1
         """
 
+        logger.debug(f"[get_analysis_by_session] Ищем analysis: session_id={session_id}, user_id={user_id}")
         result = self._fetch_one(query, {
             '$session_id': session_id,
             '$user_id': user_id
         })
+        logger.debug(f"[get_analysis_by_session] Результат: {result}")
 
         return result
 
