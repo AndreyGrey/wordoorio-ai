@@ -1456,7 +1456,7 @@ def test_ai_agent_page():
 
 
 @app.route('/api/test/ai-agent', methods=['POST'])
-async def test_ai_agent():
+def test_ai_agent():
     """
     Прямой вызов AI агента для тестирования
 
@@ -1467,6 +1467,7 @@ async def test_ai_agent():
     }
     """
     try:
+        import asyncio
         data = request.get_json()
         words = data.get('words', [])
 
@@ -1478,7 +1479,18 @@ async def test_ai_agent():
         ai_client = YandexAIClient()
 
         logger.info(f"[TEST] Вызов агента с {len(words)} словами")
-        result = await ai_client.generate_test_options(words)
+
+        # Используем тот же паттерн что и в /api/analyze
+        loop = None
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        result = loop.run_until_complete(
+            ai_client.generate_test_options(words)
+        )
 
         logger.info(f"[TEST] Агент вернул: {result}")
 
@@ -1498,7 +1510,7 @@ async def test_ai_agent():
 
 
 @app.route('/api/test/create-tests', methods=['POST'])
-async def test_create_tests():
+def test_create_tests():
     """
     Тест создания тестов через TestManager (как в боте)
 
@@ -1508,6 +1520,7 @@ async def test_create_tests():
     }
     """
     try:
+        import asyncio
         data = request.get_json()
         user_id = data.get('user_id', 1)
         count = data.get('count', 3)
@@ -1526,7 +1539,17 @@ async def test_create_tests():
         ai_client = YandexAIClient()
         test_manager = TestManager(db, ai_client)
 
-        test_ids = await test_manager.create_tests_batch(user_id, words)
+        # Используем тот же паттерн что и в /api/analyze
+        loop = None
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        test_ids = loop.run_until_complete(
+            test_manager.create_tests_batch(user_id, words)
+        )
 
         logger.info(f"[TEST] Создано {len(test_ids)} тестов")
 
