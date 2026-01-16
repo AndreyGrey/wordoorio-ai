@@ -505,10 +505,6 @@
         const progressText = document.getElementById('progress-text');
         const wordEnglish = document.getElementById('word-english');
         const optionsContainer = document.getElementById('options-container');
-        const resultFeedback = document.getElementById('result-feedback');
-        const feedbackText = document.getElementById('feedback-text');
-        const statRating = document.getElementById('stat-rating');
-        const statStatus = document.getElementById('stat-status');
 
         // Проверка авторизации при загрузке
         document.addEventListener('DOMContentLoaded', async () => {
@@ -608,9 +604,6 @@
 
             // Показываем слово
             wordEnglish.textContent = test.word;
-
-            // Скрываем результат предыдущего теста
-            resultFeedback.style.display = 'none';
 
             // Создаем варианты ответов
             optionsContainer.innerHTML = '';
