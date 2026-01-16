@@ -479,7 +479,7 @@
                     event.stopPropagation();
                     const lemma = btn.dataset.lemma;
                     if (lemma) {
-                        await deleteWord(lemma, event);
+                        await deleteWord(lemma, btn);
                     }
                 });
             });
@@ -552,16 +552,14 @@
             }
         }
 
-        async function deleteWord(lemma, event) {
-            // Останавливаем всплытие события, чтобы не открывался modal
-            event.stopPropagation();
+        async function deleteWord(lemma, button) {
+            console.log('[deleteWord] Начало удаления:', lemma, 'button:', button);
 
             if (!confirm(`Удалить "${lemma}" из словаря?`)) {
                 return;
             }
 
-            // Получаем кнопку и добавляем анимацию загрузки
-            const button = event.target.closest('.delete-word-btn');
+            // Добавляем анимацию загрузки
             const originalHTML = button.innerHTML;
             button.disabled = true;
             button.style.opacity = '0.6';
@@ -575,17 +573,20 @@
             `;
 
             try {
+                console.log('[deleteWord] Отправка DELETE запроса для:', lemma);
                 const response = await fetch(`/api/dictionary/word/${encodeURIComponent(lemma)}`, {
                     method: 'DELETE',
                     credentials: 'same-origin'
                 });
 
+                console.log('[deleteWord] Получен ответ:', response.status, response.ok);
                 const data = await response.json();
+                console.log('[deleteWord] Данные ответа:', data);
 
                 // Check BOTH response.ok and data.success for proper error handling
                 if (response.ok && data.success) {
                     // Удаляем элемент из DOM с анимацией
-                    const wordRow = event.target.closest('.dictionary-word-row');
+                    const wordRow = button.closest('.dictionary-word-row');
                     wordRow.style.opacity = '0';
                     wordRow.style.transform = 'scale(0.95)';
                     wordRow.style.transition = 'all 0.3s ease';
