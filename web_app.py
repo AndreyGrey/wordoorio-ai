@@ -1368,10 +1368,11 @@ def api_training_start():
         logger.info(f"[/api/training/start] TrainingService вернул {len(words)} слов")
 
         if not words:
-            logger.warning(f"[/api/training/start] Не удалось отобрать слова для user_id={user_id}, хотя в БД {total_words} слов")
+            logger.warning(f"[/api/training/start] Не удалось отобрать слова для user_id={user_id}")
             return jsonify({'error': 'В вашем словаре недостаточно слов для тренировки'}), 400
 
         # Создаем тесты
+        logger.info(f"[/api/training/start] Создаем тесты для {len(words)} слов")
         ai_client = YandexAIClient()
         test_manager = TestManager(db, ai_client)
 
@@ -1383,11 +1384,14 @@ def api_training_start():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
+        logger.info(f"[/api/training/start] Вызываем create_tests_batch")
         test_ids = loop.run_until_complete(
             test_manager.create_tests_batch(user_id, words)
         )
+        logger.info(f"[/api/training/start] create_tests_batch вернул {len(test_ids) if test_ids else 0} test_ids")
 
         if not test_ids:
+            logger.error(f"[/api/training/start] test_ids пустой!")
             return jsonify({'error': 'Не удалось создать тесты'}), 500
 
         # Получаем тесты с перемешанными вариантами
