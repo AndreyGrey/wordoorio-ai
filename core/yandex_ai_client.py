@@ -478,17 +478,22 @@ class YandexAIClient:
                         logger.info(f"[generate_test_options] result['output'] type: {type(result['output'])}, len: {len(result['output']) if isinstance(result['output'], list) else 'N/A'}")
 
                         if isinstance(result['output'], list) and len(result['output']) > 0:
-                            first_output = result['output'][0]
-                            logger.info(f"[generate_test_options] first_output keys: {first_output.keys() if isinstance(first_output, dict) else 'NOT_DICT'}")
+                            # output[0] - это reasoning/summary, output[1] - это message с content
+                            # Ищем элемент с type='message' и полем content
+                            for output_item in result['output']:
+                                if isinstance(output_item, dict):
+                                    logger.info(f"[generate_test_options] output_item keys: {output_item.keys()}, type: {output_item.get('type')}")
 
-                            content = first_output.get('content', [])
-                            logger.info(f"[generate_test_options] content type: {type(content)}, len: {len(content) if isinstance(content, list) else 'N/A'}")
+                                    if output_item.get('type') == 'message' and 'content' in output_item:
+                                        content = output_item.get('content', [])
+                                        logger.info(f"[generate_test_options] Found message! content type: {type(content)}, len: {len(content) if isinstance(content, list) else 'N/A'}")
 
-                            if isinstance(content, list) and len(content) > 0:
-                                first_content = content[0]
-                                logger.info(f"[generate_test_options] first_content keys: {first_content.keys() if isinstance(first_content, dict) else 'NOT_DICT'}")
-                                response_text = first_content.get('text', '')
-                                logger.info(f"[generate_test_options] Extracted text length: {len(response_text) if response_text else 0}")
+                                        if isinstance(content, list) and len(content) > 0:
+                                            first_content = content[0]
+                                            logger.info(f"[generate_test_options] first_content keys: {first_content.keys() if isinstance(first_content, dict) else 'NOT_DICT'}")
+                                            response_text = first_content.get('text', '')
+                                            logger.info(f"[generate_test_options] Extracted text length: {len(response_text) if response_text else 0}")
+                                            break
 
                     if not response_text:
                         logger.error(f"[generate_test_options] Пустой response_text. Полная структура: {json.dumps(result, ensure_ascii=False)[:3000]}")
