@@ -129,7 +129,14 @@ class WordoorioDatabase:
             return None
 
         # YDB rows are already dict-like objects
-        return dict(result[0].rows[0])
+        row = result[0].rows[0]
+        row_dict = dict(row)
+
+        # DEBUG: логируем структуру для отладки
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"[YDB] _fetch_one row keys: {list(row_dict.keys())}")
+
+        return row_dict
 
     def _fetch_all(self, query: str, parameters: Dict = None) -> List[Dict]:
         """Execute query and return all rows as list of dicts"""
@@ -925,7 +932,16 @@ class WordoorioDatabase:
         """
 
         result = self._fetch_one(query, {'$word_id': word_id})
-        return result['translation'] if result else ""
+        if not result:
+            logger.warning(f"[YDB] Нет перевода для word_id={word_id}")
+            return ""
+
+        # Проверяем наличие ключа translation
+        if 'translation' not in result:
+            logger.error(f"[YDB] Ключ 'translation' не найден в результате: {result.keys()}")
+            return ""
+
+        return result['translation']
 
     def get_random_translations(self, user_id: int, exclude_translation: str, limit: int = 3) -> List[str]:
         """Get random translations from user's dictionary (for fallback test options)"""
@@ -946,7 +962,14 @@ class WordoorioDatabase:
             '$user_id': user_id,
             '$exclude': exclude_translation
         })
-        return [r['translation'] for r in results]
+        # Безопасное извлечение с проверкой ключа
+        translations = []
+        for r in results:
+            if 'translation' in r:
+                translations.append(r['translation'])
+            else:
+                logger.warning(f"[YDB] Ключ 'translation' не найден в результате: {r.keys()}")
+        return translations
 
     def get_random_words_excluding(self, user_id: int, exclude_ids: List[int], limit: int = 8) -> List[Dict]:
         """
