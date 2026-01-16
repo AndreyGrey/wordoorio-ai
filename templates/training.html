@@ -317,14 +317,20 @@
         async function startTraining() {
             try {
                 startBtn.disabled = true;
-                startBtn.textContent = 'Загрузка...';
+                startBtn.textContent = 'Создаем тесты (это может занять до 30 секунд)...';
+
+                // Создаем контроллер для timeout 30 секунд
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
 
                 const response = await fetch('/api/training/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    credentials: 'same-origin'
+                    credentials: 'same-origin',
+                    signal: controller.signal
                 });
 
+                clearTimeout(timeoutId);
                 const data = await response.json();
 
                 if (!response.ok) {
