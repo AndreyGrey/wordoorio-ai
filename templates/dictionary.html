@@ -485,9 +485,6 @@
                         textarea.innerHTML = lemma;
                         lemma = textarea.value;
 
-                        console.log('[setupDeleteButtons] Исходный lemma:', btn.dataset.lemma);
-                        console.log('[setupDeleteButtons] Декодированный lemma:', lemma);
-
                         await deleteWord(lemma, btn);
                     }
                 });
@@ -562,8 +559,6 @@
         }
 
         async function deleteWord(lemma, button) {
-            console.log('[deleteWord] Начало удаления:', lemma, 'button:', button);
-
             if (!confirm(`Удалить "${lemma}" из словаря?`)) {
                 return;
             }
@@ -582,15 +577,12 @@
             `;
 
             try {
-                console.log('[deleteWord] Отправка DELETE запроса для:', lemma);
                 const response = await fetch(`/api/dictionary/word/${encodeURIComponent(lemma)}`, {
                     method: 'DELETE',
                     credentials: 'same-origin'
                 });
 
-                console.log('[deleteWord] Получен ответ:', response.status, response.ok);
                 const data = await response.json();
-                console.log('[deleteWord] Данные ответа:', data);
 
                 // Check BOTH response.ok and data.success for proper error handling
                 if (response.ok && data.success) {
