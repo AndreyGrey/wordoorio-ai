@@ -1010,43 +1010,63 @@ def telegram_webhook():
 
             # start_training
             if data == 'start_training':
-                user = db.get_user_by_telegram_id(telegram_id)
-                if not user:
-                    telegram_edit_message(chat_id, message_id, "❌ Сначала авторизуйтесь: `/login username password`")
-                    return jsonify({'ok': True})
+                try:
+                    user = db.get_user_by_telegram_id(telegram_id)
+                    if not user:
+                        telegram_edit_message(chat_id, message_id, "❌ Сначала авторизуйтесь: `/login username password`")
+                        return jsonify({'ok': True})
 
-                user_id = user['id']
+                    user_id = user['id']
+                    logger.info(f"[TG Webhook] start_training для user_id={user_id}")
 
-                # Импортируем сервисы
-                from core.training_service import TrainingService
-                from core.test_manager import TestManager
-                from core.yandex_ai_client import YandexAIClient
-                import asyncio
+                    # Импортируем сервисы
+                    from core.training_service import TrainingService
+                    from core.test_manager import TestManager
+                    from core.yandex_ai_client import YandexAIClient
+                    import asyncio
 
-                training_service = TrainingService(db)
-                words = training_service.select_words_for_training(user_id, count=8)
+                    training_service = TrainingService(db)
+                    words = training_service.select_words_for_training(user_id, count=8)
+                    logger.info(f"[TG Webhook] Отобрано слов: {len(words) if words else 0}")
 
-                if not words:
-                    telegram_edit_message(chat_id, message_id, "📚 В твоем словаре пока нет слов.\n\nДобавь слова через веб-интерфейс!")
-                    return jsonify({'ok': True})
+                    if not words:
+                        telegram_edit_message(chat_id, message_id, "📚 В твоем словаре пока нет слов.\n\nДобавь слова через веб-интерфейс!")
+                        return jsonify({'ok': True})
 
-                telegram_edit_message(chat_id, message_id, f"⏳ Генерирую тесты...\n\nСлов: {len(words)}")
+                    # Проверяем минимальное количество слов
+                    MIN_WORDS = 4
+                    if len(words) < MIN_WORDS:
+                        telegram_edit_message(
+                            chat_id, message_id,
+                            f"📚 В словаре недостаточно слов для тренировки.\n\n"
+                            f"Сейчас: {len(words)} слов\n"
+                            f"Минимум: {MIN_WORDS} слова\n\n"
+                            f"Добавь ещё слов через веб-интерфейс!"
+                        )
+                        return jsonify({'ok': True})
 
-                # Создаем тесты
-                ai_client = YandexAIClient()
-                test_manager = TestManager(db, ai_client)
+                    telegram_edit_message(chat_id, message_id, f"⏳ Генерирую тесты...\n\nСлов: {len(words)}")
 
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                test_ids = loop.run_until_complete(test_manager.create_tests_batch(user_id, words))
-                loop.close()
+                    # Создаем тесты
+                    ai_client = YandexAIClient()
+                    test_manager = TestManager(db, ai_client)
 
-                if not test_ids:
-                    telegram_edit_message(chat_id, message_id, "⚠️ Не удалось создать тесты.")
-                    return jsonify({'ok': True})
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    test_ids = loop.run_until_complete(test_manager.create_tests_batch(user_id, words))
+                    loop.close()
+                    logger.info(f"[TG Webhook] Создано тестов: {len(test_ids) if test_ids else 0}")
 
-                # Отправляем первый тест
-                send_telegram_test(chat_id, message_id, test_manager, test_ids, 0)
+                    if not test_ids:
+                        telegram_edit_message(chat_id, message_id, "⚠️ Не удалось создать тесты. Попробуй ещё раз.")
+                        return jsonify({'ok': True})
+
+                    # Отправляем первый тест
+                    send_telegram_test(chat_id, message_id, test_manager, test_ids, 0)
+
+                except Exception as e:
+                    logger.error(f"[TG Webhook] Ошибка start_training: {e}", exc_info=True)
+                    telegram_edit_message(chat_id, message_id, f"⚠️ Произошла ошибка при запуске тренировки.\n\nПопробуй ещё раз позже.")
 
             # answer_X_Y (ответ на тест)
             elif data.startswith('answer_'):
