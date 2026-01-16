@@ -1068,9 +1068,11 @@ def telegram_webhook():
                     import traceback
                     error_details = str(e)[:200]  # Первые 200 символов ошибки
                     logger.error(f"[TG Webhook] Ошибка start_training: {e}", exc_info=True)
+                    keyboard = {'inline_keyboard': [[{'text': '🔄 Попробовать снова', 'callback_data': 'start_training'}]]}
                     telegram_edit_message(
                         chat_id, message_id,
-                        f"⚠️ Ошибка при запуске тренировки:\n\n`{error_details}`\n\nПопробуй ещё раз позже."
+                        f"⚠️ Ошибка при запуске тренировки:\n\n`{error_details}`",
+                        reply_markup=keyboard
                     )
 
             # answer_X_Y (ответ на тест)
