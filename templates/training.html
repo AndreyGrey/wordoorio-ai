@@ -285,37 +285,11 @@
 
         .empty-state {
             text-align: center;
-            padding: var(--spacing-16) var(--spacing-6);
-            animation: fadeInUp 0.6s ease-out;
-        }
-
-        .empty-state-icon {
-            font-size: 5rem;
-            margin-bottom: var(--spacing-6);
-            animation: float 3s ease-in-out infinite;
-            display: inline-block;
-        }
-
-        .empty-state h2 {
-            font-size: var(--font-size-2xl);
-            font-weight: var(--font-weight-bold);
-            color: var(--color-text-primary);
-            margin-bottom: var(--spacing-4);
-        }
-
-        .empty-state-subtitle {
-            font-size: var(--font-size-lg);
-            color: var(--color-text-secondary);
-            margin-bottom: var(--spacing-3);
-            font-weight: var(--font-weight-medium);
-        }
-
-        .empty-state-description {
-            color: var(--color-text-muted);
-            font-size: var(--font-size-base);
-            margin: var(--spacing-6) auto;
-            max-width: 400px;
-            line-height: var(--line-height-relaxed);
+            padding: var(--spacing-12) var(--spacing-6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px;
         }
 
         @keyframes float {
@@ -509,12 +483,6 @@
 
         <!-- Пустое состояние / Загрузка -->
         <div id="empty-state" class="card card-lg training-card empty-state">
-            <div class="empty-state-icon">?</div>
-            <h2>Проверим твои знания?</h2>
-            <p class="empty-state-subtitle">8 слов, 2 минуты, максимум пользы</p>
-            <p class="empty-state-description">
-                Умный алгоритм выберет именно те слова, которые нужно повторить прямо сейчас
-            </p>
             <button id="start-btn" class="btn btn-primary btn-lg">Начать тренировку</button>
         </div>
     </div>
@@ -584,8 +552,8 @@
                 emptyState.innerHTML = `
                     <div class="loading-state">
                         <div class="loading-spinner"></div>
-                        <h3 class="loading-title">Готовим твои тесты...</h3>
-                        <p class="loading-subtitle">Искусственный интеллект подбирает идеальные варианты ответов</p>
+                        <h3 class="loading-title">Generating tests...</h3>
+                        <p class="loading-subtitle">AI is analyzing your vocabulary</p>
                         <div class="loading-tips">${randomTip}</div>
                     </div>
                 `;
