@@ -71,7 +71,11 @@ class TestManager:
             logger.info(f"[TestManager] AI вернул {len(response['tests'])} тестов")
 
         except Exception as e:
-            logger.warning(f"[TestManager] Ошибка генерации тестов через AI: {e}, используем fallback")
+            logger.error(f"[TestManager] Ошибка генерации тестов через AI: {e}")
+            logger.error(f"[TestManager] Детали ошибки: {type(e).__name__}: {str(e)}")
+            import traceback
+            logger.error(f"[TestManager] Traceback:\n{traceback.format_exc()}")
+            logger.warning(f"[TestManager] Используем fallback для генерации вариантов")
             # Fallback: используем случайные переводы из словаря пользователя
             response = self._generate_fallback_options(user_id, words_data)
 
