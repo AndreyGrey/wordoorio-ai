@@ -1065,8 +1065,13 @@ def telegram_webhook():
                     send_telegram_test(chat_id, message_id, test_manager, test_ids, 0)
 
                 except Exception as e:
+                    import traceback
+                    error_details = str(e)[:200]  # Первые 200 символов ошибки
                     logger.error(f"[TG Webhook] Ошибка start_training: {e}", exc_info=True)
-                    telegram_edit_message(chat_id, message_id, f"⚠️ Произошла ошибка при запуске тренировки.\n\nПопробуй ещё раз позже.")
+                    telegram_edit_message(
+                        chat_id, message_id,
+                        f"⚠️ Ошибка при запуске тренировки:\n\n`{error_details}`\n\nПопробуй ещё раз позже."
+                    )
 
             # answer_X_Y (ответ на тест)
             elif data.startswith('answer_'):
