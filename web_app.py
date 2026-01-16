@@ -24,6 +24,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Устанавливаем уровень INFO для всех логгеров (включая core.yandex_ai_client)
+logging.getLogger('core.yandex_ai_client').setLevel(logging.INFO)
+logging.getLogger('core.test_manager').setLevel(logging.INFO)
+logging.getLogger('core.training_service').setLevel(logging.INFO)
+
 # Добавляем путь к агентам
 sys.path.append('.')
 
