@@ -8,7 +8,7 @@ import os
 import asyncio
 import logging
 from typing import Dict
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -337,6 +337,44 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Update {update} caused error {context.error}")
 
 
+async def post_init(application: Application):
+    """Инициализация после запуска бота"""
+    # Регистрируем команды бота
+    commands = [
+        BotCommand("start", "🚀 Начать работу с ботом"),
+        BotCommand("login", "🔑 Привязать аккаунт (login password)"),
+        BotCommand("train", "💪 Начать тренировку слов"),
+    ]
+    await application.bot.set_my_commands(commands)
+    logger.info("✅ Команды бота зарегистрированы")
+
+
+async def train_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды /train - быстрый запуск тренировки"""
+    telegram_id = update.effective_user.id
+
+    # Получаем пользователя по telegram_id
+    user = db.get_user_by_telegram_id(telegram_id)
+
+    if not user:
+        await update.message.reply_text(
+            "❌ Сначала авторизуйтесь командой:\n"
+            "`/login username password`",
+            parse_mode='Markdown'
+        )
+        return
+
+    # Показываем кнопку для запуска
+    keyboard = [[InlineKeyboardButton("НАЧАТЬ 🚀", callback_data="start_training")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        "💪 Готов потренировать слова?\n\n"
+        "Нажми кнопку ниже для запуска теста из 8 слов.",
+        reply_markup=reply_markup
+    )
+
+
 def main():
     """Запуск бота"""
     # Получаем токен бота
@@ -350,11 +388,12 @@ def main():
     db.ensure_test_users_exist()
 
     # Создаем приложение
-    app = Application.builder().token(token).build()
+    app = Application.builder().token(token).post_init(post_init).build()
 
     # Регистрируем обработчики
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("login", login_command))
+    app.add_handler(CommandHandler("train", train_command))
     app.add_handler(CallbackQueryHandler(start_training_callback, pattern="^start_training$"))
     app.add_handler(CallbackQueryHandler(answer_callback, pattern="^answer_"))
 

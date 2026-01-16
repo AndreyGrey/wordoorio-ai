@@ -997,6 +997,24 @@ def telegram_webhook():
                         else:
                             telegram_send_message(chat_id, "❌ Ошибка привязки. Попробуй позже.")
 
+            # /train
+            elif text.startswith('/train'):
+                user = db.get_user_by_telegram_id(telegram_id)
+                if user:
+                    keyboard = {'inline_keyboard': [[{'text': 'НАЧАТЬ 🚀', 'callback_data': 'start_training'}]]}
+                    telegram_send_message(
+                        chat_id,
+                        "💪 Готов потренировать слова?\n\n"
+                        "Нажми кнопку ниже для запуска теста из 8 слов.",
+                        reply_markup=keyboard
+                    )
+                else:
+                    telegram_send_message(
+                        chat_id,
+                        "❌ Сначала авторизуйтесь командой:\n"
+                        "`/login username password`"
+                    )
+
         # Обработка callback_query (нажатия кнопок)
         elif 'callback_query' in update:
             callback = update['callback_query']
@@ -1033,14 +1051,14 @@ def telegram_webhook():
                         telegram_edit_message(chat_id, message_id, "📚 В твоем словаре пока нет слов.\n\nДобавь слова через веб-интерфейс!")
                         return jsonify({'ok': True})
 
-                    # Проверяем минимальное количество слов
-                    MIN_WORDS = 4
+                    # Проверяем минимальное количество слов (хотя бы 1 слово)
+                    MIN_WORDS = 1
                     if len(words) < MIN_WORDS:
                         telegram_edit_message(
                             chat_id, message_id,
                             f"📚 В словаре недостаточно слов для тренировки.\n\n"
                             f"Сейчас: {len(words)} слов\n"
-                            f"Минимум: {MIN_WORDS} слова\n\n"
+                            f"Минимум: {MIN_WORDS} слово\n\n"
                             f"Добавь ещё слов через веб-интерфейс!"
                         )
                         return jsonify({'ok': True})
@@ -1178,6 +1196,49 @@ def telegram_set_webhook():
             return jsonify({
                 'success': True,
                 'message': f'Webhook установлен: {webhook_url}',
+                'telegram_response': result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('description', 'Unknown error'),
+                'telegram_response': result
+            }), 400
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/telegram/set-commands', methods=['GET'])
+def telegram_set_commands():
+    """
+    Установить команды бота в меню Telegram
+    Вызывать после деплоя: /telegram/set-commands
+    """
+    import requests
+
+    commands = [
+        {"command": "start", "description": "🚀 Начать работу с ботом"},
+        {"command": "login", "description": "🔑 Привязать аккаунт (login password)"},
+        {"command": "train", "description": "💪 Начать тренировку слов"},
+    ]
+
+    try:
+        resp = requests.post(
+            f"{TELEGRAM_API_URL}/setMyCommands",
+            json={'commands': commands},
+            timeout=10
+        )
+        result = resp.json()
+
+        if result.get('ok'):
+            return jsonify({
+                'success': True,
+                'message': 'Команды бота установлены',
+                'commands': commands,
                 'telegram_response': result
             })
         else:

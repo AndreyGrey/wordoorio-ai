@@ -49,6 +49,7 @@ class TrainingService:
         max_iterations = 20  # Защита от бесконечного цикла
 
         # Продолжаем отбирать, пока не наберем нужное количество
+        completed_full_cycle = False
         while len(selected_words) < count and iterations < max_iterations:
             iterations += 1
             # Получаем слова по текущему шагу через YDB
@@ -69,10 +70,27 @@ class TrainingService:
             # Переходим к следующему шагу (циклически)
             position = (position % 8) + 1
 
-            # Защита от бесконечного цикла (если слов вообще нет)
-            if position == current_position and not step_words:
-                logger.warning(f"[TrainingService] Прошли полный цикл, но слов не найдено. Выход.")
+            # Проверяем, завершили ли полный цикл
+            if position == current_position:
+                completed_full_cycle = True
+                logger.info(f"[TrainingService] Завершен полный цикл из 8 шагов. Отобрано {len(selected_words)} слов.")
                 break
+
+        # Если после полного цикла недостаточно слов, добираем случайными словами
+        if len(selected_words) < count and completed_full_cycle:
+            logger.info(f"[TrainingService] Добираем оставшиеся слова случайным образом...")
+
+            # Получаем ID уже выбранных слов
+            selected_ids = [w['id'] for w in selected_words]
+
+            # Получаем случайные слова, которые еще не выбраны
+            remaining_count = count - len(selected_words)
+            random_words = self.db.get_random_words_excluding(user_id, selected_ids, remaining_count)
+
+            for word in random_words:
+                word['rating'] = word.get('rating') or 0
+                selected_words.append(word)
+                logger.info(f"[TrainingService] Добавлено случайное слово: {word.get('lemma', '?')} (status={word.get('status', '?')})")
 
         logger.info(f"[TrainingService] Итого отобрано {len(selected_words)} слов за {iterations} итераций")
 

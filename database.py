@@ -948,6 +948,38 @@ class WordoorioDatabase:
         })
         return [r['translation'] for r in results]
 
+    def get_random_words_excluding(self, user_id: int, exclude_ids: List[int], limit: int = 8) -> List[Dict]:
+        """
+        Get random words excluding specific IDs
+
+        Args:
+            user_id: User ID
+            exclude_ids: List of word IDs to exclude
+            limit: Maximum number of words to return
+
+        Returns:
+            List of random words
+        """
+        if not exclude_ids:
+            exclude_ids = [0]  # Dummy value to avoid empty list
+
+        # YDB doesn't support IN with lists directly in DECLARE, so we use a different approach
+        # Build the query dynamically with the exclude list
+        exclude_str = ', '.join([str(id) for id in exclude_ids])
+
+        query = f"""
+        DECLARE $user_id AS Uint64?;
+
+        SELECT *
+        FROM dictionary_words
+        WHERE user_id = $user_id
+          AND id NOT IN ({exclude_str})
+        ORDER BY Random(TableRow())
+        LIMIT {limit}
+        """
+
+        return self._fetch_all(query, {'$user_id': user_id})
+
     # ====================
     # User/Auth Methods
     # ====================
