@@ -876,7 +876,7 @@ class WordoorioDatabase:
             FROM dictionary_words
             WHERE user_id = $user_id
               AND status = 'learning'
-            ORDER BY COALESCE(rating, 0) DESC, RANDOM()
+            ORDER BY COALESCE(rating, 0) DESC, Random(TableRow())
             LIMIT 1
             """
             return self._fetch_all(query, {'$user_id': user_id})
@@ -905,7 +905,7 @@ class WordoorioDatabase:
             SELECT *
             FROM dictionary_words
             WHERE user_id = $user_id AND status = 'learned'
-            ORDER BY RANDOM()
+            ORDER BY Random(TableRow())
             LIMIT 1
             """
             return self._fetch_all(query, {'$user_id': user_id})
@@ -938,7 +938,7 @@ class WordoorioDatabase:
         JOIN dictionary_words dw ON dt.word_id = dw.id
         WHERE dw.user_id = $user_id
           AND dt.translation != $exclude
-        ORDER BY RANDOM()
+        ORDER BY Random(TableRow())
         LIMIT {limit}
         """
 
