@@ -8,11 +8,20 @@ import os
 import asyncio
 import logging
 from typing import Dict
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    BotCommand,
+    ReplyKeyboardMarkup,
+    KeyboardButton
+)
 from telegram.ext import (
     Application,
     CommandHandler,
     CallbackQueryHandler,
+    MessageHandler,
+    filters,
     ContextTypes
 )
 from dotenv import load_dotenv
@@ -47,6 +56,15 @@ TEST_ACCOUNTS = {
 }
 
 
+def get_main_keyboard():
+    """Создать основную клавиатуру с кнопками"""
+    keyboard = [
+        [KeyboardButton("💪 Начать тренировку")],
+        [KeyboardButton("📊 Моя статистика"), KeyboardButton("📚 Мой словарь")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""
     telegram_id = update.effective_user.id
@@ -55,16 +73,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = db.get_user_by_telegram_id(telegram_id)
 
     if user:
-        # Пользователь уже авторизован
-        keyboard = [[InlineKeyboardButton("НАЧАТЬ 🚀", callback_data="start_training")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
+        # Пользователь уже авторизован - показываем основную клавиатуру
         username = user.get('username', 'пользователь')
         await update.message.reply_text(
             f"Привет, {username}! 👋\n\n"
             "Готов потренировать английские слова из твоего словаря?\n\n"
-            "Нажми НАЧАТЬ для запуска теста из 8 слов.",
-            reply_markup=reply_markup
+            "Используй кнопки ниже для быстрого доступа:",
+            reply_markup=get_main_keyboard()
         )
     else:
         # Нужна авторизация
@@ -124,13 +139,11 @@ async def login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     success = db.link_telegram_to_user(user_id, telegram_id)
 
     if success:
-        keyboard = [[InlineKeyboardButton("НАЧАТЬ ТРЕНИРОВКУ 🚀", callback_data="start_training")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
         await update.message.reply_text(
             f"✅ Отлично! Telegram привязан к аккаунту `{username}`.\n\n"
-            "Теперь можешь тренировать слова!",
-            reply_markup=reply_markup,
+            "Теперь можешь тренировать слова!\n\n"
+            "Используй кнопки ниже для быстрого доступа:",
+            reply_markup=get_main_keyboard(),
             parse_mode='Markdown'
         )
     else:
@@ -332,6 +345,52 @@ async def answer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_next_test(query, context)
 
 
+async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик текстовых сообщений (кнопки клавиатуры)"""
+    text = update.message.text
+    telegram_id = update.effective_user.id
+
+    # Проверяем авторизацию
+    user = db.get_user_by_telegram_id(telegram_id)
+    if not user:
+        await update.message.reply_text(
+            "❌ Сначала авторизуйтесь командой:\n"
+            "`/login username password`",
+            parse_mode='Markdown'
+        )
+        return
+
+    # Обработка кнопок
+    if text == "💪 Начать тренировку":
+        # Показываем inline кнопку для запуска
+        keyboard = [[InlineKeyboardButton("НАЧАТЬ 🚀", callback_data="start_training")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            "💪 Готов потренировать слова?\n\n"
+            "Нажми кнопку ниже для запуска теста из 8 слов.",
+            reply_markup=reply_markup
+        )
+
+    elif text == "📊 Моя статистика":
+        # Получаем статистику пользователя
+        # TODO: Реализовать получение статистики из БД
+        await update.message.reply_text(
+            "📊 Статистика:\n\n"
+            "Эта функция в разработке...",
+            reply_markup=get_main_keyboard()
+        )
+
+    elif text == "📚 Мой словарь":
+        # Показываем информацию о словаре
+        # TODO: Получить реальные данные из БД
+        await update.message.reply_text(
+            "📚 Твой словарь:\n\n"
+            "Эта функция в разработке...\n\n"
+            "Добавляй слова через веб-интерфейс!",
+            reply_markup=get_main_keyboard()
+        )
+
+
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик ошибок"""
     logger.error(f"Update {update} caused error {context.error}")
@@ -396,6 +455,9 @@ def main():
     app.add_handler(CommandHandler("train", train_command))
     app.add_handler(CallbackQueryHandler(start_training_callback, pattern="^start_training$"))
     app.add_handler(CallbackQueryHandler(answer_callback, pattern="^answer_"))
+
+    # Обработчик текстовых сообщений (кнопки клавиатуры)
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
 
     # Обработчик ошибок
     app.add_error_handler(error_handler)
