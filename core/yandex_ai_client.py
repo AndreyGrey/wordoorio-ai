@@ -460,6 +460,9 @@ class YandexAIClient:
 
                     result = await response.json()
 
+                    # Логируем RAW ответ для диагностики
+                    logger.info(f"[generate_test_options] RAW response: {json.dumps(result, ensure_ascii=False)[:500]}")
+
                     # Извлекаем текст ответа
                     response_text = None
                     if 'output' in result and result['output']:
@@ -469,6 +472,7 @@ class YandexAIClient:
                                 response_text = content[0].get('text', '')
 
                     if not response_text:
+                        logger.error(f"[generate_test_options] Пустой response_text. Полная структура result: {json.dumps(result, ensure_ascii=False)}")
                         raise Exception(f"Пустой ответ от агента")
 
                     # Парсим JSON из ответа
