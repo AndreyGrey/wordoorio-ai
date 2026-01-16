@@ -555,6 +555,7 @@ class DictionaryManager:
                     'translations': ['сдаться', 'бросить'],
                     'examples_count': 3,
                     'status': 'new',
+                    'rating': 0,
                     'added_at': '2024-12-09T10:00:00'
                 }
             ]
@@ -564,7 +565,7 @@ class DictionaryManager:
             words_query = """
             DECLARE $user_id AS Uint64?;
 
-            SELECT id, lemma, type, status, added_at
+            SELECT id, lemma, type, status, rating, added_at
             FROM dictionary_words
             WHERE user_id = $user_id
             ORDER BY added_at DESC
@@ -572,7 +573,7 @@ class DictionaryManager:
             word_rows = self._fetch_all(words_query, {'$user_id': user_id})
         else:
             words_query = """
-            SELECT id, lemma, type, status, added_at
+            SELECT id, lemma, type, status, rating, added_at
             FROM dictionary_words
             WHERE user_id IS NULL
             ORDER BY added_at DESC
@@ -585,6 +586,7 @@ class DictionaryManager:
             lemma = row['lemma']
             word_type = row['type']
             status = row['status']
+            rating = row.get('rating', 0)
             added_at = row['added_at']
 
             # Получаем переводы
@@ -614,6 +616,7 @@ class DictionaryManager:
                 'translations': translations,
                 'examples_count': examples_count,
                 'status': status,
+                'rating': rating,
                 'added_at': added_at
             })
 

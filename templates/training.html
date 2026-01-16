@@ -714,7 +714,7 @@
 
             resultFeedback.style.display = 'block';
 
-            // Отправляем результат на сервер в фоне (не ждем ответа)
+            // Отправляем результат на сервер (но не блокируем UI)
             fetch('/api/training/answer', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -723,9 +723,13 @@
                     test_id: test.test_id,
                     answer: selectedOption.text
                 })
+            }).then(response => {
+                if (!response.ok) {
+                    console.error('Ошибка сохранения ответа');
+                }
             }).catch(err => console.error('Ошибка отправки ответа:', err));
 
-            // Переходим к следующему тесту через 4 секунды (увеличено время для запоминания)
+            // Переходим к следующему тесту через 4 секунды
             setTimeout(() => {
                 currentTestIndex++;
                 showTest();
