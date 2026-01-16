@@ -477,8 +477,17 @@
             deleteButtons.forEach(btn => {
                 btn.addEventListener('click', async (event) => {
                     event.stopPropagation();
-                    const lemma = btn.dataset.lemma;
+                    // Получаем lemma и декодируем HTML entities
+                    let lemma = btn.dataset.lemma;
                     if (lemma) {
+                        // Декодируем HTML entities (например, &amp; -> &)
+                        const textarea = document.createElement('textarea');
+                        textarea.innerHTML = lemma;
+                        lemma = textarea.value;
+
+                        console.log('[setupDeleteButtons] Исходный lemma:', btn.dataset.lemma);
+                        console.log('[setupDeleteButtons] Декодированный lemma:', lemma);
+
                         await deleteWord(lemma, btn);
                     }
                 });
