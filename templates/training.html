@@ -212,133 +212,62 @@
 
         .result-feedback {
             text-align: center;
-            padding: var(--spacing-6);
-            border-radius: var(--radius-lg);
-            margin-top: var(--spacing-6);
-            font-weight: var(--font-weight-semibold);
-            animation: slideUp 0.3s ease-out;
-            border: 2px solid transparent;
+            padding: var(--spacing-4);
+            border-radius: var(--radius-md);
+            margin-top: var(--spacing-4);
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-medium);
+            animation: fadeIn 0.2s ease-out;
         }
 
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         .result-feedback.correct {
             background: var(--color-success);
             color: var(--color-success-text);
-            border-color: var(--color-primary);
         }
 
         .result-feedback.incorrect {
             background: var(--color-error);
             color: var(--color-error-text);
-            border-color: #e53e3e;
-        }
-
-        .feedback-icon {
-            font-size: 2.5rem;
-            margin-bottom: var(--spacing-3);
-            display: block;
         }
 
         .feedback-message {
-            font-size: var(--font-size-lg);
-            font-weight: var(--font-weight-bold);
-            margin-bottom: var(--spacing-2);
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-medium);
         }
 
-        .feedback-submessage {
-            font-size: var(--font-size-sm);
-            opacity: 0.9;
-        }
-
-        .word-stats {
-            display: flex;
-            justify-content: space-around;
-            margin-top: var(--spacing-4);
-            padding-top: var(--spacing-4);
-            border-top: 2px solid var(--color-border-light);
-        }
-
-        .stat {
-            text-align: center;
-        }
-
-        .stat-label {
-            font-size: var(--font-size-sm);
-            color: var(--color-text-muted);
-            display: block;
-        }
-
-        .stat-value {
-            font-size: var(--font-size-xl);
-            font-weight: var(--font-weight-bold);
-            color: var(--color-primary);
-            display: block;
-            margin-top: var(--spacing-1);
-        }
 
         .completion-screen {
             text-align: center;
-            padding: var(--spacing-12) var(--spacing-6);
+            padding: var(--spacing-8) var(--spacing-6);
             animation: fadeInUp 0.6s ease-out;
         }
 
-        .completion-icon {
-            font-size: 5rem;
-            margin-bottom: var(--spacing-6);
-            animation: celebration 1s ease-out;
-            display: inline-block;
-        }
-
-        @keyframes celebration {
-            0%, 100% { transform: scale(1) rotate(0deg); }
-            25% { transform: scale(1.2) rotate(-10deg); }
-            50% { transform: scale(1.1) rotate(10deg); }
-            75% { transform: scale(1.2) rotate(-10deg); }
-        }
-
         .completion-title {
-            font-size: var(--font-size-2xl);
+            font-size: var(--font-size-xl);
             color: var(--color-text-primary);
-            font-weight: var(--font-weight-bold);
-            margin-bottom: var(--spacing-3);
-        }
-
-        .completion-subtitle {
-            font-size: var(--font-size-lg);
-            color: var(--color-text-secondary);
+            font-weight: var(--font-weight-semibold);
             margin-bottom: var(--spacing-6);
         }
 
         .completion-stats {
-            background: linear-gradient(135deg, #f7fafc 0%, #ffffff 100%);
-            padding: var(--spacing-6);
-            border-radius: var(--radius-lg);
             margin: var(--spacing-6) 0;
-            border: 2px solid var(--color-border-light);
         }
 
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: var(--spacing-4);
-            margin-top: var(--spacing-4);
         }
 
         .stat-box {
             padding: var(--spacing-4);
-            background: var(--color-bg-white);
+            background: var(--color-bg-light);
             border-radius: var(--radius-md);
-            border: 1px solid var(--color-border-light);
         }
 
         .stat-box-value {
@@ -346,21 +275,12 @@
             font-weight: var(--font-weight-bold);
             color: var(--color-primary);
             display: block;
+            margin-bottom: var(--spacing-1);
         }
 
         .stat-box-label {
             font-size: var(--font-size-sm);
             color: var(--color-text-muted);
-            margin-top: var(--spacing-2);
-        }
-
-        .completion-message {
-            background: var(--color-success);
-            color: var(--color-success-text);
-            padding: var(--spacing-4);
-            border-radius: var(--radius-md);
-            margin: var(--spacing-6) 0;
-            font-weight: var(--font-weight-medium);
         }
 
         .empty-state {
@@ -533,8 +453,7 @@
 
     <div class="container">
         <div class="training-header">
-            <h1>Тренировка слов</h1>
-            <p>Проверьте свои знания английских слов</p>
+            <h1>Тренировка</h1>
         </div>
 
         <!-- Прогресс -->
@@ -561,24 +480,12 @@
             <!-- Результат ответа -->
             <div id="result-feedback" class="result-feedback" style="display: none;">
                 <div id="feedback-text"></div>
-                <div class="word-stats">
-                    <div class="stat">
-                        <span class="stat-label">Рейтинг</span>
-                        <span id="stat-rating" class="stat-value">-</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Статус</span>
-                        <span id="stat-status" class="stat-value">-</span>
-                    </div>
-                </div>
             </div>
         </div>
 
         <!-- Экран завершения -->
         <div id="completion-screen" class="card card-lg training-card completion-screen" style="display: none;">
-            <div class="completion-icon">✓</div>
-            <h2 class="completion-title">Поздравляем!</h2>
-            <p class="completion-subtitle">Ты прошел все 8 тестов</p>
+            <h2 class="completion-title">Тренировка завершена</h2>
 
             <div class="completion-stats">
                 <div class="stats-grid">
@@ -597,9 +504,7 @@
                 </div>
             </div>
 
-            <div id="completion-message" class="completion-message"></div>
-
-            <button id="restart-btn" class="btn btn-primary btn-lg">Еще раунд!</button>
+            <button id="restart-btn" class="btn btn-primary btn-lg">Начать новую тренировку</button>
         </div>
 
         <!-- Пустое состояние / Загрузка -->
@@ -767,100 +672,64 @@
                 const btn = document.createElement('button');
                 btn.className = 'option-btn';
                 btn.textContent = option.text;
-                btn.onclick = () => submitAnswer(test.test_id, option.text, btn);
+                btn.dataset.isCorrect = option.is_correct;
+                btn.onclick = () => submitAnswer(test, option, btn);
                 optionsContainer.appendChild(btn);
             });
         }
 
-        async function submitAnswer(testId, selectedOption, buttonElement) {
-            try {
-                // Блокируем все кнопки
-                const allButtons = optionsContainer.querySelectorAll('.option-btn');
-                allButtons.forEach(btn => btn.disabled = true);
+        async function submitAnswer(test, selectedOption, buttonElement) {
+            // Блокируем все кнопки
+            const allButtons = optionsContainer.querySelectorAll('.option-btn');
+            allButtons.forEach(btn => btn.disabled = true);
 
-                const response = await fetch('/api/training/answer', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'same-origin',
-                    body: JSON.stringify({
-                        test_id: testId,
-                        answer: selectedOption
-                    })
-                });
+            const isCorrect = selectedOption.is_correct;
 
-                const result = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(result.error || 'Ошибка отправки ответа');
-                }
-
-                // Подсчитываем статистику
-                if (result.is_correct) {
-                    correctAnswers++;
-                } else {
-                    incorrectAnswers++;
-                }
-
-                // Показываем результат с эмоциями
-                if (result.is_correct) {
-                    buttonElement.classList.add('correct');
-                    resultFeedback.className = 'result-feedback correct';
-
-                    const encouragements = [
-                        { text: 'Отлично!', sub: 'Ты на верном пути!' },
-                        { text: 'Супер!', sub: 'Продолжай в том же духе!' },
-                        { text: 'Правильно!', sub: 'Так держать!' },
-                        { text: 'Класс!', sub: 'У тебя получается!' },
-                        { text: 'Великолепно!', sub: 'Ты молодец!' }
-                    ];
-                    const random = encouragements[Math.floor(Math.random() * encouragements.length)];
-
-                    feedbackText.innerHTML = `
-                        <div class="feedback-message">${random.text}</div>
-                        <div class="feedback-submessage">${random.sub}</div>
-                    `;
-                } else {
-                    buttonElement.classList.add('incorrect');
-                    resultFeedback.className = 'result-feedback incorrect';
-
-                    const supports = [
-                        { text: 'Почти!', sub: 'Ничего страшного, учимся на ошибках' },
-                        { text: 'Не страшно!', sub: 'В следующий раз точно получится' },
-                        { text: 'Бывает!', sub: 'Главное — запомнить правильный ответ' }
-                    ];
-                    const random = supports[Math.floor(Math.random() * supports.length)];
-
-                    feedbackText.innerHTML = `
-                        <div class="feedback-message">${random.text}</div>
-                        <div class="feedback-submessage">${random.sub}</div>
-                        <div style="margin-top: var(--spacing-4); padding: var(--spacing-3); background: rgba(255,255,255,0.2); border-radius: var(--radius-md);">
-                            <strong>Правильный ответ:</strong> ${result.correct_translation}
-                        </div>
-                    `;
-                }
-
-                // Показываем статистику
-                const statusNames = {
-                    'new': 'Новое',
-                    'learning': 'Учу',
-                    'learned': 'Выучено'
-                };
-                statRating.textContent = `${result.new_rating}/10`;
-                statStatus.textContent = statusNames[result.new_status] || result.new_status;
-                resultFeedback.style.display = 'block';
-
-                // Переходим к следующему тесту через 2 секунды
-                setTimeout(() => {
-                    currentTestIndex++;
-                    showTest();
-                }, 2000);
-
-            } catch (error) {
-                alert(error.message);
-                // Разблокируем кнопки при ошибке
-                const allButtons = optionsContainer.querySelectorAll('.option-btn');
-                allButtons.forEach(btn => btn.disabled = false);
+            // Подсчитываем статистику
+            if (isCorrect) {
+                correctAnswers++;
+            } else {
+                incorrectAnswers++;
             }
+
+            // Находим правильный ответ
+            const correctOption = test.options.find(opt => opt.is_correct);
+            const correctButton = Array.from(allButtons).find(btn => btn.dataset.isCorrect === 'true');
+
+            // Показываем результат МГНОВЕННО
+            if (isCorrect) {
+                buttonElement.classList.add('correct');
+                resultFeedback.className = 'result-feedback correct';
+                feedbackText.innerHTML = `<div class="feedback-message">Правильно</div>`;
+            } else {
+                buttonElement.classList.add('incorrect');
+                if (correctButton) {
+                    correctButton.classList.add('correct');
+                }
+                resultFeedback.className = 'result-feedback incorrect';
+                feedbackText.innerHTML = `
+                    <div class="feedback-message">Правильный ответ: ${correctOption.text}</div>
+                `;
+            }
+
+            resultFeedback.style.display = 'block';
+
+            // Отправляем результат на сервер в фоне (не ждем ответа)
+            fetch('/api/training/answer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    test_id: test.test_id,
+                    answer: selectedOption.text
+                })
+            }).catch(err => console.error('Ошибка отправки ответа:', err));
+
+            // Переходим к следующему тесту через 4 секунды (увеличено время для запоминания)
+            setTimeout(() => {
+                currentTestIndex++;
+                showTest();
+            }, 4000);
         }
 
         function showCompletion() {
@@ -876,18 +745,6 @@
             document.getElementById('correct-count').textContent = correctAnswers;
             document.getElementById('incorrect-count').textContent = incorrectAnswers;
             document.getElementById('accuracy-percent').textContent = accuracy + '%';
-
-            // Показываем мотивационное сообщение в зависимости от результата
-            const messageEl = document.getElementById('completion-message');
-            if (accuracy === 100) {
-                messageEl.innerHTML = '<strong>Идеально!</strong> Ты знаешь все слова на отлично!';
-            } else if (accuracy >= 75) {
-                messageEl.innerHTML = '<strong>Отличный результат!</strong> Ты большой молодец, продолжай в том же духе!';
-            } else if (accuracy >= 50) {
-                messageEl.innerHTML = '<strong>Хороший прогресс!</strong> Ты на правильном пути, повторение — мать учения!';
-            } else {
-                messageEl.innerHTML = '<strong>Начало положено!</strong> Не останавливайся, с каждой тренировкой будет лучше!';
-            }
         }
     </script>
 </body>

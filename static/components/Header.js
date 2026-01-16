@@ -47,9 +47,9 @@ function createUnifiedHeader(user = null) {
                     <img src="/static/images/wordoorio-logo.svg" alt="Wordoorio" class="logo-img">
                 </a>
                 <nav class="site-nav">
-                    <a href="/analyze" class="nav-item">Новый анализ</a>
                     <a href="/my-highlights" class="nav-item">Хайлайты</a>
                     <a href="/dictionary" class="nav-item">Словарь</a>
+                    <a href="/training" class="nav-item">Тренировка</a>
                 </nav>
             </div>
             ${authSection}
