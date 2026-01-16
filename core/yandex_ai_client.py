@@ -431,20 +431,18 @@ class YandexAIClient:
         # Подготавливаем входные данные (как JSON строку)
         input_data = json.dumps({"words": words_with_translations}, ensure_ascii=False)
 
-        # Вызываем агента через общий метод call_agent
-        try:
-            # call_agent возвращает AgentResponse, но нам нужен сырой dict
-            # Поэтому дублируем логику call_agent, но без парсинга в AgentResponse
+        logger.info(f"[generate_test_options] Вызываем агент {agent_id} с {len(words_with_translations)} словами")
+        logger.info(f"[generate_test_options] input_data: {input_data[:200]}...")
 
+        try:
+            # Используем общий метод call_agent (как Agent #1 и #2)
+            # НО: call_agent парсит ответ в AgentResponse, а нам нужен сырой dict
+            # Поэтому извлекаем JSON из response_text напрямую
+
+            # Получаем API ключ (точно так же как в call_agent)
             api_key = os.getenv('YANDEX_CLOUD_API_KEY', self.iam_token)
             if not api_key:
                 raise Exception("Для генерации тестов нужен API ключ Yandex AI")
-
-            # Диагностика
-            logger.info(f"[generate_test_options] agent_id: {agent_id}")
-            logger.info(f"[generate_test_options] folder_id: {self.folder_id}")
-            logger.info(f"[generate_test_options] api_key prefix: {api_key[:20] if api_key else 'None'}...")
-            logger.info(f"[generate_test_options] input_data: {input_data[:200]}...")
 
             url = "https://rest-assistant.api.cloud.yandex.net/v1/responses"
             headers = {
@@ -458,23 +456,19 @@ class YandexAIClient:
                 "input": input_data
             }
 
-            logger.info(f"[generate_test_options] Отправляем POST запрос к {url}")
-
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=120)) as response:
                     logger.info(f"[generate_test_options] HTTP status: {response.status}")
 
                     if response.status != 200:
                         error_text = await response.text()
-                        logger.error(f"[generate_test_options] Agent API error {response.status}: {error_text}")
+                        logger.error(f"[generate_test_options] API error {response.status}: {error_text}")
                         raise Exception(f"Agent API error {response.status}: {error_text}")
 
                     result = await response.json()
-
-                    # Логируем RAW ответ для диагностики
                     logger.info(f"[generate_test_options] RAW response: {json.dumps(result, ensure_ascii=False)[:500]}")
 
-                    # Извлекаем текст ответа
+                    # Извлекаем текст ответа (точно так же как в call_agent)
                     response_text = None
                     if 'output' in result and result['output']:
                         if isinstance(result['output'], list) and len(result['output']) > 0:
@@ -483,8 +477,10 @@ class YandexAIClient:
                                 response_text = content[0].get('text', '')
 
                     if not response_text:
-                        logger.error(f"[generate_test_options] Пустой response_text. Полная структура result: {json.dumps(result, ensure_ascii=False)}")
+                        logger.error(f"[generate_test_options] Пустой response_text. Полная структура: {json.dumps(result, ensure_ascii=False)}")
                         raise Exception(f"Пустой ответ от агента")
+
+                    logger.info(f"[generate_test_options] response_text длина: {len(response_text)} символов")
 
                     # Парсим JSON из ответа
                     return json.loads(response_text)
@@ -492,8 +488,10 @@ class YandexAIClient:
         except asyncio.TimeoutError:
             raise Exception("Timeout при генерации тестов (120s)")
         except json.JSONDecodeError as e:
+            logger.error(f"[generate_test_options] JSONDecodeError: {e}, response_text: {response_text[:200] if response_text else 'None'}")
             raise Exception(f"Не удалось распарсить ответ агента: {e}")
         except Exception as e:
+            logger.error(f"[generate_test_options] Exception: {type(e).__name__}: {str(e)}")
             raise Exception(f"Ошибка при генерации тестов: {e}")
 
     def _is_primitive_word(self, word: str) -> bool:
