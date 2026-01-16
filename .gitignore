@@ -72,3 +72,4 @@ dmypy.json
 
 # Test files
 test_*.py
+test_page_id_grouping.py
