@@ -253,6 +253,16 @@
                 font-size: 1.6rem;
             }
         }
+
+        /* Анимация спиннера */
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 <body>
@@ -514,10 +524,18 @@
                 return;
             }
 
-            // Блокируем кнопку
-            const originalText = buttonElement.textContent;
+            // Блокируем кнопку и показываем спиннер
+            const originalHTML = buttonElement.innerHTML;
             buttonElement.disabled = true;
-            buttonElement.textContent = 'Удаление...';
+            buttonElement.style.opacity = '0.6';
+
+            // SVG спиннер (как в Словаре)
+            buttonElement.innerHTML = `
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="animation: spin 1s linear infinite;">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="60" stroke-dashoffset="15" stroke-linecap="round" opacity="0.3"/>
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="15 45" stroke-linecap="round"/>
+                </svg>
+            `;
 
             try {
                 const response = await fetch(`/api/analysis/${analysisId}`, {
@@ -548,15 +566,19 @@
                         location.reload();
                     }, 300);
                 } else {
-                    alert('Ошибка удаления: ' + (data.error || 'Неизвестная ошибка'));
+                    // Восстанавливаем кнопку при ошибке
+                    buttonElement.innerHTML = originalHTML;
                     buttonElement.disabled = false;
-                    buttonElement.textContent = originalText;
+                    buttonElement.style.opacity = '1';
+                    alert('Ошибка удаления: ' + (data.error || 'Неизвестная ошибка'));
                 }
             } catch (error) {
+                // Восстанавливаем кнопку при ошибке
+                buttonElement.innerHTML = originalHTML;
+                buttonElement.disabled = false;
+                buttonElement.style.opacity = '1';
                 console.error('Ошибка удаления:', error);
                 alert('Ошибка соединения с сервером');
-                buttonElement.disabled = false;
-                buttonElement.textContent = originalText;
             }
         }
     </script>

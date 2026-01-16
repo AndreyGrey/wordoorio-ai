@@ -467,6 +467,22 @@
             }).join('');
 
             wordsList.innerHTML = wordsHTML;
+
+            // Добавляем обработчики для кнопок удаления
+            setupDeleteButtons();
+        }
+
+        function setupDeleteButtons() {
+            const deleteButtons = document.querySelectorAll('.delete-word-btn');
+            deleteButtons.forEach(btn => {
+                btn.addEventListener('click', async (event) => {
+                    event.stopPropagation();
+                    const lemma = btn.dataset.lemma;
+                    if (lemma) {
+                        await deleteWord(lemma, event);
+                    }
+                });
+            });
         }
 
         function setupFilters() {

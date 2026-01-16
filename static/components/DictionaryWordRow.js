@@ -81,7 +81,7 @@ function createDictionaryWordRow(word) {
                     <div class="word-row-date">${formattedDate}</div>
                 </div>
             </div>
-            <button class="delete-word-btn" onclick="deleteWord('${lemma}', event)" title="Удалить слово" aria-label="Удалить слово">
+            <button class="delete-word-btn" data-lemma="${escapeHtml(lemma)}" title="Удалить слово" aria-label="Удалить слово">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                     <path d="M5 12h14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
                 </svg>
