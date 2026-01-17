@@ -765,6 +765,7 @@ def auth_login():
             'andrew': {'password': 'test123', 'user_id': 1},
             'friend1': {'password': 'test123', 'user_id': 2},
             'friend2': {'password': 'test123', 'user_id': 3},
+            'nastya': {'password': 'welcome135790', 'user_id': 4},
         }
 
         if username not in TEST_ACCOUNTS:

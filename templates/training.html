@@ -197,6 +197,13 @@
             pointer-events: none;
         }
 
+        /* Приоритет для correct и incorrect - они НЕ должны блюриться */
+        .option-btn.correct,
+        .option-btn.incorrect {
+            opacity: 1 !important;
+            filter: none !important;
+        }
+
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
             25% { transform: translateX(-10px); }
@@ -663,32 +670,23 @@
                 // Правильный ответ - показываем только правильный перевод
                 buttonElement.classList.add('correct');
                 buttonElement.textContent = correctOption.text;
-
-                // Делаем остальные кнопки блюрными
-                allButtons.forEach(btn => {
-                    if (btn !== buttonElement) {
-                        btn.classList.add('blurred');
-                    }
-                });
-
             } else {
                 // Неправильный ответ - подсвечиваем красным выбранный
                 buttonElement.classList.add('incorrect');
-                // Текст остается как есть
 
                 // Правильный вариант подсвечиваем зеленым с галочкой
                 if (correctButton) {
                     correctButton.classList.add('correct');
                     correctButton.textContent = `✓ ${correctOption.text}`;
                 }
-
-                // Делаем остальные кнопки блюрными
-                allButtons.forEach(btn => {
-                    if (btn !== buttonElement && btn !== correctButton) {
-                        btn.classList.add('blurred');
-                    }
-                });
             }
+
+            // Блюрим ВСЕ остальные кнопки (кроме correct и incorrect)
+            allButtons.forEach(btn => {
+                if (!btn.classList.contains('correct') && !btn.classList.contains('incorrect')) {
+                    btn.classList.add('blurred');
+                }
+            });
 
             // Отправляем результат на сервер (но не блокируем UI)
             fetch('/api/training/answer', {
