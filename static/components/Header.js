@@ -73,8 +73,6 @@ function getUnifiedHeaderStyles() {
             max-width: var(--container-max-width, 1000px);
             margin-left: auto;
             margin-right: auto;
-            padding-left: var(--container-padding, 20px);
-            padding-right: var(--container-padding, 20px);
         }
 
         /* Left section: Logo + Nav */

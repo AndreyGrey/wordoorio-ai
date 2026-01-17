@@ -41,7 +41,7 @@
 
         .word-display {
             text-align: center;
-            padding: var(--spacing-10) var(--spacing-6);
+            padding: var(--spacing-6) var(--spacing-4);
             background: linear-gradient(135deg, #f7fafc 0%, #ffffff 100%);
             border-radius: var(--radius-lg);
             margin-bottom: var(--spacing-6);
@@ -54,10 +54,9 @@
         }
 
         .word-en {
-            font-size: var(--font-size-3xl);
+            font-size: var(--font-size-2xl);
             font-weight: var(--font-weight-bold);
             color: var(--color-primary);
-            margin-bottom: var(--spacing-3);
             animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
 
@@ -192,9 +191,10 @@
             font-weight: var(--font-weight-semibold);
         }
 
-        .option-btn.neutral {
-            opacity: 0.6;
-            border-color: #cbd5e0;
+        .option-btn.blurred {
+            opacity: 0.3;
+            filter: blur(2px);
+            pointer-events: none;
         }
 
         @keyframes shake {
@@ -203,54 +203,9 @@
             75% { transform: translateX(10px); }
         }
 
-        .answer-feedback {
-            margin-top: var(--spacing-6);
-            padding: var(--spacing-4);
-            border-radius: var(--radius-md);
-            background: var(--color-bg-light);
-            border-left: 4px solid var(--color-primary);
-            animation: slideDown 0.3s ease;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .feedback-content {
-            display: flex;
-            flex-direction: column;
-            gap: var(--spacing-2);
-        }
-
-        .feedback-text {
-            font-size: var(--font-size-base);
-            font-weight: var(--font-weight-semibold);
-            color: var(--color-text-primary);
-        }
-
-        .answer-feedback.correct {
-            background: #E6F7ED;
-            border-left-color: var(--color-primary);
-        }
-
-        .answer-feedback.incorrect {
-            background: #FEF5F5;
-            border-left-color: #e53e3e;
-        }
 
         .option-btn:disabled {
             cursor: not-allowed;
-        }
-
-        .option-btn:disabled:not(.correct):not(.incorrect) {
-            opacity: 0.6;
         }
 
 
@@ -516,13 +471,6 @@
             <div id="options-container" class="options-container">
                 <!-- Варианты добавятся через JS -->
             </div>
-
-            <!-- Пояснение результата -->
-            <div id="answer-feedback" class="answer-feedback" style="display: none;">
-                <div class="feedback-content">
-                    <div id="feedback-text" class="feedback-text"></div>
-                </div>
-            </div>
         </div>
 
         <!-- Экран завершения -->
@@ -672,12 +620,6 @@
 
             const test = currentTraining.tests[currentTestIndex];
 
-            // Скрываем feedback от предыдущего теста
-            const answerFeedback = document.getElementById('answer-feedback');
-            if (answerFeedback) {
-                answerFeedback.style.display = 'none';
-            }
-
             // Обновляем прогресс
             const progress = ((currentTestIndex + 1) / currentTraining.tests.length) * 100;
             progressFill.style.width = `${progress}%`;
@@ -716,47 +658,36 @@
             const correctOption = test.options.find(opt => opt.is_correct);
             const correctButton = Array.from(allButtons).find(btn => btn.dataset.isCorrect === 'true');
 
-            // Получаем элемент обратной связи
-            const answerFeedback = document.getElementById('answer-feedback');
-            const feedbackText = document.getElementById('feedback-text');
-
             // Показываем результат МГНОВЕННО
             if (isCorrect) {
-                // Правильный ответ - подсвечиваем зеленым
+                // Правильный ответ - показываем только правильный перевод
                 buttonElement.classList.add('correct');
+                buttonElement.textContent = correctOption.text;
 
-                // Делаем остальные кнопки нейтральными (слегка приглушенными)
+                // Делаем остальные кнопки блюрными
                 allButtons.forEach(btn => {
                     if (btn !== buttonElement) {
-                        btn.classList.add('neutral');
+                        btn.classList.add('blurred');
                     }
                 });
-
-                // Показываем пояснение
-                answerFeedback.className = 'answer-feedback correct';
-                feedbackText.innerHTML = `<strong>${test.word}</strong> = ${correctOption.text}`;
-                answerFeedback.style.display = 'block';
 
             } else {
                 // Неправильный ответ - подсвечиваем красным выбранный
                 buttonElement.classList.add('incorrect');
+                // Текст остается как есть
 
-                // Правильный вариант подсвечиваем зеленым
+                // Правильный вариант подсвечиваем зеленым с галочкой
                 if (correctButton) {
                     correctButton.classList.add('correct');
+                    correctButton.textContent = `✓ ${correctOption.text}`;
                 }
 
-                // Делаем остальные кнопки нейтральными
+                // Делаем остальные кнопки блюрными
                 allButtons.forEach(btn => {
                     if (btn !== buttonElement && btn !== correctButton) {
-                        btn.classList.add('neutral');
+                        btn.classList.add('blurred');
                     }
                 });
-
-                // Показываем пояснение
-                answerFeedback.className = 'answer-feedback incorrect';
-                feedbackText.innerHTML = `<strong>${test.word}</strong> = ${correctOption.text}`;
-                answerFeedback.style.display = 'block';
             }
 
             // Отправляем результат на сервер (но не блокируем UI)
