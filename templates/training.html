@@ -387,6 +387,37 @@
             66.33%, 100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
         }
 
+        /* Header container - резервируем место до загрузки JS */
+        #header-container {
+            min-height: 104px;
+        }
+
+        #header-container:empty::before {
+            content: '';
+            display: block;
+            height: 104px;
+        }
+
+        @media (max-width: 640px) {
+            #header-container {
+                min-height: 76px;
+            }
+
+            #header-container:empty::before {
+                height: 76px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #header-container {
+                min-height: 68px;
+            }
+
+            #header-container:empty::before {
+                height: 68px;
+            }
+        }
+
         @media (max-width: 768px) {
             .training-header h1 {
                 font-size: var(--font-size-xl);
@@ -526,9 +557,9 @@
 
     <script>
         // Инициализация хэдера
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             if (typeof initUnifiedHeader === 'function') {
-                initUnifiedHeader('header-container');
+                await initUnifiedHeader('header-container');
             }
         });
 

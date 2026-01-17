@@ -196,6 +196,38 @@
             100% { transform: rotate(360deg); }
         }
 
+        /* Header container - резервируем место до загрузки JS */
+        #header-container {
+            min-height: 104px;
+        }
+
+        /* Placeholder для хэдера пока он загружается */
+        #header-container:empty::before {
+            content: '';
+            display: block;
+            height: 104px;
+        }
+
+        @media (max-width: 640px) {
+            #header-container {
+                min-height: 76px;
+            }
+
+            #header-container:empty::before {
+                height: 76px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #header-container {
+                min-height: 68px;
+            }
+
+            #header-container:empty::before {
+                height: 68px;
+            }
+        }
+
         /* Desktop адаптация */
         @media (min-width: 768px) {
             .page-title {
@@ -266,8 +298,8 @@
     <script>
         // Инициализация
         document.addEventListener('DOMContentLoaded', async function() {
-            // Инициализация header
-            initUnifiedHeader('header-container');
+            // Инициализация header (приоритет - загружаем первым)
+            await initUnifiedHeader('header-container');
 
             // Инжекция стилей DictionaryWordRow (когда компонент будет создан)
             if (typeof getDictionaryWordRowStyles === 'function') {
