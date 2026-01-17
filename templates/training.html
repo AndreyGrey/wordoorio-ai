@@ -192,8 +192,9 @@
             font-weight: var(--font-weight-semibold);
         }
 
-        .option-btn.faded {
-            opacity: 0.3;
+        .option-btn.neutral {
+            opacity: 0.6;
+            border-color: #cbd5e0;
         }
 
         @keyframes shake {
@@ -202,13 +203,46 @@
             75% { transform: translateX(10px); }
         }
 
-        .answer-explanation {
-            margin-top: var(--spacing-2);
-            padding-top: var(--spacing-2);
-            border-top: 1px solid rgba(0, 0, 0, 0.1);
-            font-size: var(--font-size-sm);
-            font-weight: var(--font-weight-normal);
-            opacity: 0.9;
+        .answer-feedback {
+            margin-top: var(--spacing-6);
+            padding: var(--spacing-4);
+            border-radius: var(--radius-md);
+            background: var(--color-bg-light);
+            border-left: 4px solid var(--color-primary);
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .feedback-content {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-2);
+        }
+
+        .feedback-text {
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-primary);
+        }
+
+        .answer-feedback.correct {
+            background: #E6F7ED;
+            border-left-color: var(--color-primary);
+        }
+
+        .answer-feedback.incorrect {
+            background: #FEF5F5;
+            border-left-color: #e53e3e;
         }
 
         .option-btn:disabled {
@@ -451,6 +485,13 @@
             <div id="options-container" class="options-container">
                 <!-- Варианты добавятся через JS -->
             </div>
+
+            <!-- Пояснение результата -->
+            <div id="answer-feedback" class="answer-feedback" style="display: none;">
+                <div class="feedback-content">
+                    <div id="feedback-text" class="feedback-text"></div>
+                </div>
+            </div>
         </div>
 
         <!-- Экран завершения -->
@@ -600,6 +641,12 @@
 
             const test = currentTraining.tests[currentTestIndex];
 
+            // Скрываем feedback от предыдущего теста
+            const answerFeedback = document.getElementById('answer-feedback');
+            if (answerFeedback) {
+                answerFeedback.style.display = 'none';
+            }
+
             // Обновляем прогресс
             const progress = ((currentTestIndex + 1) / currentTraining.tests.length) * 100;
             progressFill.style.width = `${progress}%`;
@@ -638,39 +685,47 @@
             const correctOption = test.options.find(opt => opt.is_correct);
             const correctButton = Array.from(allButtons).find(btn => btn.dataset.isCorrect === 'true');
 
+            // Получаем элемент обратной связи
+            const answerFeedback = document.getElementById('answer-feedback');
+            const feedbackText = document.getElementById('feedback-text');
+
             // Показываем результат МГНОВЕННО
             if (isCorrect) {
-                // Правильный ответ
+                // Правильный ответ - подсвечиваем зеленым
                 buttonElement.classList.add('correct');
-                buttonElement.innerHTML = `
-                    ${selectedOption.text}
-                    <div class="answer-explanation">${test.word} = ${correctOption.text}</div>
-                `;
 
-                // Делаем остальные кнопки блеклыми
+                // Делаем остальные кнопки нейтральными (слегка приглушенными)
                 allButtons.forEach(btn => {
                     if (btn !== buttonElement) {
-                        btn.classList.add('faded');
+                        btn.classList.add('neutral');
                     }
                 });
+
+                // Показываем пояснение
+                answerFeedback.className = 'answer-feedback correct';
+                feedbackText.innerHTML = `<strong>${test.word}</strong> = ${correctOption.text}`;
+                answerFeedback.style.display = 'block';
+
             } else {
-                // Неправильный ответ
+                // Неправильный ответ - подсвечиваем красным выбранный
                 buttonElement.classList.add('incorrect');
 
+                // Правильный вариант подсвечиваем зеленым
                 if (correctButton) {
                     correctButton.classList.add('correct');
-                    correctButton.innerHTML = `
-                        ${correctOption.text}
-                        <div class="answer-explanation">${test.word} = ${correctOption.text}</div>
-                    `;
                 }
 
-                // Делаем остальные кнопки блеклыми
+                // Делаем остальные кнопки нейтральными
                 allButtons.forEach(btn => {
                     if (btn !== buttonElement && btn !== correctButton) {
-                        btn.classList.add('faded');
+                        btn.classList.add('neutral');
                     }
                 });
+
+                // Показываем пояснение
+                answerFeedback.className = 'answer-feedback incorrect';
+                feedbackText.innerHTML = `<strong>${test.word}</strong> = ${correctOption.text}`;
+                answerFeedback.style.display = 'block';
             }
 
             // Отправляем результат на сервер (но не блокируем UI)
