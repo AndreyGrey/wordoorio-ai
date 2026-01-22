@@ -9,6 +9,7 @@ import sys
 import os
 import logging
 import time
+from datetime import timedelta
 from dotenv import load_dotenv
 from database import WordoorioDatabase
 import uuid
@@ -34,6 +35,12 @@ sys.path.append('.')
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'wordoorio-secret-key-12345')
+
+# Настройка сессии - 7 дней
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+app.config['SESSION_COOKIE_SECURE'] = False  # True только для HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # Инициализируем базу данных
 db = WordoorioDatabase()
@@ -782,7 +789,8 @@ def auth_login():
                 'error': 'Неверный логин или пароль'
             }), 401
 
-        # Сохраняем в сессии
+        # Сохраняем в сессии и делаем её постоянной (7 дней)
+        session.permanent = True
         session['user_id'] = account['user_id']
         session['username'] = username
 

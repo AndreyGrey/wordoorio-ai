@@ -637,6 +637,10 @@
 
             // Создаем варианты ответов
             optionsContainer.innerHTML = '';
+
+            // Форсируем reflow чтобы очистить все CSS состояния
+            void optionsContainer.offsetHeight;
+
             test.options.forEach((option, index) => {
                 const btn = document.createElement('button');
                 btn.className = 'option-btn';

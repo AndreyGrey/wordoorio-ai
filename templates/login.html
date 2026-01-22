@@ -212,9 +212,18 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    // Успешный вход - мигрируем localStorage → сервер
-                    submitBtn.textContent = 'Миграция данных...';
-                    await migrateLocalHighlightsToServer();
+                    // Успешный вход - проверяем и мигрируем localStorage → сервер (если есть данные)
+                    try {
+                        const storage = new HighlightsStorage();
+                        const localSessions = storage.getAllSessions();
+
+                        if (localSessions.length > 0) {
+                            submitBtn.textContent = 'Миграция данных...';
+                            await migrateLocalHighlightsToServer();
+                        }
+                    } catch (e) {
+                        console.log('Migration check failed:', e);
+                    }
 
                     // Редирект на главную
                     window.location.href = '/';
