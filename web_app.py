@@ -36,8 +36,8 @@ sys.path.append('.')
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'wordoorio-secret-key-12345')
 
-# Настройка сессии - 7 дней
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+# Настройка сессии - максимально долгая (10 лет, по сути бессрочная)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=3650)
 app.config['SESSION_COOKIE_SECURE'] = False  # True только для HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
