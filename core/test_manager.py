@@ -137,8 +137,10 @@ class TestManager:
             {'text': test['wrong_option_3'], 'is_correct': False}
         ]
 
-        # Перемешиваем
-        random.shuffle(options)
+        # Перемешиваем детерминированно (на основе test_id)
+        # Это гарантирует одинаковый порядок при повторных вызовах
+        rng = random.Random(test_id)
+        rng.shuffle(options)
 
         # Добавляем индексы
         for i, option in enumerate(options):
