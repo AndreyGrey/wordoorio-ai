@@ -959,10 +959,10 @@ def telegram_webhook():
             if text.startswith('/start'):
                 user = db.get_user_by_telegram_id(telegram_id)
                 if user:
-                    keyboard = {'inline_keyboard': [[{'text': 'НАЧАТЬ 🚀', 'callback_data': 'start_training'}]]}
+                    keyboard = {'inline_keyboard': [[{'text': 'НАЧАТЬ', 'callback_data': 'start_training'}]]}
                     telegram_send_message(
                         chat_id,
-                        f"Привет, {user.get('username', 'пользователь')}! 👋\n\n"
+                        f"Привет, {user.get('username', 'пользователь')}!\n\n"
                         "Готов потренировать английские слова?\n\n"
                         "Нажми НАЧАТЬ для запуска теста из 8 слов.",
                         reply_markup=keyboard
@@ -970,7 +970,7 @@ def telegram_webhook():
                 else:
                     telegram_send_message(
                         chat_id,
-                        "Привет! 👋\n\n"
+                        "Привет!\n\n"
                         "Для тренировки нужно привязать Telegram к аккаунту.\n\n"
                         "Используй команду:\n"
                         "`/login username password`\n\n"
@@ -984,7 +984,7 @@ def telegram_webhook():
                 if len(parts) != 3:
                     telegram_send_message(
                         chat_id,
-                        "❌ Формат: `/login username password`\n\n"
+                        "Формат: `/login username password`\n\n"
                         "Пример: `/login andrew test123`"
                     )
                 else:
@@ -992,40 +992,40 @@ def telegram_webhook():
                     password = parts[2]
 
                     if username not in TELEGRAM_TEST_ACCOUNTS:
-                        telegram_send_message(chat_id, "❌ Неверный логин или пароль.")
+                        telegram_send_message(chat_id, "Неверный логин или пароль.")
                     elif TELEGRAM_TEST_ACCOUNTS[username]['password'] != password:
-                        telegram_send_message(chat_id, "❌ Неверный логин или пароль.")
+                        telegram_send_message(chat_id, "Неверный логин или пароль.")
                     else:
                         user_id = TELEGRAM_TEST_ACCOUNTS[username]['user_id']
                         db.ensure_test_users_exist()
                         success = db.link_telegram_to_user(user_id, telegram_id)
 
                         if success:
-                            keyboard = {'inline_keyboard': [[{'text': 'НАЧАТЬ ТРЕНИРОВКУ 🚀', 'callback_data': 'start_training'}]]}
+                            keyboard = {'inline_keyboard': [[{'text': 'НАЧАТЬ ТРЕНИРОВКУ', 'callback_data': 'start_training'}]]}
                             telegram_send_message(
                                 chat_id,
-                                f"✅ Telegram привязан к аккаунту `{username}`!\n\n"
-                                "Теперь можешь тренировать слова!",
+                                f"Telegram привязан к аккаунту `{username}`.\n\n"
+                                "Теперь можешь тренировать слова.",
                                 reply_markup=keyboard
                             )
                         else:
-                            telegram_send_message(chat_id, "❌ Ошибка привязки. Попробуй позже.")
+                            telegram_send_message(chat_id, "Ошибка привязки. Попробуй позже.")
 
             # /train
             elif text.startswith('/train'):
                 user = db.get_user_by_telegram_id(telegram_id)
                 if user:
-                    keyboard = {'inline_keyboard': [[{'text': 'НАЧАТЬ 🚀', 'callback_data': 'start_training'}]]}
+                    keyboard = {'inline_keyboard': [[{'text': 'НАЧАТЬ', 'callback_data': 'start_training'}]]}
                     telegram_send_message(
                         chat_id,
-                        "💪 Готов потренировать слова?\n\n"
+                        "Готов потренировать слова?\n\n"
                         "Нажми кнопку ниже для запуска теста из 8 слов.",
                         reply_markup=keyboard
                     )
                 else:
                     telegram_send_message(
                         chat_id,
-                        "❌ Сначала авторизуйтесь командой:\n"
+                        "Сначала авторизуйтесь командой:\n"
                         "`/login username password`"
                     )
 
@@ -1045,7 +1045,7 @@ def telegram_webhook():
                 try:
                     user = db.get_user_by_telegram_id(telegram_id)
                     if not user:
-                        telegram_edit_message(chat_id, message_id, "❌ Сначала авторизуйтесь: `/login username password`")
+                        telegram_edit_message(chat_id, message_id, "Сначала авторизуйтесь: `/login username password`")
                         return jsonify({'ok': True})
 
                     user_id = user['id']
@@ -1062,7 +1062,7 @@ def telegram_webhook():
                     logger.info(f"[TG Webhook] Отобрано слов: {len(words) if words else 0}")
 
                     if not words:
-                        telegram_edit_message(chat_id, message_id, "📚 В твоем словаре пока нет слов.\n\nДобавь слова через веб-интерфейс!")
+                        telegram_edit_message(chat_id, message_id, "В твоем словаре пока нет слов.\n\nДобавь слова через веб-интерфейс.")
                         return jsonify({'ok': True})
 
                     # Проверяем минимальное количество слов (хотя бы 1 слово)
@@ -1070,14 +1070,14 @@ def telegram_webhook():
                     if len(words) < MIN_WORDS:
                         telegram_edit_message(
                             chat_id, message_id,
-                            f"📚 В словаре недостаточно слов для тренировки.\n\n"
+                            f"В словаре недостаточно слов для тренировки.\n\n"
                             f"Сейчас: {len(words)} слов\n"
                             f"Минимум: {MIN_WORDS} слово\n\n"
-                            f"Добавь ещё слов через веб-интерфейс!"
+                            f"Добавь ещё слов через веб-интерфейс."
                         )
                         return jsonify({'ok': True})
 
-                    telegram_edit_message(chat_id, message_id, f"⏳ Генерирую тесты...\n\nСлов: {len(words)}")
+                    telegram_edit_message(chat_id, message_id, f"Генерирую тесты...\n\nСлов: {len(words)}")
 
                     # Создаем тесты
                     ai_client = YandexAIClient()
@@ -1090,7 +1090,7 @@ def telegram_webhook():
                     logger.info(f"[TG Webhook] Создано тестов: {len(test_ids) if test_ids else 0}")
 
                     if not test_ids:
-                        telegram_edit_message(chat_id, message_id, "⚠️ Не удалось создать тесты. Попробуй ещё раз.")
+                        telegram_edit_message(chat_id, message_id, "Не удалось создать тесты. Попробуй ещё раз.")
                         return jsonify({'ok': True})
 
                     # Отправляем первый тест
@@ -1100,10 +1100,10 @@ def telegram_webhook():
                     import traceback
                     error_details = str(e)[:200]  # Первые 200 символов ошибки
                     logger.error(f"[TG Webhook] Ошибка start_training: {e}", exc_info=True)
-                    keyboard = {'inline_keyboard': [[{'text': '🔄 Попробовать снова', 'callback_data': 'start_training'}]]}
+                    keyboard = {'inline_keyboard': [[{'text': 'Попробовать снова', 'callback_data': 'start_training'}]]}
                     telegram_edit_message(
                         chat_id, message_id,
-                        f"⚠️ Ошибка при запуске тренировки:\n\n`{error_details}`",
+                        f"Ошибка при запуске тренировки:\n\n`{error_details}`",
                         reply_markup=keyboard
                     )
 
@@ -1123,7 +1123,7 @@ def telegram_webhook():
                     # Получаем тест для определения выбранного варианта
                     test = test_manager.get_test_with_shuffled_options(test_id)
                     if not test:
-                        telegram_edit_message(chat_id, message_id, "⚠️ Тест не найден")
+                        telegram_edit_message(chat_id, message_id, "Тест не найден")
                         return jsonify({'ok': True})
 
                     # Находим выбранный вариант по индексу
@@ -1134,21 +1134,21 @@ def telegram_webhook():
                             break
 
                     if not selected:
-                        telegram_edit_message(chat_id, message_id, "⚠️ Вариант не найден")
+                        telegram_edit_message(chat_id, message_id, "Вариант не найден")
                         return jsonify({'ok': True})
 
                     # Проверяем ответ
                     result = test_manager.submit_answer(test_id, selected)
 
                     if result['is_correct']:
-                        text = f"✅ Правильно!\n\n"
-                        text += f"**{result['word']}** → {result['correct_translation']}\n\n"
+                        text = f"Правильно\n\n"
+                        text += f"**{result['word']}** — {result['correct_translation']}\n\n"
                         text += f"Рейтинг: {result['new_rating']}/10"
                     else:
-                        text = f"❌ Неправильно\n\n"
-                        text += f"**{result['word']}** → {result['correct_translation']}\n\n"
+                        text = f"Неправильно\n\n"
+                        text += f"**{result['word']}** — {result['correct_translation']}\n\n"
 
-                        # Получаем пример использования слова
+                        # Получаем пример из хайлайта
                         example = db.get_word_example(test['word_id'])
                         if example and example.get('context'):
                             context = example['context']
@@ -1156,12 +1156,12 @@ def telegram_webhook():
                             original_form = example.get('original_form', result['word'])
                             if original_form and original_form in context:
                                 context = context.replace(original_form, f"__{original_form}__")
-                            text += f"📖 Контекст:\n\"{context}\"\n\n"
+                            text += f"Пример:\n\"{context}\"\n\n"
 
                         text += f"Рейтинг сброшен: 0/10"
 
                     # Кнопка "Дальше"
-                    keyboard = {'inline_keyboard': [[{'text': 'Дальше ➡️', 'callback_data': f'next_{test_id}'}]]}
+                    keyboard = {'inline_keyboard': [[{'text': 'Дальше', 'callback_data': f'next_{test_id}'}]]}
                     telegram_edit_message(chat_id, message_id, text, reply_markup=keyboard)
 
             # next_X (следующий тест)
@@ -1179,8 +1179,8 @@ def telegram_webhook():
 
                 pending = test_manager.get_pending_tests(user['id'])
                 if not pending:
-                    keyboard = {'inline_keyboard': [[{'text': 'ЕЩЁ 8 СЛОВ 🚀', 'callback_data': 'start_training'}]]}
-                    telegram_edit_message(chat_id, message_id, "🎉 Все тесты пройдены!\n\nХочешь ещё?", reply_markup=keyboard)
+                    keyboard = {'inline_keyboard': [[{'text': 'ЕЩЁ 8 СЛОВ', 'callback_data': 'start_training'}]]}
+                    telegram_edit_message(chat_id, message_id, "Все тесты пройдены.\n\nХочешь ещё?", reply_markup=keyboard)
                 else:
                     test_ids = [t['id'] for t in pending]
                     send_telegram_test(chat_id, message_id, test_manager, test_ids, 0)
@@ -1326,8 +1326,8 @@ def telegram_test_send():
 def send_telegram_test(chat_id: int, message_id: int, test_manager, test_ids: list, index: int):
     """Отправить тест в Telegram"""
     if index >= len(test_ids):
-        keyboard = {'inline_keyboard': [[{'text': 'ЕЩЁ 8 СЛОВ 🚀', 'callback_data': 'start_training'}]]}
-        telegram_edit_message(chat_id, message_id, "🎉 Все тесты пройдены!\n\nХочешь ещё?", reply_markup=keyboard)
+        keyboard = {'inline_keyboard': [[{'text': 'ЕЩЁ 8 СЛОВ', 'callback_data': 'start_training'}]]}
+        telegram_edit_message(chat_id, message_id, "Все тесты пройдены.\n\nХочешь ещё?", reply_markup=keyboard)
         return
 
     test_id = test_ids[index]
@@ -1346,9 +1346,9 @@ def send_telegram_test(chat_id: int, message_id: int, test_manager, test_ids: li
     keyboard = {'inline_keyboard': buttons}
 
     text = (
-        f"📝 Тест {index + 1}/{len(test_ids)}\n\n"
-        f"🇬🇧 **{test['word']}**\n\n"
-        f"Выберите правильный перевод:"
+        f"Тест {index + 1}/{len(test_ids)}\n\n"
+        f"**{test['word']}**\n\n"
+        f"Выбери правильный перевод:"
     )
 
     telegram_edit_message(chat_id, message_id, text, reply_markup=keyboard)
