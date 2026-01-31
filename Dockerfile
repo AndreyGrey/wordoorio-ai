@@ -15,6 +15,6 @@ COPY . .
 # Порт для Yandex Cloud
 ENV PORT=8080
 
-# Запускаем supervisor (веб + telegram бот)
+# Запускаем gunicorn (веб + telegram webhook)
 EXPOSE 8080
-CMD ["supervisord", "-c", "supervisord.conf"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--threads", "4", "--timeout", "180", "web_app:app"]
