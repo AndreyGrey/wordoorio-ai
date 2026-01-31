@@ -1108,6 +1108,27 @@ class WordoorioDatabase:
 
         return self._fetch_all(query, {'$user_id': user_id, '$limit': limit})
 
+    def get_word_example(self, word_id: int) -> Optional[Dict]:
+        """
+        Get example context for a word
+
+        Args:
+            word_id: Word ID
+
+        Returns:
+            Dict with 'context' and 'original_form' or None
+        """
+        query = """
+        DECLARE $word_id AS Uint64?;
+
+        SELECT context, original_form
+        FROM dictionary_examples
+        WHERE word_id = $word_id
+        LIMIT 1
+        """
+
+        return self._fetch_one(query, {'$word_id': word_id})
+
     def ensure_test_users_exist(self):
         """
         Ensure test users exist in the database

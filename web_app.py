@@ -1142,12 +1142,23 @@ def telegram_webhook():
 
                     if result['is_correct']:
                         text = f"✅ Правильно!\n\n"
+                        text += f"**{result['word']}** → {result['correct_translation']}\n\n"
+                        text += f"Рейтинг: {result['new_rating']}/10"
                     else:
-                        text = f"❌ Неправильно\n\nПравильный ответ: **{result['correct_translation']}**\n\n"
+                        text = f"❌ Неправильно\n\n"
+                        text += f"**{result['word']}** → {result['correct_translation']}\n\n"
 
-                    text += f"Слово: **{result['word']}**\n"
-                    text += f"Рейтинг: {result['new_rating']}/10\n"
-                    text += f"Статус: {result['new_status']}"
+                        # Получаем пример использования слова
+                        example = db.get_word_example(test['word_id'])
+                        if example and example.get('context'):
+                            context = example['context']
+                            # Подсвечиваем слово в контексте
+                            original_form = example.get('original_form', result['word'])
+                            if original_form and original_form in context:
+                                context = context.replace(original_form, f"__{original_form}__")
+                            text += f"📖 Контекст:\n\"{context}\"\n\n"
+
+                        text += f"Рейтинг сброшен: 0/10"
 
                     # Кнопка "Дальше"
                     keyboard = {'inline_keyboard': [[{'text': 'Дальше ➡️', 'callback_data': f'next_{test_id}'}]]}
