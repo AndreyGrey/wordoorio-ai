@@ -15,6 +15,6 @@ COPY . .
 # Порт для Yandex Cloud
 ENV PORT=8080
 
-# Запускаем приложение с увеличенным timeout для dual-prompt
+# Запускаем supervisor (веб + telegram бот)
 EXPOSE 8080
-CMD gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 180 web_app:app
+CMD ["supervisord", "-c", "supervisord.conf"]

@@ -1050,6 +1050,64 @@ class WordoorioDatabase:
 
         return self._fetch_one(query, {'$telegram_id': telegram_id})
 
+    def get_dictionary_stats(self, user_id: int) -> Dict:
+        """
+        Get dictionary statistics for user
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Dict with keys: total, new, learning, learned
+        """
+        query = """
+        DECLARE $user_id AS Uint64?;
+
+        SELECT
+            COUNT(*) AS total,
+            COUNT_IF(status = 'new') AS new_count,
+            COUNT_IF(status = 'learning') AS learning_count,
+            COUNT_IF(status = 'learned') AS learned_count
+        FROM dictionary_words
+        WHERE user_id = $user_id
+        """
+
+        result = self._fetch_one(query, {'$user_id': user_id})
+
+        if result:
+            return {
+                'total': result.get('total', 0) or 0,
+                'new': result.get('new_count', 0) or 0,
+                'learning': result.get('learning_count', 0) or 0,
+                'learned': result.get('learned_count', 0) or 0,
+            }
+
+        return {'total': 0, 'new': 0, 'learning': 0, 'learned': 0}
+
+    def get_user_words(self, user_id: int, limit: int = 10) -> List[Dict]:
+        """
+        Get user's dictionary words ordered by added_at DESC
+
+        Args:
+            user_id: User ID
+            limit: Maximum number of words to return
+
+        Returns:
+            List of word dictionaries
+        """
+        query = """
+        DECLARE $user_id AS Uint64?;
+        DECLARE $limit AS Uint32?;
+
+        SELECT *
+        FROM dictionary_words
+        WHERE user_id = $user_id
+        ORDER BY added_at DESC
+        LIMIT $limit
+        """
+
+        return self._fetch_all(query, {'$user_id': user_id, '$limit': limit})
+
     def ensure_test_users_exist(self):
         """
         Ensure test users exist in the database

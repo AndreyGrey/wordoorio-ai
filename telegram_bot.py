@@ -7,7 +7,7 @@ Polling mode, интеграция с TrainingService и TestManager (YDB вер
 import os
 import asyncio
 import logging
-from typing import Dict
+from typing import Dict, List, Optional
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -21,6 +21,7 @@ from telegram.ext import (
     CommandHandler,
     CallbackQueryHandler,
     MessageHandler,
+    ConversationHandler,
     filters,
     ContextTypes
 )
@@ -55,6 +56,9 @@ TEST_ACCOUNTS = {
     'friend2': {'password': 'test123', 'user_id': 3},
 }
 
+# Состояния ConversationHandler
+TRAINING = 1
+
 
 def get_main_keyboard():
     """Создать основную клавиатуру с кнопками"""
@@ -65,24 +69,32 @@ def get_main_keyboard():
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
+def get_user_id_from_telegram(telegram_id: int) -> Optional[int]:
+    """Получить user_id по telegram_id"""
+    user = db.get_user_by_telegram_id(telegram_id)
+    if user:
+        return user.get('id')
+    return None
+
+
+# =============================================================================
+# КОМАНДЫ
+# =============================================================================
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""
     telegram_id = update.effective_user.id
-
-    # Проверяем, привязан ли Telegram к аккаунту
     user = db.get_user_by_telegram_id(telegram_id)
 
     if user:
-        # Пользователь уже авторизован - показываем основную клавиатуру
         username = user.get('username', 'пользователь')
         await update.message.reply_text(
             f"Привет, {username}! 👋\n\n"
             "Готов потренировать английские слова из твоего словаря?\n\n"
-            "Используй кнопки ниже для быстрого доступа:",
+            "Используй кнопки ниже:",
             reply_markup=get_main_keyboard()
         )
     else:
-        # Нужна авторизация
         await update.message.reply_text(
             "Привет! 👋\n\n"
             "Для начала тренировки нужно привязать Telegram к аккаунту.\n\n"
@@ -95,13 +107,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик команды /login username password
-    Привязывает Telegram ID к существующему аккаунту
-    """
+    """Обработчик команды /login username password"""
     telegram_id = update.effective_user.id
 
-    # Проверяем аргументы
     if len(context.args) != 2:
         await update.message.reply_text(
             "❌ Неверный формат команды.\n\n"
@@ -116,7 +124,6 @@ async def login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = context.args[0].lower()
     password = context.args[1]
 
-    # Проверяем логин/пароль
     if username not in TEST_ACCOUNTS:
         await update.message.reply_text(
             "❌ Неверный логин или пароль.\n\n"
@@ -134,15 +141,12 @@ async def login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = account['user_id']
-
-    # Привязываем Telegram к аккаунту
     success = db.link_telegram_to_user(user_id, telegram_id)
 
     if success:
         await update.message.reply_text(
-            f"✅ Отлично! Telegram привязан к аккаунту `{username}`.\n\n"
-            "Теперь можешь тренировать слова!\n\n"
-            "Используй кнопки ниже для быстрого доступа:",
+            f"✅ Telegram привязан к аккаунту `{username}`.\n\n"
+            "Теперь можешь тренировать слова!",
             reply_markup=get_main_keyboard(),
             parse_mode='Markdown'
         )
@@ -152,291 +156,537 @@ async def login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-async def start_training_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик кнопки НАЧАТЬ - запуск тренировки"""
-    query = update.callback_query
-    await query.answer()
+async def train_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды /train"""
+    telegram_id = update.effective_user.id
+    user_id = get_user_id_from_telegram(telegram_id)
 
-    telegram_id = query.from_user.id
-
-    # Получаем пользователя по telegram_id
-    user = db.get_user_by_telegram_id(telegram_id)
-
-    if not user:
-        await query.edit_message_text(
-            "❌ Сначала авторизуйтесь командой:\n"
-            "`/login username password`",
+    if not user_id:
+        await update.message.reply_text(
+            "❌ Сначала авторизуйтесь:\n`/login username password`",
             parse_mode='Markdown'
         )
-        return
+        return ConversationHandler.END
 
-    user_id = user['id']
+    # Начинаем тренировку
+    return await start_training(update, context, user_id)
 
-    # Отбираем 8 слов для тренировки
-    try:
-        words = training_service.select_words_for_training(user_id, count=8)
-    except Exception as e:
-        logger.error(f"Ошибка отбора слов: {e}")
-        await query.edit_message_text(
-            "⚠️ Произошла ошибка при отборе слов. Попробуйте позже."
-        )
-        return
 
-    if not words:
-        await query.edit_message_text(
-            "📚 В твоем словаре пока нет слов.\n\n"
-            "Добавь слова через веб-интерфейс и возвращайся!"
-        )
-        return
+# =============================================================================
+# ТРЕНИРОВКА
+# =============================================================================
 
-    # Создаем тесты (async!)
-    await query.edit_message_text(
+async def start_training(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int = None):
+    """Запуск тренировки - загрузка тестов"""
+
+    # Определяем user_id
+    if user_id is None:
+        telegram_id = update.effective_user.id
+        user_id = get_user_id_from_telegram(telegram_id)
+
+        if not user_id:
+            await update.message.reply_text(
+                "❌ Сначала авторизуйтесь:\n`/login username password`",
+                parse_mode='Markdown'
+            )
+            return ConversationHandler.END
+
+    # Отправляем сообщение о загрузке
+    loading_msg = await update.message.reply_text(
         "⏳ Генерирую тесты...\n\n"
-        f"Слов для тренировки: {len(words)}"
+        "AI подбирает варианты ответов для твоих слов."
     )
 
     try:
+        # 1. Отбираем слова для тренировки
+        words = training_service.select_words_for_training(user_id, count=8)
+
+        if not words:
+            await loading_msg.edit_text(
+                "📚 В твоём словаре пока нет слов.\n\n"
+                "Добавь слова через веб-интерфейс и возвращайся!"
+            )
+            return ConversationHandler.END
+
+        # 2. Создаем тесты через AI
         test_ids = await test_manager.create_tests_batch(user_id, words)
+
+        if not test_ids:
+            await loading_msg.edit_text(
+                "⚠️ Не удалось создать тесты.\n"
+                "Проверь, что у слов есть переводы."
+            )
+            return ConversationHandler.END
+
+        # 3. Загружаем все тесты с перемешанными вариантами
+        tests = []
+        for test_id in test_ids:
+            test = test_manager.get_test_with_shuffled_options(test_id)
+            if test:
+                tests.append(test)
+
+        if not tests:
+            await loading_msg.edit_text("⚠️ Ошибка загрузки тестов.")
+            return ConversationHandler.END
+
+        # 4. Сохраняем состояние тренировки
+        context.user_data['tests'] = tests
+        context.user_data['current_index'] = 0
+        context.user_data['correct_count'] = 0
+        context.user_data['incorrect_count'] = 0
+        context.user_data['loading_msg_id'] = loading_msg.message_id
+
+        # 5. Удаляем сообщение о загрузке и показываем первый тест
+        await loading_msg.delete()
+        return await show_current_test(update, context)
+
     except Exception as e:
-        logger.error(f"Ошибка создания тестов: {e}")
-        await query.edit_message_text(
-            "⚠️ Произошла ошибка при создании тестов. Попробуйте позже."
+        logger.error(f"Ошибка запуска тренировки: {e}")
+        await loading_msg.edit_text(
+            f"⚠️ Произошла ошибка:\n{str(e)}\n\n"
+            "Попробуй позже."
         )
-        return
-
-    if not test_ids:
-        await query.edit_message_text(
-            "⚠️ Не удалось создать тесты. Проверьте, что у слов есть переводы."
-        )
-        return
-
-    # Сохраняем состояние в context
-    context.user_data['test_ids'] = test_ids
-    context.user_data['current_test_index'] = 0
-
-    # Отправляем первый тест
-    await send_next_test(query, context)
+        return ConversationHandler.END
 
 
-async def send_next_test(query_or_message, context: ContextTypes.DEFAULT_TYPE):
-    """Отправка следующего теста"""
-    test_ids = context.user_data.get('test_ids', [])
-    index = context.user_data.get('current_test_index', 0)
+async def show_current_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показать текущий тест"""
+    tests = context.user_data.get('tests', [])
+    index = context.user_data.get('current_index', 0)
 
     # Проверяем, все ли тесты пройдены
-    if index >= len(test_ids):
-        keyboard = [[InlineKeyboardButton("НАЧАТЬ ЕЩЁ 8 🚀", callback_data="start_training")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+    if index >= len(tests):
+        return await show_results(update, context)
 
-        if hasattr(query_or_message, 'edit_message_text'):
-            await query_or_message.edit_message_text(
-                "🎉 Отлично! Все тесты пройдены!\n\nХочешь ещё?",
-                reply_markup=reply_markup
-            )
-        else:
-            await query_or_message.message.reply_text(
-                "🎉 Отлично! Все тесты пройдены!\n\nХочешь ещё?",
-                reply_markup=reply_markup
-            )
-        return
+    test = tests[index]
+    total = len(tests)
 
-    # Получаем тест с перемешанными вариантами
-    test_id = test_ids[index]
-    test = test_manager.get_test_with_shuffled_options(test_id)
+    # Формируем прогресс-бар
+    progress = int((index / total) * 10)
+    progress_bar = "▓" * progress + "░" * (10 - progress)
 
-    if not test:
-        # Пропускаем этот тест
-        context.user_data['current_test_index'] += 1
-        await send_next_test(query_or_message, context)
-        return
-
-    # Сохраняем варианты в контексте для проверки ответа
-    context.user_data[f'test_{test_id}_options'] = test['options']
-
-    # Создаем кнопки
+    # Формируем кнопки с вариантами
     keyboard = []
-    for option in test['options']:
-        # callback_data содержит test_id и текст варианта
-        callback_data = f"answer_{test_id}_{option['index']}"
-        keyboard.append([InlineKeyboardButton(option['text'], callback_data=callback_data)])
+    for i, option in enumerate(test['options']):
+        keyboard.append([
+            InlineKeyboardButton(
+                option['text'],
+                callback_data=f"ans:{i}"
+            )
+        ])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
+    # Формируем текст сообщения
     text = (
-        f"📝 Тест {index + 1}/{len(test_ids)}\n\n"
-        f"🇬🇧 **{test['word']}**\n\n"
-        f"Выберите правильный перевод:"
+        f"📝 Тест {index + 1}/{total}\n"
+        f"{progress_bar}\n\n"
+        f"🔤 *{test['word']}*\n\n"
+        f"Выбери перевод:"
     )
 
     # Отправляем или редактируем сообщение
-    if hasattr(query_or_message, 'edit_message_text'):
-        await query_or_message.edit_message_text(
+    if update.callback_query:
+        await update.callback_query.edit_message_text(
             text,
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
     else:
-        await query_or_message.message.reply_text(
+        await update.message.reply_text(
             text,
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
 
+    return TRAINING
 
-async def answer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик ответа на тест"""
+
+async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка ответа на тест"""
     query = update.callback_query
     await query.answer()
 
     # Парсим callback_data
-    parts = query.data.split('_')
-    if len(parts) != 3 or parts[0] != 'answer':
-        await query.edit_message_text("⚠️ Ошибка обработки ответа")
-        return
+    data = query.data
+    if not data.startswith("ans:"):
+        return TRAINING
 
-    test_id = int(parts[1])
-    option_index = int(parts[2])
+    option_index = int(data.split(":")[1])
 
-    # Получаем сохраненные варианты
-    options = context.user_data.get(f'test_{test_id}_options')
-    if not options:
-        await query.edit_message_text("⚠️ Тест не найден")
-        return
+    # Получаем текущий тест
+    tests = context.user_data.get('tests', [])
+    index = context.user_data.get('current_index', 0)
 
-    # Находим выбранный вариант
-    selected_option = None
-    for opt in options:
-        if opt['index'] == option_index:
-            selected_option = opt
-            break
+    if index >= len(tests):
+        return await show_results(update, context)
 
-    if not selected_option:
-        await query.edit_message_text("⚠️ Вариант не найден")
-        return
+    test = tests[index]
+    selected_option = test['options'][option_index]
+    is_correct = selected_option['is_correct']
 
-    # Проверяем ответ через TestManager
+    # Находим правильный ответ
+    correct_option = next(opt for opt in test['options'] if opt['is_correct'])
+
+    # Обновляем счетчики
+    if is_correct:
+        context.user_data['correct_count'] = context.user_data.get('correct_count', 0) + 1
+    else:
+        context.user_data['incorrect_count'] = context.user_data.get('incorrect_count', 0) + 1
+
+    # Отправляем результат в БД (асинхронно, не блокируем UI)
     try:
-        result = test_manager.submit_answer(test_id, selected_option['text'])
+        result = test_manager.submit_answer(test['test_id'], selected_option['text'])
+        new_rating = result.get('new_rating', 0)
+        new_status = result.get('new_status', 'learning')
     except Exception as e:
-        logger.error(f"Ошибка проверки ответа: {e}")
-        await query.edit_message_text("⚠️ Произошла ошибка при проверке ответа")
-        return
+        logger.error(f"Ошибка сохранения ответа: {e}")
+        new_rating = 0
+        new_status = "?"
 
-    # Показываем результат
-    if result['is_correct']:
-        text = f"✅ Правильно!\n\n"
+    # Формируем сообщение с результатом
+    if is_correct:
+        # Рейтинг со звездочками
+        stars = "⭐" * min(new_rating, 10)
+        if new_rating >= 10:
+            status_text = "🎓 Выучено!"
+        else:
+            status_text = f"Рейтинг: {new_rating}/10"
+
+        text = (
+            f"✅ *Верно!*\n\n"
+            f"{test['word']} → {correct_option['text']}\n\n"
+            f"{status_text} {stars}"
+        )
     else:
         text = (
-            f"❌ Неправильно\n\n"
-            f"Правильный ответ: **{result['correct_translation']}**\n\n"
+            f"❌ *Неверно*\n\n"
+            f"{test['word']} → *{correct_option['text']}*\n"
+            f"(не \"{selected_option['text']}\")\n\n"
+            f"Рейтинг сброшен: 0/10"
         )
 
-    text += f"Слово: **{result['word']}**\n"
-    text += f"Рейтинг: {result['new_rating']}/10\n"
-    text += f"Статус: {result['new_status']}"
+    # Кнопка "Дальше"
+    keyboard = [[InlineKeyboardButton("Дальше →", callback_data="next")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await query.edit_message_text(text, parse_mode='Markdown')
+    await query.edit_message_text(
+        text,
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
 
-    # Пауза 1.5 секунды
-    await asyncio.sleep(1.5)
+    return TRAINING
 
-    # Переходим к следующему тесту
-    context.user_data['current_test_index'] += 1
-    await send_next_test(query, context)
 
+async def next_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Переход к следующему тесту"""
+    query = update.callback_query
+    await query.answer()
+
+    # Увеличиваем индекс
+    context.user_data['current_index'] = context.user_data.get('current_index', 0) + 1
+
+    return await show_current_test(update, context)
+
+
+async def show_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показать итоговые результаты тренировки"""
+    correct = context.user_data.get('correct_count', 0)
+    incorrect = context.user_data.get('incorrect_count', 0)
+    total = correct + incorrect
+
+    accuracy = round((correct / total) * 100) if total > 0 else 0
+
+    # Выбираем эмодзи в зависимости от результата
+    if accuracy >= 80:
+        emoji = "🎉"
+        comment = "Отличный результат!"
+    elif accuracy >= 60:
+        emoji = "👍"
+        comment = "Хороший результат!"
+    elif accuracy >= 40:
+        emoji = "💪"
+        comment = "Есть над чем поработать"
+    else:
+        emoji = "📚"
+        comment = "Нужно больше практики"
+
+    text = (
+        f"{emoji} *Тренировка завершена!*\n\n"
+        f"{comment}\n\n"
+        f"📊 *Результаты:*\n"
+        f"✅ Верно: {correct}\n"
+        f"❌ Ошибок: {incorrect}\n"
+        f"🎯 Точность: {accuracy}%"
+    )
+
+    keyboard = [[InlineKeyboardButton("🔄 Ещё раз", callback_data="restart")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    if update.callback_query:
+        await update.callback_query.edit_message_text(
+            text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    else:
+        await update.message.reply_text(
+            text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+
+    # Очищаем состояние
+    context.user_data.clear()
+
+    return ConversationHandler.END
+
+
+async def restart_training(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Перезапуск тренировки"""
+    query = update.callback_query
+    await query.answer()
+
+    telegram_id = query.from_user.id
+    user_id = get_user_id_from_telegram(telegram_id)
+
+    if not user_id:
+        await query.edit_message_text(
+            "❌ Сначала авторизуйтесь:\n`/login username password`",
+            parse_mode='Markdown'
+        )
+        return ConversationHandler.END
+
+    # Удаляем старое сообщение
+    await query.message.delete()
+
+    # Создаем fake update с message для start_training
+    class FakeUpdate:
+        def __init__(self, message):
+            self.message = message
+            self.effective_user = query.from_user
+
+    # Отправляем новое сообщение
+    msg = await query.message.chat.send_message("⏳ Генерирую тесты...")
+
+    class FakeMessage:
+        def __init__(self, msg):
+            self._msg = msg
+            self.chat = msg.chat
+
+        async def reply_text(self, text, **kwargs):
+            return await self.chat.send_message(text, **kwargs)
+
+    fake_update = FakeUpdate(FakeMessage(msg))
+
+    # Удаляем временное сообщение
+    await msg.delete()
+
+    return await start_training(fake_update, context, user_id)
+
+
+async def cancel_training(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Отмена тренировки"""
+    context.user_data.clear()
+
+    if update.callback_query:
+        await update.callback_query.edit_message_text(
+            "Тренировка отменена.\n\n"
+            "Используй кнопки ниже для продолжения.",
+            reply_markup=None
+        )
+    else:
+        await update.message.reply_text(
+            "Тренировка отменена.",
+            reply_markup=get_main_keyboard()
+        )
+
+    return ConversationHandler.END
+
+
+# =============================================================================
+# СТАТИСТИКА И СЛОВАРЬ
+# =============================================================================
+
+async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показать статистику пользователя"""
+    telegram_id = update.effective_user.id
+    user_id = get_user_id_from_telegram(telegram_id)
+
+    if not user_id:
+        await update.message.reply_text(
+            "❌ Сначала авторизуйтесь:\n`/login username password`",
+            parse_mode='Markdown'
+        )
+        return
+
+    try:
+        # Получаем статистику из БД
+        stats = db.get_dictionary_stats(user_id)
+
+        total = stats.get('total', 0)
+        new_count = stats.get('new', 0)
+        learning_count = stats.get('learning', 0)
+        learned_count = stats.get('learned', 0)
+
+        # Вычисляем процент выученных
+        progress = round((learned_count / total) * 100) if total > 0 else 0
+
+        text = (
+            "📊 *Твоя статистика*\n\n"
+            f"📚 Всего слов: {total}\n\n"
+            f"🆕 Новых: {new_count}\n"
+            f"📖 На изучении: {learning_count}\n"
+            f"✅ Выучено: {learned_count}\n\n"
+            f"🎯 Прогресс: {progress}%"
+        )
+
+        await update.message.reply_text(
+            text,
+            reply_markup=get_main_keyboard(),
+            parse_mode='Markdown'
+        )
+
+    except Exception as e:
+        logger.error(f"Ошибка получения статистики: {e}")
+        await update.message.reply_text(
+            "⚠️ Не удалось загрузить статистику.",
+            reply_markup=get_main_keyboard()
+        )
+
+
+async def show_dictionary(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показать словарь пользователя"""
+    telegram_id = update.effective_user.id
+    user_id = get_user_id_from_telegram(telegram_id)
+
+    if not user_id:
+        await update.message.reply_text(
+            "❌ Сначала авторизуйтесь:\n`/login username password`",
+            parse_mode='Markdown'
+        )
+        return
+
+    try:
+        # Получаем последние слова из словаря
+        words = db.get_user_words(user_id, limit=10)
+
+        if not words:
+            await update.message.reply_text(
+                "📚 Твой словарь пока пуст.\n\n"
+                "Добавляй слова через веб-интерфейс!",
+                reply_markup=get_main_keyboard()
+            )
+            return
+
+        # Формируем список слов
+        text = "📚 *Твой словарь* (последние 10 слов)\n\n"
+
+        for word in words:
+            lemma = word.get('lemma', '?')
+            status = word.get('status', 'new')
+            rating = word.get('rating', 0) or 0
+
+            # Иконка статуса
+            if status == 'learned':
+                icon = "✅"
+            elif status == 'learning':
+                icon = "📖"
+            else:
+                icon = "🆕"
+
+            # Получаем перевод
+            translation = db.get_translation_for_word(word.get('id'))
+            translation_text = translation if translation else "—"
+
+            text += f"{icon} *{lemma}* — {translation_text} ({rating}/10)\n"
+
+        text += "\n_Управляй словарём через веб-интерфейс_"
+
+        await update.message.reply_text(
+            text,
+            reply_markup=get_main_keyboard(),
+            parse_mode='Markdown'
+        )
+
+    except Exception as e:
+        logger.error(f"Ошибка получения словаря: {e}")
+        await update.message.reply_text(
+            "⚠️ Не удалось загрузить словарь.",
+            reply_markup=get_main_keyboard()
+        )
+
+
+# =============================================================================
+# ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ
+# =============================================================================
 
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик текстовых сообщений (кнопки клавиатуры)"""
     text = update.message.text
     telegram_id = update.effective_user.id
 
-    # Проверяем авторизацию
+    # Проверяем авторизацию для большинства команд
     user = db.get_user_by_telegram_id(telegram_id)
-    if not user:
-        await update.message.reply_text(
-            "❌ Сначала авторизуйтесь командой:\n"
-            "`/login username password`",
-            parse_mode='Markdown'
-        )
-        return
 
-    # Обработка кнопок
     if text == "💪 Начать тренировку":
-        # Показываем inline кнопку для запуска
-        keyboard = [[InlineKeyboardButton("НАЧАТЬ 🚀", callback_data="start_training")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(
-            "💪 Готов потренировать слова?\n\n"
-            "Нажми кнопку ниже для запуска теста из 8 слов.",
-            reply_markup=reply_markup
-        )
+        if not user:
+            await update.message.reply_text(
+                "❌ Сначала авторизуйтесь:\n`/login username password`",
+                parse_mode='Markdown'
+            )
+            return ConversationHandler.END
+        return await start_training(update, context, user.get('id'))
 
     elif text == "📊 Моя статистика":
-        # Получаем статистику пользователя
-        # TODO: Реализовать получение статистики из БД
-        await update.message.reply_text(
-            "📊 Статистика:\n\n"
-            "Эта функция в разработке...",
-            reply_markup=get_main_keyboard()
-        )
+        return await show_statistics(update, context)
 
     elif text == "📚 Мой словарь":
-        # Показываем информацию о словаре
-        # TODO: Получить реальные данные из БД
-        await update.message.reply_text(
-            "📚 Твой словарь:\n\n"
-            "Эта функция в разработке...\n\n"
-            "Добавляй слова через веб-интерфейс!",
-            reply_markup=get_main_keyboard()
-        )
+        return await show_dictionary(update, context)
 
+    else:
+        # Неизвестная команда
+        if user:
+            await update.message.reply_text(
+                "Используй кнопки ниже:",
+                reply_markup=get_main_keyboard()
+            )
+        else:
+            await update.message.reply_text(
+                "Привет! Для начала авторизуйся:\n"
+                "`/login username password`",
+                parse_mode='Markdown'
+            )
+
+
+# =============================================================================
+# ОБРАБОТЧИК ОШИБОК
+# =============================================================================
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик ошибок"""
     logger.error(f"Update {update} caused error {context.error}")
 
 
+# =============================================================================
+# ИНИЦИАЛИЗАЦИЯ И ЗАПУСК
+# =============================================================================
+
 async def post_init(application: Application):
     """Инициализация после запуска бота"""
-    # Регистрируем команды бота
     commands = [
-        BotCommand("start", "🚀 Начать работу с ботом"),
-        BotCommand("login", "🔑 Привязать аккаунт (login password)"),
-        BotCommand("train", "💪 Начать тренировку слов"),
+        BotCommand("start", "Начать работу с ботом"),
+        BotCommand("login", "Привязать аккаунт"),
+        BotCommand("train", "Начать тренировку"),
+        BotCommand("cancel", "Отменить тренировку"),
     ]
     await application.bot.set_my_commands(commands)
     logger.info("✅ Команды бота зарегистрированы")
 
 
-async def train_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /train - быстрый запуск тренировки"""
-    telegram_id = update.effective_user.id
-
-    # Получаем пользователя по telegram_id
-    user = db.get_user_by_telegram_id(telegram_id)
-
-    if not user:
-        await update.message.reply_text(
-            "❌ Сначала авторизуйтесь командой:\n"
-            "`/login username password`",
-            parse_mode='Markdown'
-        )
-        return
-
-    # Показываем кнопку для запуска
-    keyboard = [[InlineKeyboardButton("НАЧАТЬ 🚀", callback_data="start_training")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    await update.message.reply_text(
-        "💪 Готов потренировать слова?\n\n"
-        "Нажми кнопку ниже для запуска теста из 8 слов.",
-        reply_markup=reply_markup
-    )
-
-
 def main():
     """Запуск бота"""
-    # Получаем токен бота
     token = os.getenv('TELEGRAM_BOT_TOKEN')
     if not token:
         logger.error("TELEGRAM_BOT_TOKEN не найден в переменных окружения")
@@ -449,20 +699,45 @@ def main():
     # Создаем приложение
     app = Application.builder().token(token).post_init(post_init).build()
 
+    # ConversationHandler для тренировки
+    training_handler = ConversationHandler(
+        entry_points=[
+            CommandHandler("train", train_command),
+            MessageHandler(
+                filters.Regex("^💪 Начать тренировку$"),
+                lambda u, c: start_training(u, c, get_user_id_from_telegram(u.effective_user.id))
+            ),
+        ],
+        states={
+            TRAINING: [
+                CallbackQueryHandler(handle_answer, pattern=r"^ans:\d+$"),
+                CallbackQueryHandler(next_test, pattern=r"^next$"),
+                CallbackQueryHandler(restart_training, pattern=r"^restart$"),
+            ],
+        },
+        fallbacks=[
+            CommandHandler("cancel", cancel_training),
+            CallbackQueryHandler(restart_training, pattern=r"^restart$"),
+        ],
+        allow_reentry=True,
+    )
+
     # Регистрируем обработчики
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("login", login_command))
-    app.add_handler(CommandHandler("train", train_command))
-    app.add_handler(CallbackQueryHandler(start_training_callback, pattern="^start_training$"))
-    app.add_handler(CallbackQueryHandler(answer_callback, pattern="^answer_"))
+    app.add_handler(training_handler)
 
-    # Обработчик текстовых сообщений (кнопки клавиатуры)
+    # Обработчики кнопок статистики и словаря (вне ConversationHandler)
+    app.add_handler(MessageHandler(filters.Regex("^📊 Моя статистика$"), show_statistics))
+    app.add_handler(MessageHandler(filters.Regex("^📚 Мой словарь$"), show_dictionary))
+
+    # Обработчик всех остальных текстовых сообщений
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
 
     # Обработчик ошибок
     app.add_error_handler(error_handler)
 
-    # Запускаем бота (polling mode)
+    # Запускаем бота
     logger.info("🤖 Бот запущен!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
