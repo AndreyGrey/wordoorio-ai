@@ -137,9 +137,10 @@ class TestManager:
             {'text': test['wrong_option_3'], 'is_correct': False}
         ]
 
-        # Перемешиваем детерминированно (на основе test_id)
-        # Это гарантирует одинаковый порядок при повторных вызовах
-        rng = random.Random(test_id)
+        # Перемешиваем детерминированно (на основе test_id + created_at)
+        # created_at уникален для каждого теста, что даёт равномерное распределение
+        seed = hash(f"{test_id}_{test.get('created_at', '')}_{test['word']}")
+        rng = random.Random(seed)
         rng.shuffle(options)
 
         # Добавляем индексы
