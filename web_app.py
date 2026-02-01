@@ -1443,6 +1443,106 @@ def dictionary_page():
     return render_template('dictionary-v2.html')
 
 
+@app.route('/youtube')
+def youtube_page():
+    """Страница анализа YouTube видео"""
+    return render_template('youtube.html')
+
+
+@app.route('/api/youtube/analyze', methods=['POST'])
+def api_youtube_analyze():
+    """
+    Анализ YouTube видео: извлечь транскрипт и найти слова
+
+    Body:
+        {
+            "url": "https://www.youtube.com/watch?v=..."
+        }
+
+    Returns:
+        {
+            "success": true,
+            "video_id": "...",
+            "language": "en",
+            "highlights": [...],
+            "stats": {...}
+        }
+    """
+    try:
+        import asyncio
+        from core.youtube_service import YouTubeService
+        from contracts.analysis_contracts import AnalysisRequest
+        from core.analysis_orchestrator import AnalysisOrchestrator
+        from core.yandex_ai_client import YandexAIClient
+
+        data = request.get_json()
+        url = data.get('url', '').strip()
+
+        if not url:
+            return jsonify({'error': 'URL не указан'}), 400
+
+        # Получаем транскрипт
+        youtube_service = YouTubeService()
+        transcript_result = youtube_service.get_transcript_from_url(url)
+
+        if not transcript_result['success']:
+            return jsonify({'error': transcript_result['error']}), 400
+
+        text = transcript_result['text']
+        video_id = transcript_result['video_id']
+        language = transcript_result['language']
+
+        logger.info(f"[YouTube] Получен транскрипт: video_id={video_id}, длина={len(text)}, язык={language}")
+
+        # Ограничиваем длину текста (AI агенты имеют лимит)
+        MAX_TEXT_LENGTH = 15000
+        if len(text) > MAX_TEXT_LENGTH:
+            text = text[:MAX_TEXT_LENGTH]
+            logger.info(f"[YouTube] Текст обрезан до {MAX_TEXT_LENGTH} символов")
+
+        # Анализируем текст через оркестратор
+        analysis_request = AnalysisRequest(
+            text=text,
+            page_id='youtube',
+            user_session=session.get('session_id')
+        )
+
+        ai_client = YandexAIClient()
+        orchestrator = AnalysisOrchestrator(ai_client)
+
+        loop = None
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        result = loop.run_until_complete(
+            orchestrator.analyze_text(analysis_request)
+        )
+
+        if not result.success:
+            return jsonify({'error': result.error}), 500
+
+        highlights_dicts = [h.to_dict() for h in result.highlights]
+
+        return jsonify({
+            'success': True,
+            'video_id': video_id,
+            'language': language,
+            'transcript_length': len(transcript_result['text']),
+            'highlights': highlights_dicts,
+            'stats': result.stats,
+            'performance': result.performance
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        logger.error(f"[YouTube] Ошибка: {e}")
+        return jsonify({'error': f'Ошибка анализа: {str(e)}'}), 500
+
+
 @app.route('/training')
 def training_page():
     """🎯 Страница тренировки слов"""
