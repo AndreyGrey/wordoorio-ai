@@ -77,73 +77,82 @@ class YouTubeService:
             languages = ['en', 'ru']
 
         try:
-            # Получаем список доступных транскриптов
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            logger.info(f"[YouTubeService] Запрос транскрипта для video_id={video_id}, languages={languages}")
 
-            # Пробуем найти транскрипт на нужном языке
-            transcript = None
-            used_language = None
+            # Простой подход: сразу запрашиваем транскрипт
+            # Это работает лучше, чем list_transcripts на некоторых серверах
+            try:
+                segments = YouTubeTranscriptApi.get_transcript(video_id, languages=languages)
+                used_language = languages[0]  # Предполагаем первый язык
 
-            # Сначала пробуем ручные субтитры
-            for lang in languages:
-                try:
-                    transcript = transcript_list.find_transcript([lang])
-                    used_language = lang
-                    break
-                except NoTranscriptFound:
-                    continue
+                # Объединяем в текст
+                text = ' '.join(segment['text'] for segment in segments)
 
-            # Если не нашли, пробуем автоматические
-            if transcript is None:
+                logger.info(f"[YouTubeService] Получен транскрипт для {video_id}, длина: {len(text)}")
+
+                return {
+                    'success': True,
+                    'video_id': video_id,
+                    'text': text,
+                    'segments': segments,
+                    'language': used_language
+                }
+
+            except NoTranscriptFound:
+                # Пробуем автоматические субтитры
+                logger.info(f"[YouTubeService] Ручные субтитры не найдены, пробуем автоматические")
+                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+
+                # Ищем любой доступный транскрипт
+                for transcript in transcript_list:
+                    logger.info(f"[YouTubeService] Найден транскрипт: {transcript.language_code}, auto={transcript.is_generated}")
+
+                # Пробуем автоматически сгенерированные
                 for lang in languages:
                     try:
                         transcript = transcript_list.find_generated_transcript([lang])
-                        used_language = lang
-                        break
+                        segments = transcript.fetch()
+                        text = ' '.join(segment['text'] for segment in segments)
+
+                        logger.info(f"[YouTubeService] Получен auto-транскрипт для {video_id}, язык: {lang}")
+
+                        return {
+                            'success': True,
+                            'video_id': video_id,
+                            'text': text,
+                            'segments': segments,
+                            'language': lang
+                        }
                     except NoTranscriptFound:
                         continue
 
-            if transcript is None:
                 return {
                     'success': False,
                     'error': 'Субтитры не найдены для указанных языков'
                 }
 
-            # Получаем сегменты
-            segments = transcript.fetch()
-
-            # Объединяем в текст
-            text = ' '.join(segment['text'] for segment in segments)
-
-            logger.info(f"[YouTubeService] Получен транскрипт для {video_id}, язык: {used_language}, длина: {len(text)}")
-
-            return {
-                'success': True,
-                'video_id': video_id,
-                'text': text,
-                'segments': segments,
-                'language': used_language
-            }
-
-        except TranscriptsDisabled:
-            logger.warning(f"[YouTubeService] Субтитры отключены для видео {video_id}")
+        except TranscriptsDisabled as e:
+            logger.warning(f"[YouTubeService] TranscriptsDisabled для {video_id}: {e}")
             return {
                 'success': False,
-                'error': 'Субтитры отключены автором видео'
+                'error': f'Субтитры отключены или недоступны. Возможно, YouTube блокирует запросы с сервера.'
             }
 
-        except VideoUnavailable:
-            logger.warning(f"[YouTubeService] Видео недоступно: {video_id}")
+        except VideoUnavailable as e:
+            logger.warning(f"[YouTubeService] VideoUnavailable для {video_id}: {e}")
             return {
                 'success': False,
                 'error': 'Видео недоступно (удалено или приватное)'
             }
 
         except Exception as e:
-            logger.error(f"[YouTubeService] Ошибка получения транскрипта: {e}")
+            import traceback
+            error_type = type(e).__name__
+            logger.error(f"[YouTubeService] {error_type} для {video_id}: {e}")
+            logger.error(f"[YouTubeService] Traceback: {traceback.format_exc()}")
             return {
                 'success': False,
-                'error': f'Ошибка: {str(e)}'
+                'error': f'{error_type}: {str(e)}'
             }
 
     def get_transcript_from_url(self, url: str, languages: List[str] = None) -> Dict:
