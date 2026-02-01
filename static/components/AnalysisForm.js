@@ -41,7 +41,7 @@ function createAnalysisForm(config = {}) {
                 <textarea
                     id="textInput"
                     class="form-textarea"
-                    placeholder="${placeholder}"
+                    placeholder="Paste your English text here..."
                 ></textarea>
             </div>
 
@@ -51,9 +51,8 @@ function createAnalysisForm(config = {}) {
                     type="text"
                     id="youtubeInput"
                     class="form-url-input"
-                    placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+                    placeholder="Paste YouTube video link here..."
                 >
-                <p class="youtube-hint">Paste a YouTube video link to analyze vocabulary from transcript</p>
             </div>
 
             <button class="form-button" onclick="analyzeText()">
@@ -104,7 +103,7 @@ function getAnalysisFormStyles() {
         /* ===== MODE TABS ===== */
         .mode-tabs {
             display: flex;
-            gap: 8px;
+            gap: 12px;
             margin-bottom: 20px;
         }
 
@@ -112,8 +111,8 @@ function getAnalysisFormStyles() {
             padding: 10px 24px;
             border: 2px solid #e2e8f0;
             border-radius: 10px;
-            background: #f7fafc;
-            color: #4a5568;
+            background: transparent;
+            color: #718096;
             font-size: 15px;
             font-weight: 600;
             cursor: pointer;
@@ -126,9 +125,9 @@ function getAnalysisFormStyles() {
         }
 
         .mode-tab.active {
-            background: linear-gradient(90deg, #39A0B3 0%, #1B7A94 100%);
-            color: white;
-            border-color: transparent;
+            border-color: #39A0B3;
+            color: #39A0B3;
+            background: rgba(57, 160, 179, 0.08);
         }
 
         /* ===== INPUT MODES ===== */
@@ -188,13 +187,6 @@ function getAnalysisFormStyles() {
 
         .form-url-input::placeholder {
             color: #a0aec0;
-        }
-
-        .youtube-hint {
-            color: #718096;
-            font-size: 14px;
-            margin-top: 12px;
-            padding-left: 4px;
         }
 
         /* ===== BUTTON WITH TEAL GRADIENT ===== */
@@ -337,10 +329,6 @@ function getAnalysisFormStyles() {
             .form-button {
                 padding: 14px 32px;
                 font-size: 15px;
-            }
-
-            .youtube-hint {
-                font-size: 13px;
             }
         }
     `;
