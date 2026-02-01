@@ -195,63 +195,100 @@
             const errorDiv = document.getElementById('error');
             const resultsDiv = document.getElementById('results');
 
-            let text = '';
-            let apiUrl = '';
-            let requestBody = {};
-
-            if (mode === 'youtube') {
-                // YouTube режим
-                const youtubeInput = document.getElementById('youtubeInput');
-                const url = youtubeInput.value.trim();
-
-                if (!url) {
-                    showError('Please enter a YouTube URL');
-                    return;
-                }
-
-                text = 'Extracting transcript from YouTube...';
-                apiUrl = '/api/youtube/analyze';
-                requestBody = { url: url };
-            } else {
-                // Text режим
-                const textInput = document.getElementById('textInput');
-                text = textInput.value.trim();
-
-                if (!text) {
-                    showError('Please enter text for analysis');
-                    return;
-                }
-
-                apiUrl = '/analyze';
-                requestBody = { text: text };
-            }
-
             button.disabled = true;
             button.textContent = 'ANALYZING...';
             errorDiv.style.display = 'none';
             resultsDiv.style.display = 'none';
 
-            // Показываем анимацию загрузки
-            showLoadingAnimation(text);
+            let text = '';
 
             try {
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(requestBody)
-                });
+                if (mode === 'youtube') {
+                    // YouTube режим — двухэтапная загрузка
+                    const youtubeInput = document.getElementById('youtubeInput');
+                    const url = youtubeInput.value.trim();
 
-                const data = await response.json();
+                    if (!url) {
+                        showError('Please enter a YouTube URL');
+                        button.disabled = false;
+                        button.textContent = 'WORDOORIO!';
+                        return;
+                    }
 
-                if (data.error) {
-                    showError(data.error);
-                    return;
-                }
+                    // Этап 1: Получаем транскрипт
+                    const transcriptResponse = await fetch('/api/youtube/transcript', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ url: url })
+                    });
 
-                if (data.success || data.highlights) {
-                    showResults(data);
+                    const transcriptData = await transcriptResponse.json();
+
+                    if (transcriptData.error) {
+                        showError(transcriptData.error);
+                        button.disabled = false;
+                        button.textContent = 'WORDOORIO!';
+                        return;
+                    }
+
+                    text = transcriptData.text;
+
+                    // Этап 2: Показываем анимацию с реальными словами из транскрипта
+                    showLoadingAnimation(text);
+
+                    // Этап 3: Анализируем текст
+                    const analyzeResponse = await fetch('/analyze', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ text: text })
+                    });
+
+                    const data = await analyzeResponse.json();
+
+                    if (data.error) {
+                        showError(data.error);
+                        return;
+                    }
+
+                    if (data.success || data.highlights) {
+                        showResults(data);
+                    } else {
+                        showError(data.error || 'Unknown error');
+                    }
+
                 } else {
-                    showError(data.error || 'Unknown error');
+                    // Text режим — стандартная загрузка
+                    const textInput = document.getElementById('textInput');
+                    text = textInput.value.trim();
+
+                    if (!text) {
+                        showError('Please enter text for analysis');
+                        button.disabled = false;
+                        button.textContent = 'WORDOORIO!';
+                        return;
+                    }
+
+                    // Показываем анимацию с реальными словами
+                    showLoadingAnimation(text);
+
+                    const response = await fetch('/analyze', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ text: text })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.error) {
+                        showError(data.error);
+                        return;
+                    }
+
+                    if (data.success || data.highlights) {
+                        showResults(data);
+                    } else {
+                        showError(data.error || 'Unknown error');
+                    }
                 }
             } catch (error) {
                 showError('Server connection error');

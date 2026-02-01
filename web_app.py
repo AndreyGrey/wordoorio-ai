@@ -1443,6 +1443,75 @@ def dictionary_page():
     return render_template('dictionary-v2.html')
 
 
+@app.route('/api/youtube/transcript', methods=['POST'])
+def api_youtube_transcript():
+    """
+    Получить только транскрипт YouTube видео (без анализа)
+    Используется для двухэтапной загрузки: сначала транскрипт, потом анализ
+
+    Body:
+        {
+            "url": "https://www.youtube.com/watch?v=..."
+        }
+
+    Returns:
+        {
+            "success": true,
+            "video_id": "...",
+            "language": "en",
+            "text": "..."
+        }
+    """
+    try:
+        import asyncio
+        from core.youtube_service import YouTubeService
+
+        data = request.get_json()
+        url = data.get('url', '').strip()
+
+        if not url:
+            return jsonify({'error': 'URL не указан'}), 400
+
+        # Получаем event loop
+        loop = None
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        # Получаем транскрипт
+        youtube_service = YouTubeService()
+        transcript_result = loop.run_until_complete(
+            youtube_service.get_transcript_from_url(url)
+        )
+
+        if not transcript_result['success']:
+            return jsonify({'error': transcript_result['error']}), 400
+
+        text = transcript_result['text']
+        video_id = transcript_result['video_id']
+        language = transcript_result['language']
+
+        # Ограничиваем длину текста
+        MAX_TEXT_LENGTH = 15000
+        if len(text) > MAX_TEXT_LENGTH:
+            text = text[:MAX_TEXT_LENGTH]
+
+        logger.info(f"[YouTube] Транскрипт получен: video_id={video_id}, длина={len(text)}")
+
+        return jsonify({
+            'success': True,
+            'video_id': video_id,
+            'language': language,
+            'text': text
+        })
+
+    except Exception as e:
+        logger.error(f"[YouTube Transcript] Ошибка: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/youtube/analyze', methods=['POST'])
 def api_youtube_analyze():
     """
