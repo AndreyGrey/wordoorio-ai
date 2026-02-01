@@ -1178,10 +1178,10 @@ def telegram_webhook():
                         example = db.get_word_example(test['word_id'])
                         if example and example.get('context'):
                             context = example['context']
-                            # Подсвечиваем слово жирным внутри курсива
+                            # Подсвечиваем слово КАПСОМ (вложенное форматирование не работает в Markdown)
                             original_form = example.get('original_form', result['word'])
                             if original_form and original_form in context:
-                                context = context.replace(original_form, f"*{original_form}*")
+                                context = context.replace(original_form, original_form.upper())
                             text += f"_{context}_\n\n"
 
                         text += f"рейтинг слова: 0/10"
