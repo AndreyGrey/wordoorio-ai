@@ -1093,8 +1093,9 @@ def telegram_webhook():
                         telegram_edit_message(chat_id, message_id, "Не удалось создать тесты. Попробуй ещё раз.")
                         return jsonify({'ok': True})
 
-                    # Отправляем первый тест
-                    send_telegram_test(chat_id, message_id, test_manager, test_ids, 0)
+                    # Отправляем первый тест (idx=0, total=len, correct=0, wrong=0)
+                    total = len(test_ids)
+                    send_telegram_test(chat_id, message_id, test_manager, test_ids[0], 0, total, 0, 0)
 
                 except Exception as e:
                     import traceback
@@ -1107,12 +1108,17 @@ def telegram_webhook():
                         reply_markup=keyboard
                     )
 
-            # answer_X_Y (ответ на тест)
-            elif data.startswith('answer_'):
+            # a_{test_id}_{opt}_{idx}_{total}_{correct}_{wrong} (ответ на тест)
+            elif data.startswith('a_'):
                 parts = data.split('_')
-                if len(parts) == 3:
+                # Формат: a_{test_id}_{opt}_{idx}_{total}_{correct}_{wrong}
+                if len(parts) == 7:
                     test_id = int(parts[1])
                     option_idx = int(parts[2])
+                    idx = int(parts[3])
+                    total = int(parts[4])
+                    correct = int(parts[5])
+                    wrong = int(parts[6])
 
                     from core.test_manager import TestManager
                     from core.yandex_ai_client import YandexAIClient
@@ -1140,11 +1146,14 @@ def telegram_webhook():
                     # Проверяем ответ
                     result = test_manager.submit_answer(test_id, selected)
 
+                    # Обновляем статистику
                     if result['is_correct']:
+                        correct += 1
                         text = f"Правильно\n\n"
                         text += f"**{result['word']}** — {result['correct_translation']}\n\n"
                         text += f"Рейтинг: {result['new_rating']}/10"
                     else:
+                        wrong += 1
                         text = f"Неправильно\n\n"
                         text += f"**{result['word']}** — {result['correct_translation']}\n\n"
 
@@ -1160,30 +1169,64 @@ def telegram_webhook():
 
                         text += f"Рейтинг сброшен: 0/10"
 
-                    # Кнопка "Дальше"
-                    keyboard = {'inline_keyboard': [[{'text': 'Дальше', 'callback_data': f'next_{test_id}'}]]}
+                    # Кнопка "Дальше" с состоянием сессии
+                    # Формат: n_{idx}_{total}_{correct}_{wrong}
+                    keyboard = {'inline_keyboard': [[{'text': 'Дальше', 'callback_data': f'n_{idx}_{total}_{correct}_{wrong}'}]]}
                     telegram_edit_message(chat_id, message_id, text, reply_markup=keyboard)
 
-            # next_X (следующий тест)
-            elif data.startswith('next_'):
-                user = db.get_user_by_telegram_id(telegram_id)
-                if not user:
-                    return jsonify({'ok': True})
+            # n_{idx}_{total}_{correct}_{wrong} (следующий тест)
+            elif data.startswith('n_'):
+                parts = data.split('_')
+                # Формат: n_{idx}_{total}_{correct}_{wrong}
+                if len(parts) == 5:
+                    idx = int(parts[1])
+                    total = int(parts[2])
+                    correct = int(parts[3])
+                    wrong = int(parts[4])
 
-                # Проверяем есть ли ещё тесты
-                from core.test_manager import TestManager
-                from core.yandex_ai_client import YandexAIClient
+                    new_idx = idx + 1
 
-                ai_client = YandexAIClient()
-                test_manager = TestManager(db, ai_client)
+                    # Проверяем закончились ли тесты
+                    if new_idx >= total:
+                        # Показываем итоговую статистику
+                        accuracy = round(correct / total * 100) if total > 0 else 0
+                        text = (
+                            f"Тренировка завершена\n\n"
+                            f"Результаты:\n"
+                            f"Верно: {correct}\n"
+                            f"Ошибок: {wrong}\n"
+                            f"Точность: {accuracy}%"
+                        )
+                        keyboard = {'inline_keyboard': [[{'text': 'ЕЩЁ 8 СЛОВ', 'callback_data': 'start_training'}]]}
+                        telegram_edit_message(chat_id, message_id, text, reply_markup=keyboard)
+                    else:
+                        # Показываем следующий тест
+                        user = db.get_user_by_telegram_id(telegram_id)
+                        if not user:
+                            return jsonify({'ok': True})
 
-                pending = test_manager.get_pending_tests(user['id'])
-                if not pending:
-                    keyboard = {'inline_keyboard': [[{'text': 'ЕЩЁ 8 СЛОВ', 'callback_data': 'start_training'}]]}
-                    telegram_edit_message(chat_id, message_id, "Все тесты пройдены.\n\nХочешь ещё?", reply_markup=keyboard)
-                else:
-                    test_ids = [t['id'] for t in pending]
-                    send_telegram_test(chat_id, message_id, test_manager, test_ids, 0)
+                        from core.test_manager import TestManager
+                        from core.yandex_ai_client import YandexAIClient
+
+                        ai_client = YandexAIClient()
+                        test_manager = TestManager(db, ai_client)
+
+                        pending = test_manager.get_pending_tests(user['id'])
+                        if not pending:
+                            # Нет тестов — показываем итоги
+                            accuracy = round(correct / total * 100) if total > 0 else 0
+                            text = (
+                                f"Тренировка завершена\n\n"
+                                f"Результаты:\n"
+                                f"Верно: {correct}\n"
+                                f"Ошибок: {wrong}\n"
+                                f"Точность: {accuracy}%"
+                            )
+                            keyboard = {'inline_keyboard': [[{'text': 'ЕЩЁ 8 СЛОВ', 'callback_data': 'start_training'}]]}
+                            telegram_edit_message(chat_id, message_id, text, reply_markup=keyboard)
+                        else:
+                            # Показываем следующий тест
+                            send_telegram_test(chat_id, message_id, test_manager, pending[0]['id'], new_idx, total, correct, wrong)
 
         return jsonify({'ok': True})
 
@@ -1323,30 +1366,37 @@ def telegram_test_send():
     })
 
 
-def send_telegram_test(chat_id: int, message_id: int, test_manager, test_ids: list, index: int):
-    """Отправить тест в Telegram"""
-    if index >= len(test_ids):
-        keyboard = {'inline_keyboard': [[{'text': 'ЕЩЁ 8 СЛОВ', 'callback_data': 'start_training'}]]}
-        telegram_edit_message(chat_id, message_id, "Все тесты пройдены.\n\nХочешь ещё?", reply_markup=keyboard)
-        return
+def send_telegram_test(chat_id: int, message_id: int, test_manager, test_id: int, idx: int, total: int, correct: int, wrong: int):
+    """
+    Отправить тест в Telegram
 
-    test_id = test_ids[index]
+    Args:
+        chat_id: ID чата
+        message_id: ID сообщения для редактирования
+        test_manager: TestManager
+        test_id: ID теста
+        idx: Текущий индекс (0-based)
+        total: Общее количество тестов
+        correct: Количество правильных ответов
+        wrong: Количество неправильных ответов
+    """
     test = test_manager.get_test_with_shuffled_options(test_id)
 
     if not test:
-        # Пропускаем этот тест
-        send_telegram_test(chat_id, message_id, test_manager, test_ids, index + 1)
+        telegram_edit_message(chat_id, message_id, "Ошибка: тест не найден")
         return
 
-    # Создаем кнопки
+    # Создаем кнопки с состоянием сессии в callback_data
+    # Формат: a_{test_id}_{opt}_{idx}_{total}_{correct}_{wrong}
     buttons = []
     for opt in test['options']:
-        buttons.append([{'text': opt['text'], 'callback_data': f"answer_{test_id}_{opt['index']}"}])
+        callback = f"a_{test_id}_{opt['index']}_{idx}_{total}_{correct}_{wrong}"
+        buttons.append([{'text': opt['text'], 'callback_data': callback}])
 
     keyboard = {'inline_keyboard': buttons}
 
     text = (
-        f"Тест {index + 1}/{len(test_ids)}\n\n"
+        f"Тест {idx + 1}/{total}\n\n"
         f"**{test['word']}**\n\n"
         f"Выбери правильный перевод:"
     )
