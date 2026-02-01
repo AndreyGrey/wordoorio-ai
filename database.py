@@ -684,6 +684,17 @@ class WordoorioDatabase:
 
         self._execute_query(query, {'$id': test_id})
 
+    def delete_all_user_tests(self, user_id: int):
+        """Delete all pending tests for user (cleanup before new session)"""
+        query = """
+        DECLARE $user_id AS Uint64?;
+
+        DELETE FROM tests
+        WHERE user_id = $user_id
+        """
+
+        self._execute_query(query, {'$user_id': user_id})
+
     def get_pending_tests(self, user_id: int) -> List[Dict]:
         """Get all pending tests for user"""
         query = """

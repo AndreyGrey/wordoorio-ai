@@ -1079,6 +1079,9 @@ def telegram_webhook():
 
                     telegram_edit_message(chat_id, message_id, f"Генерирую тесты...\n\nСлов: {len(words)}")
 
+                    # Удаляем старые тесты перед созданием новых
+                    db.delete_all_user_tests(user_id)
+
                     # Создаем тесты
                     ai_client = YandexAIClient()
                     test_manager = TestManager(db, ai_client)
