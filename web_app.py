@@ -1166,13 +1166,13 @@ def telegram_webhook():
                         correct += 1
                         phrase = rnd.choice(correct_phrases)
                         text = f"✅ {phrase}\n\n"
-                        text += f"**{result['word']} — {result['correct_translation']}**\n\n"
-                        text += f"Рейтинг слова: {result['new_rating']}/10"
+                        text += f"*{result['word']} — {result['correct_translation']}*\n\n"
+                        text += f"рейтинг слова: {result['new_rating']}/10"
                     else:
                         wrong += 1
                         phrase = rnd.choice(wrong_phrases)
                         text = f"🛑 {phrase}\n\n"
-                        text += f"**{result['word']} — {result['correct_translation']}**\n\n"
+                        text += f"*{result['word']} — {result['correct_translation']}*\n\n"
 
                         # Получаем хайлайт
                         example = db.get_word_example(test['word_id'])
@@ -1181,10 +1181,10 @@ def telegram_webhook():
                             # Подсвечиваем слово жирным внутри курсива
                             original_form = example.get('original_form', result['word'])
                             if original_form and original_form in context:
-                                context = context.replace(original_form, f"**{original_form}**")
+                                context = context.replace(original_form, f"*{original_form}*")
                             text += f"_{context}_\n\n"
 
-                        text += f"Рейтинг слова: 0/10"
+                        text += f"рейтинг слова: 0/10"
 
                     # Кнопка "Дальше" с состоянием сессии
                     # Формат: n_{idx}_{total}_{correct}_{wrong}
@@ -1432,11 +1432,7 @@ def send_telegram_test(chat_id: int, message_id: int, test_manager, test_id: int
 
     keyboard = {'inline_keyboard': buttons}
 
-    text = (
-        f"Тест {idx + 1}/{total}\n\n"
-        f"**{test['word']}**\n\n"
-        f"Выбери правильный перевод:"
-    )
+    text = f"*{test['word']}* — ?"
 
     telegram_edit_message(chat_id, message_id, text, reply_markup=keyboard)
 
