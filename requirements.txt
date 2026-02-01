@@ -14,7 +14,6 @@ ydb==3.23.0
 python-telegram-bot==20.8
 
 # YouTube transcript extraction
-youtube-transcript-api==0.6.1
 yt-dlp==2024.1.12
 
 # Supervisor для запуска нескольких процессов
