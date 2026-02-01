@@ -1481,9 +1481,19 @@ def api_youtube_analyze():
         if not url:
             return jsonify({'error': 'URL не указан'}), 400
 
-        # Получаем транскрипт
+        # Получаем event loop
+        loop = None
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        # Получаем транскрипт (async)
         youtube_service = YouTubeService()
-        transcript_result = youtube_service.get_transcript_from_url(url)
+        transcript_result = loop.run_until_complete(
+            youtube_service.get_transcript_from_url(url)
+        )
 
         if not transcript_result['success']:
             return jsonify({'error': transcript_result['error']}), 400
@@ -1509,13 +1519,6 @@ def api_youtube_analyze():
 
         ai_client = YandexAIClient()
         orchestrator = AnalysisOrchestrator(ai_client)
-
-        loop = None
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
 
         result = loop.run_until_complete(
             orchestrator.analyze_text(analysis_request)

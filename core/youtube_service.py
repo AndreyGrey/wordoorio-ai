@@ -1,26 +1,32 @@
 #!/usr/bin/env python3
 """
 YouTubeService - сервис для извлечения транскриптов из YouTube видео
-Использует yt-dlp
+Использует TranscriptAPI.com
 """
 
 import re
 import os
-import json
-import tempfile
 import logging
+import aiohttp
 from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
 
 
 class YouTubeService:
-    """Сервис для работы с YouTube транскриптами"""
+    """Сервис для работы с YouTube транскриптами через TranscriptAPI"""
+
+    BASE_URL = "https://transcriptapi.com/api/v2"
 
     URL_PATTERNS = [
         r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/|youtube\.com/v/)([a-zA-Z0-9_-]{11})',
         r'^([a-zA-Z0-9_-]{11})$'
     ]
+
+    def __init__(self):
+        self.api_key = os.getenv('TRANSCRIPT_API_KEY', '')
+        if not self.api_key:
+            logger.warning("[YouTubeService] TRANSCRIPT_API_KEY не установлен!")
 
     def extract_video_id(self, url: str) -> Optional[str]:
         """Извлечь video_id из YouTube URL"""
@@ -31,117 +37,92 @@ class YouTubeService:
                 return match.group(1)
         return None
 
-    def get_transcript(self, video_id: str, languages: List[str] = None) -> Dict:
-        """Получить транскрипт видео через yt-dlp"""
-        if languages is None:
-            languages = ['en', 'ru']
+    async def get_transcript(self, video_id: str, language: str = 'en') -> Dict:
+        """
+        Получить транскрипт видео через TranscriptAPI
 
+        Args:
+            video_id: ID видео YouTube
+            language: Предпочитаемый язык (en, ru, etc.)
+
+        Returns:
+            Dict с результатом: success, text, language, video_id или error
+        """
         logger.info(f"[YouTubeService] Запрос транскрипта для video_id={video_id}")
 
-        try:
-            import yt_dlp
-
-            url = f"https://www.youtube.com/watch?v={video_id}"
-
-            with tempfile.TemporaryDirectory() as tmpdir:
-                subtitle_file = os.path.join(tmpdir, 'subs')
-
-                ydl_opts = {
-                    'skip_download': True,
-                    'writesubtitles': True,
-                    'writeautomaticsub': True,
-                    'subtitleslangs': languages,
-                    'subtitlesformat': 'json3',
-                    'outtmpl': subtitle_file,
-                    'quiet': True,
-                    'no_warnings': True,
-                    # Опции для обхода блокировок
-                    'geo_bypass': True,
-                    'geo_bypass_country': 'US',
-                    'nocheckcertificate': True,
-                    'extractor_args': {'youtube': {'player_client': ['web']}},
-                    'http_headers': {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                    },
-                }
-
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.extract_info(url, download=True)
-
-                # Ищем файл субтитров
-                for lang in languages:
-                    possible_files = [
-                        os.path.join(tmpdir, f'subs.{lang}.json3'),
-                        os.path.join(tmpdir, f'{video_id}.{lang}.json3'),
-                    ]
-
-                    for sub_file in possible_files:
-                        if os.path.exists(sub_file):
-                            text = self._parse_json3_subtitles(sub_file)
-                            if text:
-                                logger.info(f"[YouTubeService] Получен транскрипт, язык={lang}, длина={len(text)}")
-                                return {
-                                    'success': True,
-                                    'video_id': video_id,
-                                    'text': text,
-                                    'segments': [],
-                                    'language': lang
-                                }
-
-                # Проверяем все файлы в директории
-                files = os.listdir(tmpdir)
-                logger.info(f"[YouTubeService] Файлы в tmpdir: {files}")
-
-                for f in files:
-                    if f.endswith('.json3'):
-                        filepath = os.path.join(tmpdir, f)
-                        text = self._parse_json3_subtitles(filepath)
-                        if text:
-                            lang = f.split('.')[-2] if '.' in f else 'unknown'
-                            logger.info(f"[YouTubeService] Найден файл {f}, длина={len(text)}")
-                            return {
-                                'success': True,
-                                'video_id': video_id,
-                                'text': text,
-                                'segments': [],
-                                'language': lang
-                            }
-
-                return {
-                    'success': False,
-                    'error': 'Субтитры не найдены'
-                }
-
-        except Exception as e:
-            import traceback
-            logger.error(f"[YouTubeService] Ошибка: {e}")
-            logger.error(traceback.format_exc())
+        if not self.api_key:
             return {
                 'success': False,
-                'error': str(e)
+                'error': 'API ключ не настроен'
             }
 
-    def _parse_json3_subtitles(self, filepath: str) -> Optional[str]:
-        """Парсинг JSON3 формата субтитров"""
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            url = f"{self.BASE_URL}/youtube/transcript"
+            params = {
+                'video_url': video_id,
+                'format': 'text',  # Получаем чистый текст
+                'include_timestamp': 'false',
+                'send_metadata': 'true'
+            }
+            headers = {
+                'Authorization': f'Bearer {self.api_key}'
+            }
 
-            texts = []
-            for event in data.get('events', []):
-                for seg in event.get('segs', []):
-                    text = seg.get('utf8', '').strip()
-                    if text and text != '\n':
-                        texts.append(text)
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
 
-            return ' '.join(texts) if texts else None
+                        # Извлекаем текст транскрипта
+                        transcript_text = data.get('transcript', '')
+
+                        # Если transcript это список сегментов
+                        if isinstance(transcript_text, list):
+                            transcript_text = ' '.join(
+                                seg.get('text', '') for seg in transcript_text
+                            )
+
+                        # Метаданные
+                        metadata = data.get('metadata', {})
+                        detected_lang = metadata.get('language', language)
+
+                        logger.info(f"[YouTubeService] Получен транскрипт, длина={len(transcript_text)}")
+
+                        return {
+                            'success': True,
+                            'video_id': video_id,
+                            'text': transcript_text,
+                            'language': detected_lang,
+                            'title': metadata.get('title', ''),
+                            'duration': metadata.get('duration', 0)
+                        }
+
+                    elif response.status == 401:
+                        return {'success': False, 'error': 'Неверный API ключ'}
+
+                    elif response.status == 402:
+                        return {'success': False, 'error': 'Закончились кредиты API'}
+
+                    elif response.status == 404:
+                        return {'success': False, 'error': 'Видео не найдено или субтитры недоступны'}
+
+                    elif response.status == 429:
+                        return {'success': False, 'error': 'Превышен лимит запросов'}
+
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"[YouTubeService] Ошибка API: {response.status} - {error_text}")
+                        return {'success': False, 'error': f'Ошибка API: {response.status}'}
+
+        except aiohttp.ClientError as e:
+            logger.error(f"[YouTubeService] Ошибка сети: {e}")
+            return {'success': False, 'error': f'Ошибка сети: {str(e)}'}
 
         except Exception as e:
-            logger.warning(f"[YouTubeService] Ошибка парсинга: {e}")
-            return None
+            logger.error(f"[YouTubeService] Неизвестная ошибка: {e}")
+            return {'success': False, 'error': str(e)}
 
-    def get_transcript_from_url(self, url: str, languages: List[str] = None) -> Dict:
+    async def get_transcript_from_url(self, url: str, language: str = 'en') -> Dict:
         """Получить транскрипт по URL"""
         video_id = self.extract_video_id(url)
 
@@ -151,4 +132,4 @@ class YouTubeService:
                 'error': 'Неверный формат YouTube URL'
             }
 
-        return self.get_transcript(video_id, languages)
+        return await self.get_transcript(video_id, language)
