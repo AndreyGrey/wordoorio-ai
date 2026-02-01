@@ -68,7 +68,7 @@ function getUnifiedHeaderStyles() {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px 0;
+            padding: 16px 20px;
             margin-bottom: 24px;
             max-width: var(--container-max-width, 1000px);
             margin-left: auto;
