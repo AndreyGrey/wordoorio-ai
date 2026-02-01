@@ -1443,12 +1443,6 @@ def dictionary_page():
     return render_template('dictionary-v2.html')
 
 
-@app.route('/youtube')
-def youtube_page():
-    """Страница анализа YouTube видео"""
-    return render_template('youtube.html')
-
-
 @app.route('/api/youtube/analyze', methods=['POST'])
 def api_youtube_analyze():
     """

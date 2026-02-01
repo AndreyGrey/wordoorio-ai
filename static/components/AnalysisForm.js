@@ -1,10 +1,11 @@
 /**
  * 🎯 UNIVERSAL ANALYSIS FORM COMPONENT
  *
- * Универсальная форма для анализа текста на всех страницах.
- * Современный дизайн без эмодзи, единая кнопка "WORDOORIO!"
+ * Универсальная форма для анализа текста с двумя режимами:
+ * - YouTube: ввод ссылки на видео
+ * - Text: ввод текста напрямую
  *
- * @version 1.0.0
+ * @version 2.0.0
  */
 
 /**
@@ -28,11 +29,33 @@ function createAnalysisForm(config = {}) {
         <div class="analysis-form">
             <h2 class="form-title">Analyze Text</h2>
             ${subtitleHTML}
-            <textarea
-                id="textInput"
-                class="form-textarea"
-                placeholder="${placeholder}"
-            ></textarea>
+
+            <!-- Переключатель режимов -->
+            <div class="mode-tabs">
+                <button class="mode-tab active" data-mode="text">Text</button>
+                <button class="mode-tab" data-mode="youtube">YouTube</button>
+            </div>
+
+            <!-- Режим Text -->
+            <div id="text-mode" class="input-mode active">
+                <textarea
+                    id="textInput"
+                    class="form-textarea"
+                    placeholder="${placeholder}"
+                ></textarea>
+            </div>
+
+            <!-- Режим YouTube -->
+            <div id="youtube-mode" class="input-mode">
+                <input
+                    type="text"
+                    id="youtubeInput"
+                    class="form-url-input"
+                    placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+                >
+                <p class="youtube-hint">Paste a YouTube video link to analyze vocabulary from transcript</p>
+            </div>
+
             <button class="form-button" onclick="analyzeText()">
                 WORDOORIO!
             </button>
@@ -78,6 +101,45 @@ function getAnalysisFormStyles() {
             line-height: 1.5;
         }
 
+        /* ===== MODE TABS ===== */
+        .mode-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .mode-tab {
+            padding: 10px 24px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f7fafc;
+            color: #4a5568;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .mode-tab:hover {
+            border-color: #39A0B3;
+            color: #39A0B3;
+        }
+
+        .mode-tab.active {
+            background: linear-gradient(90deg, #39A0B3 0%, #1B7A94 100%);
+            color: white;
+            border-color: transparent;
+        }
+
+        /* ===== INPUT MODES ===== */
+        .input-mode {
+            display: none;
+        }
+
+        .input-mode.active {
+            display: block;
+        }
+
         .form-textarea {
             width: 100%;
             height: 280px;
@@ -95,17 +157,49 @@ function getAnalysisFormStyles() {
 
         .form-textarea:focus {
             outline: none;
-            border-color: #4CAF50;
+            border-color: #39A0B3;
             background: white;
-            box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.08);
+            box-shadow: 0 0 0 4px rgba(57, 160, 179, 0.08);
         }
 
         .form-textarea::placeholder {
             color: #a0aec0;
         }
 
+        /* ===== YOUTUBE INPUT ===== */
+        .form-url-input {
+            width: 100%;
+            padding: 18px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 14px;
+            font-size: 16px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            transition: all 0.3s ease;
+            color: #2d3748;
+            background: #fafafa;
+        }
+
+        .form-url-input:focus {
+            outline: none;
+            border-color: #39A0B3;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(57, 160, 179, 0.08);
+        }
+
+        .form-url-input::placeholder {
+            color: #a0aec0;
+        }
+
+        .youtube-hint {
+            color: #718096;
+            font-size: 14px;
+            margin-top: 12px;
+            padding-left: 4px;
+        }
+
+        /* ===== BUTTON WITH TEAL GRADIENT ===== */
         .form-button {
-            background: linear-gradient(135deg, #4CAF50 0%, #45A049 100%);
+            background: linear-gradient(90deg, #39A0B3 0%, #1B7A94 100%);
             color: white;
             padding: 18px 48px;
             border: none;
@@ -116,7 +210,7 @@ function getAnalysisFormStyles() {
             cursor: pointer;
             margin-top: 24px;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 14px rgba(76, 175, 80, 0.3);
+            box-shadow: 0 4px 14px rgba(57, 160, 179, 0.3);
             text-transform: uppercase;
             position: relative;
             overflow: hidden;
@@ -139,12 +233,12 @@ function getAnalysisFormStyles() {
 
         .form-button:hover {
             transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+            box-shadow: 0 6px 20px rgba(57, 160, 179, 0.4);
         }
 
         .form-button:active {
             transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(76, 175, 80, 0.3);
+            box-shadow: 0 3px 10px rgba(57, 160, 179, 0.3);
         }
 
         .form-button:disabled {
@@ -185,9 +279,23 @@ function getAnalysisFormStyles() {
                 margin-bottom: 20px;
             }
 
+            .mode-tabs {
+                gap: 6px;
+            }
+
+            .mode-tab {
+                padding: 8px 18px;
+                font-size: 14px;
+            }
+
             .form-textarea {
                 height: 240px;
                 padding: 16px;
+                font-size: 15px;
+            }
+
+            .form-url-input {
+                padding: 16px 18px;
                 font-size: 15px;
             }
 
@@ -208,15 +316,31 @@ function getAnalysisFormStyles() {
                 font-size: 1.3rem;
             }
 
+            .mode-tab {
+                padding: 8px 14px;
+                font-size: 13px;
+                flex: 1;
+                text-align: center;
+            }
+
             .form-textarea {
                 height: 200px;
                 padding: 14px;
                 font-size: 14px;
             }
 
+            .form-url-input {
+                padding: 14px 16px;
+                font-size: 14px;
+            }
+
             .form-button {
                 padding: 14px 32px;
                 font-size: 15px;
+            }
+
+            .youtube-hint {
+                font-size: 13px;
             }
         }
     `;
@@ -244,6 +368,46 @@ function initAnalysisForm(containerId = 'form-container', config = {}) {
         styleEl.innerHTML = getAnalysisFormStyles();
         document.head.appendChild(styleEl);
     }
+
+    // Инициализируем переключение табов
+    initModeTabs();
+}
+
+/**
+ * Инициализация переключения режимов
+ */
+function initModeTabs() {
+    const tabs = document.querySelectorAll('.mode-tab');
+    const textMode = document.getElementById('text-mode');
+    const youtubeMode = document.getElementById('youtube-mode');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            // Убираем active со всех табов
+            tabs.forEach(t => t.classList.remove('active'));
+            // Добавляем active на кликнутый
+            tab.classList.add('active');
+
+            // Переключаем режимы
+            const mode = tab.dataset.mode;
+            if (mode === 'text') {
+                textMode.classList.add('active');
+                youtubeMode.classList.remove('active');
+            } else {
+                textMode.classList.remove('active');
+                youtubeMode.classList.add('active');
+            }
+        });
+    });
+}
+
+/**
+ * Получить текущий режим
+ * @returns {string} 'text' или 'youtube'
+ */
+function getCurrentMode() {
+    const activeTab = document.querySelector('.mode-tab.active');
+    return activeTab ? activeTab.dataset.mode : 'text';
 }
 
 // Экспорт для использования в других модулях
@@ -251,6 +415,7 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         createAnalysisForm,
         getAnalysisFormStyles,
-        initAnalysisForm
+        initAnalysisForm,
+        getCurrentMode
     };
 }

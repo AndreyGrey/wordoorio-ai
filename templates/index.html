@@ -190,41 +190,71 @@
         // Функции анимации теперь в LoadingAnimation.js
 
         async function analyzeText() {
-            const textInput = document.getElementById('textInput');
-            const text = textInput.value.trim();
+            const mode = getCurrentMode();
             const button = document.querySelector('.form-button');
             const errorDiv = document.getElementById('error');
             const resultsDiv = document.getElementById('results');
 
-            if (!text) {
-                showError('Пожалуйста, введите текст для анализа');
-                return;
+            let text = '';
+            let apiUrl = '';
+            let requestBody = {};
+
+            if (mode === 'youtube') {
+                // YouTube режим
+                const youtubeInput = document.getElementById('youtubeInput');
+                const url = youtubeInput.value.trim();
+
+                if (!url) {
+                    showError('Please enter a YouTube URL');
+                    return;
+                }
+
+                text = 'Extracting transcript from YouTube...';
+                apiUrl = '/api/youtube/analyze';
+                requestBody = { url: url };
+            } else {
+                // Text режим
+                const textInput = document.getElementById('textInput');
+                text = textInput.value.trim();
+
+                if (!text) {
+                    showError('Please enter text for analysis');
+                    return;
+                }
+
+                apiUrl = '/analyze';
+                requestBody = { text: text };
             }
 
             button.disabled = true;
             button.textContent = 'ANALYZING...';
             errorDiv.style.display = 'none';
             resultsDiv.style.display = 'none';
-            
-            // Показываем анимацию загрузки с реальным текстом
+
+            // Показываем анимацию загрузки
             showLoadingAnimation(text);
 
             try {
-                const response = await fetch('/analyze', {
+                const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ text: text })
+                    body: JSON.stringify(requestBody)
                 });
 
                 const data = await response.json();
 
-                if (data.success) {
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                if (data.success || data.highlights) {
                     showResults(data);
                 } else {
-                    showError(data.error || 'Неизвестная ошибка');
+                    showError(data.error || 'Unknown error');
                 }
             } catch (error) {
-                showError('Ошибка соединения с сервером');
+                showError('Server connection error');
             } finally {
                 // Скрываем анимацию загрузки
                 hideLoadingAnimation();
@@ -244,14 +274,24 @@
             console.log('Full response data:', JSON.stringify(data, null, 2));
 
             const highlightsList = document.getElementById('highlightsList');
-            highlightsList.innerHTML = `<p style="color:rgba(255,255,255,0.9);margin-bottom:24px;text-align:center;font-size:1rem;font-weight:500;">Найдено ${data.stats.total_highlights} хайлайтов из ${data.stats.total_words} слов</p>`;
+
+            // Определяем статистику (разные форматы для text и youtube)
+            const totalHighlights = data.highlights ? data.highlights.length : 0;
+            const totalWords = data.stats?.total_words || data.transcript_length || '?';
+
+            highlightsList.innerHTML = `<p style="color:rgba(255,255,255,0.9);margin-bottom:24px;text-align:center;font-size:1rem;font-weight:500;">Found ${totalHighlights} highlights</p>`;
 
             // Инициализируем хранилище и создаем/получаем сессию
             const storage = new HighlightsStorage();
-            const textInput = document.getElementById('textInput').value.trim();
+
+            // Получаем текст в зависимости от режима
+            const mode = getCurrentMode();
+            const inputText = mode === 'youtube'
+                ? document.getElementById('youtubeInput').value.trim()
+                : document.getElementById('textInput').value.trim();
 
             // Создаем новую сессию для этого анализа
-            const sessionId = storage.createSession(textInput, 'main');
+            const sessionId = storage.createSession(inputText, 'main');
 
             // Сохраняем результаты в кеш
             storage.saveLastAnalysis(sessionId, 'main', data.highlights);
