@@ -253,20 +253,17 @@
             if (data.highlights.length === 0) {
                 highlightsGrid.innerHTML = '<p style="color: white; text-align: center;">No interesting vocabulary found</p>';
             } else {
-                data.highlights.forEach(highlight => {
-                    const card = createHighlightCard(highlight, {
-                        onAdd: async (h) => {
-                            try {
-                                await DictionaryAPI.addWord(h);
-                                return true;
-                            } catch (e) {
-                                console.error('Add word error:', e);
-                                return false;
-                            }
-                        }
-                    });
-                    highlightsGrid.appendChild(card);
+                data.highlights.forEach((highlight, index) => {
+                    try {
+                        // createHighlightCard возвращает HTML строку
+                        const cardHTML = createHighlightCard(highlight, index, 'green', true);
+                        highlightsGrid.insertAdjacentHTML('beforeend', cardHTML);
+                    } catch (e) {
+                        console.error('Error creating card:', e, highlight);
+                    }
                 });
+                // Инициализируем обработчики после добавления всех карточек
+                initHighlightCardInteractions();
             }
 
             resultsDiv.style.display = 'block';
