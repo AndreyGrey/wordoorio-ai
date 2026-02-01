@@ -1077,12 +1077,14 @@ def telegram_webhook():
                         )
                         return jsonify({'ok': True})
 
-                    telegram_edit_message(chat_id, message_id, f"Генерирую тесты...\n\nСлов: {len(words)}")
+                    import time
 
-                    # Удаляем старые тесты перед созданием новых
+                    # Анимация загрузки
+                    telegram_edit_message(chat_id, message_id, "Подключаем AI-агентов...")
                     db.delete_all_user_tests(user_id)
+                    time.sleep(0.5)
 
-                    # Создаем тесты
+                    telegram_edit_message(chat_id, message_id, "Генерируем тесты...")
                     ai_client = YandexAIClient()
                     test_manager = TestManager(db, ai_client)
 
@@ -1149,28 +1151,40 @@ def telegram_webhook():
                     # Проверяем ответ
                     result = test_manager.submit_answer(test_id, selected)
 
+                    # Списки фраз для разнообразия
+                    import random as rnd
+                    correct_phrases = [
+                        "Правильно!", "Верно!", "Отлично!", "Точно!",
+                        "Так держать!", "В точку!", "Супер!"
+                    ]
+                    wrong_phrases = [
+                        "Неверно", "Мимо", "Увы, нет", "Ошибка"
+                    ]
+
                     # Обновляем статистику
                     if result['is_correct']:
                         correct += 1
-                        text = f"Правильно\n\n"
-                        text += f"**{result['word']}** — {result['correct_translation']}\n\n"
-                        text += f"Рейтинг: {result['new_rating']}/10"
+                        phrase = rnd.choice(correct_phrases)
+                        text = f"✅ {phrase}\n\n"
+                        text += f"**{result['word']} — {result['correct_translation']}**\n\n"
+                        text += f"Рейтинг слова: {result['new_rating']}/10"
                     else:
                         wrong += 1
-                        text = f"Неправильно\n\n"
-                        text += f"**{result['word']}** — {result['correct_translation']}\n\n"
+                        phrase = rnd.choice(wrong_phrases)
+                        text = f"🛑 {phrase}\n\n"
+                        text += f"**{result['word']} — {result['correct_translation']}**\n\n"
 
-                        # Получаем пример из хайлайта
+                        # Получаем хайлайт
                         example = db.get_word_example(test['word_id'])
                         if example and example.get('context'):
                             context = example['context']
-                            # Подсвечиваем слово в контексте
+                            # Подсвечиваем слово жирным внутри курсива
                             original_form = example.get('original_form', result['word'])
                             if original_form and original_form in context:
-                                context = context.replace(original_form, f"__{original_form}__")
-                            text += f"Пример:\n\"{context}\"\n\n"
+                                context = context.replace(original_form, f"**{original_form}**")
+                            text += f"_{context}_\n\n"
 
-                        text += f"Рейтинг сброшен: 0/10"
+                        text += f"Рейтинг слова: 0/10"
 
                     # Кнопка "Дальше" с состоянием сессии
                     # Формат: n_{idx}_{total}_{correct}_{wrong}
@@ -1193,14 +1207,24 @@ def telegram_webhook():
                     if new_idx >= total:
                         # Показываем итоговую статистику
                         accuracy = round(correct / total * 100) if total > 0 else 0
+
+                        # Заголовок в зависимости от результата
+                        if accuracy == 100:
+                            header = "🏆 Безупречно!"
+                        elif accuracy >= 75:
+                            header = "🔥 Отличный результат!"
+                        elif accuracy >= 50:
+                            header = "👍 Хорошо!"
+                        else:
+                            header = "💪 Есть над чем поработать"
+
                         text = (
-                            f"Тренировка завершена\n\n"
-                            f"Результаты:\n"
+                            f"{header}\n\n"
                             f"Верно: {correct}\n"
                             f"Ошибок: {wrong}\n"
                             f"Точность: {accuracy}%"
                         )
-                        keyboard = {'inline_keyboard': [[{'text': 'ЕЩЁ 8 СЛОВ', 'callback_data': 'start_training'}]]}
+                        keyboard = {'inline_keyboard': [[{'text': 'ДАВАЙ ЕЩЁ', 'callback_data': 'start_training'}]]}
                         telegram_edit_message(chat_id, message_id, text, reply_markup=keyboard)
                     else:
                         # Показываем следующий тест
@@ -1218,14 +1242,24 @@ def telegram_webhook():
                         if not pending:
                             # Нет тестов — показываем итоги
                             accuracy = round(correct / total * 100) if total > 0 else 0
+
+                            # Заголовок в зависимости от результата
+                            if accuracy == 100:
+                                header = "🏆 Безупречно!"
+                            elif accuracy >= 75:
+                                header = "🔥 Отличный результат!"
+                            elif accuracy >= 50:
+                                header = "👍 Хорошо!"
+                            else:
+                                header = "💪 Есть над чем поработать"
+
                             text = (
-                                f"Тренировка завершена\n\n"
-                                f"Результаты:\n"
+                                f"{header}\n\n"
                                 f"Верно: {correct}\n"
                                 f"Ошибок: {wrong}\n"
                                 f"Точность: {accuracy}%"
                             )
-                            keyboard = {'inline_keyboard': [[{'text': 'ЕЩЁ 8 СЛОВ', 'callback_data': 'start_training'}]]}
+                            keyboard = {'inline_keyboard': [[{'text': 'ДАВАЙ ЕЩЁ', 'callback_data': 'start_training'}]]}
                             telegram_edit_message(chat_id, message_id, text, reply_markup=keyboard)
                         else:
                             # Показываем следующий тест

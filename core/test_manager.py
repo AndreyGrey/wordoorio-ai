@@ -198,9 +198,9 @@ class TestManager:
             self.db.update_word_status(test['word_id'], 'learning')
             current_status = 'learning'
 
-        # Обновляем рейтинг
+        # Обновляем рейтинг (максимум 10)
         if is_correct:
-            new_rating = current_rating + 1
+            new_rating = min(current_rating + 1, 10)
         else:
             new_rating = 0
             # Если слово было learned, возвращаем в learning
