@@ -61,6 +61,7 @@ jobs:
           --environment YANDEX_CLOUD_API_KEY=${{ secrets.YANDEX_CLOUD_API_KEY }} \
           --environment YANDEX_DICT_API_KEY=${{ secrets.YANDEX_DICT_API_KEY }} \
           --environment TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
+          --environment TRANSCRIPT_API_KEY=${{ secrets.TRANSCRIPT_API_KEY }} \
           --environment YDB_ENDPOINT=${{ secrets.YDB_ENDPOINT }} \
           --environment YDB_DATABASE=${{ secrets.YDB_DATABASE }}
 
