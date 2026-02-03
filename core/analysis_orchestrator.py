@@ -230,23 +230,35 @@ class AnalysisOrchestrator:
                 # Фраза (2+ слов) - словарь не нужен (возвращает мусор)
                 dictionary_meanings = []
                 dict_time = 0
+                final_lemma = word_lemma  # Для фраз используем лемму
                 print(f"🔄 {word} → {word_lemma} [фраза из {word_count} слов, словарь пропущен]", flush=True)
             else:
                 # Отдельное слово (1 слово) - запрашиваем словарь
                 dict_start = time.time()
 
                 # СТРАТЕГИЯ: Сначала оригинал, потом лемма
-                # 1. Пробуем оригинал (implied)
-                dictionary_meanings = await self.ai_client.get_dictionary_meanings(word)
-                dict_query = word
+                # Если словарь знает оригинал — сохраняем оригинал
+                # Если только лемму — сохраняем лемму
 
-                # 2. Если пусто и оригинал != лемма, пробуем лемму (imply)
-                if not dictionary_meanings and word.lower() != word_lemma.lower():
+                # 1. Пробуем оригинал (amplifying)
+                dictionary_meanings = await self.ai_client.get_dictionary_meanings(word)
+
+                if dictionary_meanings:
+                    # Словарь знает оригинал — используем его как лемму
+                    final_lemma = word.lower()
+                    dict_query = word
+                elif word.lower() != word_lemma.lower():
+                    # 2. Пробуем лемму (amplify)
                     dictionary_meanings = await self.ai_client.get_dictionary_meanings(word_lemma)
+                    final_lemma = word_lemma  # Используем лемму
                     dict_query = f"{word}→{word_lemma}"
+                else:
+                    # Оригинал == лемма, словарь пуст
+                    final_lemma = word_lemma
+                    dict_query = word
 
                 dict_time = time.time() - dict_start
-                print(f"🔄 {word} → {word_lemma} [лемма: {lemma_time*1000:.0f}ms, словарь '{dict_query}': {dict_time*1000:.0f}ms]", flush=True)
+                print(f"🔄 {word} → {final_lemma} [словарь '{dict_query}': {dict_time*1000:.0f}ms]", flush=True)
 
             # Получаем основной перевод от агента
             main_translation = highlight_dict.get('highlight_translation', '').lower().strip()
@@ -284,7 +296,7 @@ class AnalysisOrchestrator:
                 highlight=word,  # Оригинальное слово - то что видит пользователь
                 context=highlight_dict.get('context', ''),  # Контекст с оригинальной формой
                 highlight_translation=highlight_dict.get('highlight_translation', ''),
-                lemma=word_lemma,  # Лемматизированная форма для хранения в БД
+                lemma=final_lemma,  # Форма для хранения (оригинал если в словаре, иначе лемма)
                 dictionary_meanings=dictionary_meanings
             )
 
