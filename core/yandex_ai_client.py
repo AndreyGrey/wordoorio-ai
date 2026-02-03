@@ -357,15 +357,15 @@ class YandexAIClient:
 
                     data = await response.json()
 
-                    # Парсим ответ Yandex Dictionary
+                    # Парсим ответ Yandex Dictionary — все переводы
                     translations = []
                     if 'def' in data and data['def']:
                         for definition in data['def']:
                             if 'tr' in definition:
-                                for translation in definition['tr'][:3]:  # Первые 3 перевода
+                                for translation in definition['tr']:
                                     translations.append(translation.get('text', ''))
 
-                    return translations[:5]
+                    return translations
         except Exception as e:
             return []
 
