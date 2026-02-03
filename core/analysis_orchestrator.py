@@ -236,26 +236,18 @@ class AnalysisOrchestrator:
                 # Отдельное слово (1 слово) - запрашиваем словарь
                 dict_start = time.time()
 
-                # СТРАТЕГИЯ: Сначала оригинал, потом лемма
-                # Если словарь знает оригинал — сохраняем оригинал
-                # Если только лемму — сохраняем лемму
+                # СТРАТЕГИЯ: Лемма ВСЕГДА от spaCy, словарь только для переводов
+                # amplifying → lemma="amplify", но словарь пробуем сначала для "amplifying"
+                final_lemma = word_lemma  # ВСЕГДА spaCy лемма
 
-                # 1. Пробуем оригинал (amplifying)
+                # Пробуем получить переводы (сначала оригинал, потом лемму)
                 dictionary_meanings = await self.ai_client.get_dictionary_meanings(word)
+                dict_query = word
 
-                if dictionary_meanings:
-                    # Словарь знает оригинал — используем его как лемму
-                    final_lemma = word.lower()
-                    dict_query = word
-                elif word.lower() != word_lemma.lower():
-                    # 2. Пробуем лемму (amplify)
+                if not dictionary_meanings and word.lower() != word_lemma.lower():
+                    # Оригинал не нашли — пробуем лемму
                     dictionary_meanings = await self.ai_client.get_dictionary_meanings(word_lemma)
-                    final_lemma = word_lemma  # Используем лемму
                     dict_query = f"{word}→{word_lemma}"
-                else:
-                    # Оригинал == лемма, словарь пуст
-                    final_lemma = word_lemma
-                    dict_query = word
 
                 dict_time = time.time() - dict_start
                 print(f"🔄 {word} → {final_lemma} [словарь '{dict_query}': {dict_time*1000:.0f}ms]", flush=True)
