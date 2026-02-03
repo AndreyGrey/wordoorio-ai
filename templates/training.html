@@ -125,6 +125,26 @@
             gap: var(--spacing-3);
         }
 
+        .additional-meanings {
+            margin-top: var(--spacing-4);
+            padding: var(--spacing-3) var(--spacing-4);
+            background: var(--color-bg-light);
+            border-radius: var(--radius-md);
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .additional-meanings-label {
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-primary);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         .option-btn {
             padding: var(--spacing-5) var(--spacing-6);
             border: 2px solid var(--color-border-light);
@@ -478,6 +498,11 @@
             <div id="options-container" class="options-container">
                 <!-- Варианты добавятся через JS -->
             </div>
+
+            <!-- Дополнительные значения -->
+            <div id="additional-meanings" class="additional-meanings" style="display: none;">
+                <!-- Заполняется через JS -->
+            </div>
         </div>
 
         <!-- Экран завершения -->
@@ -638,6 +663,9 @@
             // Создаем варианты ответов
             optionsContainer.innerHTML = '';
 
+            // Скрываем дополнительные значения от предыдущего теста
+            document.getElementById('additional-meanings').style.display = 'none';
+
             // Форсируем reflow чтобы очистить все CSS состояния
             void optionsContainer.offsetHeight;
 
@@ -692,7 +720,7 @@
                 }
             });
 
-            // Отправляем результат на сервер (но не блокируем UI)
+            // Отправляем результат на сервер
             fetch('/api/training/answer', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -704,6 +732,14 @@
             }).then(response => {
                 if (!response.ok) {
                     console.error('Ошибка сохранения ответа');
+                    return;
+                }
+                return response.json();
+            }).then(data => {
+                if (data && data.additional_meanings && data.additional_meanings.length > 0) {
+                    const meaningsContainer = document.getElementById('additional-meanings');
+                    meaningsContainer.innerHTML = `<span class="additional-meanings-label">📖 А ещё:</span> ${data.additional_meanings.join(', ')}`;
+                    meaningsContainer.style.display = 'block';
                 }
             }).catch(err => console.error('Ошибка отправки ответа:', err));
 

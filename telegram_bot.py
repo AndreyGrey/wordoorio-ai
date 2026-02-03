@@ -339,10 +339,17 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = test_manager.submit_answer(test['test_id'], selected_option['text'])
         new_rating = result.get('new_rating', 0)
         new_status = result.get('new_status', 'learning')
+        additional_meanings = result.get('additional_meanings', [])
     except Exception as e:
         logger.error(f"Ошибка сохранения ответа: {e}")
         new_rating = 0
         new_status = "?"
+        additional_meanings = []
+
+    # Строка с дополнительными значениями
+    meanings_line = ""
+    if additional_meanings:
+        meanings_line = f"\n📖 А ещё: {', '.join(additional_meanings)}"
 
     # Формируем сообщение с результатом
     if is_correct:
@@ -355,14 +362,16 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         text = (
             f"✅ *Верно!*\n\n"
-            f"{test['word']} → {correct_option['text']}\n\n"
+            f"{test['word']} → {correct_option['text']}"
+            f"{meanings_line}\n\n"
             f"{status_text} {stars}"
         )
     else:
         text = (
             f"❌ *Неверно*\n\n"
             f"{test['word']} → *{correct_option['text']}*\n"
-            f"(не \"{selected_option['text']}\")\n\n"
+            f"(не \"{selected_option['text']}\")"
+            f"{meanings_line}\n\n"
             f"Рейтинг сброшен: 0/10"
         )
 

@@ -1712,6 +1712,7 @@ def api_training_answer():
             'success': True,
             'is_correct': result['is_correct'],
             'correct_translation': result['correct_translation'],
+            'additional_meanings': result.get('additional_meanings', []),
             'word': result['word'],
             'new_rating': result['new_rating'],
             'new_status': result['new_status']

@@ -223,9 +223,14 @@ class TestManager:
         # Удаляем тест
         self.db.delete_test(test_id)
 
+        # Дополнительные значения (все переводы кроме основного)
+        all_translations = self.db.get_all_translations_for_word(test['word_id'])
+        additional_meanings = [t for t in all_translations if t != test['correct_translation']]
+
         return {
             'is_correct': is_correct,
             'correct_translation': test['correct_translation'],
+            'additional_meanings': additional_meanings,
             'new_rating': new_rating,
             'new_status': current_status,
             'word': test['word']

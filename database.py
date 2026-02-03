@@ -78,14 +78,25 @@ class WordoorioDatabase:
 
     def _init_driver(self):
         """Initialize YDB driver with credentials"""
-        # Use IAM token for local development, metadata service for production
+        # Priority: 1. Service account key file (recommended for local dev)
+        #           2. IAM token (expires in 12 hours)
+        #           3. Metadata service (for serverless containers)
+        sa_key_file = os.getenv('YDB_SERVICE_ACCOUNT_KEY_FILE')
         iam_token = os.getenv('YANDEX_IAM_TOKEN')
-        if iam_token:
+
+        if sa_key_file and os.path.exists(sa_key_file):
+            # Service account key file - does not expire
+            credentials = ydb.iam.ServiceAccountCredentials.from_file(sa_key_file)
+            logger.info(f"[YDB] Using service account key file: {sa_key_file}")
+        elif iam_token:
+            # IAM token - expires in 12 hours
             credentials = ydb.AccessTokenCredentials(iam_token)
+            logger.info("[YDB] Using IAM token (expires in 12 hours)")
         else:
             # Use MetadataUrlCredentials for serverless containers
             # This automatically uses the service account attached to the container
             credentials = ydb.iam.MetadataUrlCredentials()
+            logger.info("[YDB] Using metadata service credentials")
 
         driver_config = ydb.DriverConfig(
             endpoint=self.endpoint,
@@ -953,6 +964,24 @@ class WordoorioDatabase:
             return ""
 
         return result['translation']
+
+    def get_all_translations_for_word(self, word_id: int) -> List[str]:
+        """Get all translations for a word"""
+        query = """
+        DECLARE $word_id AS Uint64?;
+
+        SELECT translation
+        FROM dictionary_translations
+        WHERE word_id = $word_id
+        ORDER BY added_at ASC
+        """
+
+        results = self._fetch_all(query, {'$word_id': word_id})
+        translations = []
+        for r in results:
+            if 'translation' in r:
+                translations.append(r['translation'])
+        return translations
 
     def get_random_translations(self, user_id: int, exclude_translation: str, limit: int = 3) -> List[str]:
         """Get random translations from user's dictionary (for fallback test options)"""
