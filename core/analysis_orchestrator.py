@@ -281,9 +281,10 @@ class AnalysisOrchestrator:
 
             # Создаем Highlight из данных агента
             highlight = Highlight(
-                highlight=word,  # Оригинальное слово (не лемма!) - то что видит пользователь
+                highlight=word,  # Оригинальное слово - то что видит пользователь
                 context=highlight_dict.get('context', ''),  # Контекст с оригинальной формой
                 highlight_translation=highlight_dict.get('highlight_translation', ''),
+                lemma=word_lemma,  # Лемматизированная форма для хранения в БД
                 dictionary_meanings=dictionary_meanings
             )
 
@@ -330,9 +331,9 @@ class AnalysisOrchestrator:
         unique_highlights = []
 
         for highlight in highlights:
-            # Используем лемму как ключ для удаления дубликатов
+            # Используем готовую лемму из Highlight (уже вычислена ранее)
             # amplify/amplifying/amplified = одна лемма "amplify"
-            lemma = lemmatize(highlight.highlight.lower())
+            lemma = highlight.lemma.lower() if highlight.lemma else highlight.highlight.lower()
 
             if lemma not in seen:
                 seen.add(lemma)

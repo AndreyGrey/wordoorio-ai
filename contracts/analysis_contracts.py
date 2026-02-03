@@ -14,9 +14,10 @@ from abc import ABC, abstractmethod
 @dataclass
 class Highlight:
     """Стандартный хайлайт во всей системе"""
-    highlight: str                    # Найденное слово/фраза
+    highlight: str                    # Найденное слово/фраза (оригинал)
     context: str                     # Контекст из текста
     highlight_translation: str       # Перевод слова/фразы (контекстный)
+    lemma: str = ""                  # Лемматизированная форма (для хранения)
     dictionary_meanings: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -25,6 +26,7 @@ class Highlight:
             'highlight': self.highlight,
             'context': self.context,
             'highlight_translation': self.highlight_translation,
+            'lemma': self.lemma,
             'dictionary_meanings': self.dictionary_meanings
         }
 
@@ -35,6 +37,7 @@ class Highlight:
             highlight=data['highlight'],
             context=data['context'],
             highlight_translation=data.get('highlight_translation', ''),
+            lemma=data.get('lemma', ''),
             dictionary_meanings=data.get('dictionary_meanings', [])
         )
 

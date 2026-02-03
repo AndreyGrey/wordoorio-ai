@@ -174,9 +174,11 @@ class DictionaryManager:
             }
         """
         # Извлекаем и валидируем данные
-        lemma = highlight_dict.get('highlight')
+        # Используем lemma если есть, иначе fallback на highlight (для совместимости)
+        original_word = highlight_dict.get('highlight', '')
+        lemma = highlight_dict.get('lemma') or original_word
         if not lemma or not lemma.strip():
-            error_msg = f"Missing or empty 'highlight' field. Received keys: {list(highlight_dict.keys())}"
+            error_msg = f"Missing or empty 'lemma'/'highlight' field. Received keys: {list(highlight_dict.keys())}"
             print(f"[ERROR add_word] {error_msg}")
             print(f"[ERROR add_word] highlight_dict: {highlight_dict}")
             raise ValueError(error_msg)
@@ -312,7 +314,7 @@ class DictionaryManager:
             self._execute_query(insert_example_query, {
                 '$id': example_id,
                 '$word_id': word_id,
-                '$original_form': lemma,
+                '$original_form': original_word,
                 '$context': context,
                 '$session_id': session_id,
                 '$added_at': now
@@ -413,7 +415,7 @@ class DictionaryManager:
             self._execute_query(insert_example_query, {
                 '$id': example_id,
                 '$word_id': word_id,
-                '$original_form': lemma,
+                '$original_form': original_word,
                 '$context': context,
                 '$session_id': session_id,
                 '$added_at': now
