@@ -349,7 +349,9 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Строка с дополнительными значениями
     meanings_line = ""
     if additional_meanings:
-        meanings_line = f"\n📖 А ещё: {', '.join(additional_meanings)}"
+        # Экранируем спецсимволы Markdown
+        escaped = [m.replace('_', '\\_').replace('*', '\\*') for m in additional_meanings]
+        meanings_line = f"\n📖 А ещё: {', '.join(escaped)}"
 
     # Формируем сообщение с результатом
     if is_correct:
