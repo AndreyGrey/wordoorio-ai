@@ -337,11 +337,15 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Отправляем результат в БД (асинхронно, не блокируем UI)
     try:
         result = test_manager.submit_answer(test['test_id'], selected_option['text'])
+        logger.info(f"[BOT] submit_answer result: {result}")
         new_rating = result.get('new_rating', 0)
         new_status = result.get('new_status', 'learning')
         additional_meanings = result.get('additional_meanings', [])
+        logger.info(f"[BOT] additional_meanings: {additional_meanings}")
     except Exception as e:
         logger.error(f"Ошибка сохранения ответа: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         new_rating = 0
         new_status = "?"
         additional_meanings = []
