@@ -16,10 +16,21 @@
 
     <style>
         /* Специфичные стили для тренировки */
+        .container {
+            padding-top: var(--spacing-6);
+            padding-bottom: var(--spacing-10);
+        }
+
         .training-header {
             text-align: center;
-            color: var(--color-text-white);
-            margin-bottom: var(--spacing-8);
+            margin-bottom: var(--spacing-6);
+        }
+
+        .training-header h1 {
+            color: white;
+            font-size: 1.875rem;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
 
         .training-card {
@@ -498,11 +509,6 @@
             <div id="options-container" class="options-container">
                 <!-- Варианты добавятся через JS -->
             </div>
-
-            <!-- Дополнительные значения -->
-            <div id="additional-meanings" class="additional-meanings" style="display: none;">
-                <!-- Заполняется через JS -->
-            </div>
         </div>
 
         <!-- Экран завершения -->
@@ -583,6 +589,11 @@
 
         async function startTraining() {
             try {
+                // Скрываем completion screen и показываем empty state для loading
+                completionScreen.style.display = 'none';
+                trainingCard.style.display = 'none';
+                emptyState.style.display = 'block';
+
                 // Показываем красивое состояние загрузки с чередующимися цитатами
                 const quotes = [
                     '"The limits of my language mean the limits of my world." — Ludwig Wittgenstein',
@@ -663,9 +674,6 @@
             // Создаем варианты ответов
             optionsContainer.innerHTML = '';
 
-            // Скрываем дополнительные значения от предыдущего теста
-            document.getElementById('additional-meanings').style.display = 'none';
-
             // Форсируем reflow чтобы очистить все CSS состояния
             void optionsContainer.offsetHeight;
 
@@ -737,9 +745,14 @@
                 return response.json();
             }).then(data => {
                 if (data && data.additional_meanings && data.additional_meanings.length > 0) {
-                    const meaningsContainer = document.getElementById('additional-meanings');
-                    meaningsContainer.innerHTML = `<span class="additional-meanings-label">📖 А ещё:</span> ${data.additional_meanings.join(', ')}`;
-                    meaningsContainer.style.display = 'block';
+                    // Вставляем после правильного ответа
+                    const correctBtn = optionsContainer.querySelector('.correct');
+                    if (correctBtn) {
+                        const meaningsDiv = document.createElement('div');
+                        meaningsDiv.className = 'additional-meanings';
+                        meaningsDiv.innerHTML = `<span class="additional-meanings-label">📖 А ещё:</span> ${data.additional_meanings.join(', ')}`;
+                        correctBtn.insertAdjacentElement('afterend', meaningsDiv);
+                    }
                 }
             }).catch(err => console.error('Ошибка отправки ответа:', err));
 
