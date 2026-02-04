@@ -1161,18 +1161,26 @@ def telegram_webhook():
                         "Неверно", "Мимо", "Увы, нет", "Ошибка"
                     ]
 
+                    # Дополнительные значения
+                    additional = result.get('additional_meanings', [])
+                    meanings_line = ""
+                    if additional:
+                        meanings_line = f"\n📖 А ещё: {', '.join(additional)}\n"
+
                     # Обновляем статистику
                     if result['is_correct']:
                         correct += 1
                         phrase = rnd.choice(correct_phrases)
                         text = f"✅ {phrase}\n\n"
-                        text += f"*{result['word']} — {result['correct_translation']}*\n\n"
-                        text += f"рейтинг слова: {result['new_rating']}/10"
+                        text += f"*{result['word']} — {result['correct_translation']}*"
+                        text += meanings_line
+                        text += f"\nрейтинг слова: {result['new_rating']}/10"
                     else:
                         wrong += 1
                         phrase = rnd.choice(wrong_phrases)
                         text = f"🛑 {phrase}\n\n"
-                        text += f"*{result['word']} — {result['correct_translation']}*\n\n"
+                        text += f"*{result['word']} — {result['correct_translation']}*"
+                        text += meanings_line
 
                         # Получаем хайлайт
                         example = db.get_word_example(test['word_id'])
@@ -1182,9 +1190,9 @@ def telegram_webhook():
                             original_form = example.get('original_form', result['word'])
                             if original_form and original_form in context:
                                 context = context.replace(original_form, original_form.upper())
-                            text += f"_{context}_\n\n"
+                            text += f"\n_{context}_"
 
-                        text += f"рейтинг слова: 0/10"
+                        text += f"\n\nрейтинг слова: 0/10"
 
                     # Кнопка "Дальше" с состоянием сессии
                     # Формат: n_{idx}_{total}_{correct}_{wrong}
