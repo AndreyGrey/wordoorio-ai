@@ -744,11 +744,13 @@
             }).then(response => {
                 if (!response.ok) {
                     console.error('Ошибка сохранения ответа');
-                    return;
+                    return { hasAdditionalMeanings: false };
                 }
                 return response.json();
             }).then(data => {
+                let hasAdditionalMeanings = false;
                 if (data && data.additional_meanings && data.additional_meanings.length > 0) {
+                    hasAdditionalMeanings = true;
                     // Вставляем после правильного ответа
                     const correctBtn = optionsContainer.querySelector('.correct');
                     if (correctBtn) {
@@ -758,13 +760,20 @@
                         correctBtn.insertAdjacentElement('afterend', meaningsDiv);
                     }
                 }
-            }).catch(err => console.error('Ошибка отправки ответа:', err));
-
-            // Переходим к следующему тесту через 4 секунды
-            setTimeout(() => {
-                currentTestIndex++;
-                showTest();
-            }, 4000);
+                // Переходим к следующему тесту: 8 сек если есть "А ещё:", иначе 4 сек
+                const delay = hasAdditionalMeanings ? 8000 : 4000;
+                setTimeout(() => {
+                    currentTestIndex++;
+                    showTest();
+                }, delay);
+            }).catch(err => {
+                console.error('Ошибка отправки ответа:', err);
+                // Fallback: переход через 4 секунды
+                setTimeout(() => {
+                    currentTestIndex++;
+                    showTest();
+                }, 4000);
+            });
         }
 
         function showCompletion() {
