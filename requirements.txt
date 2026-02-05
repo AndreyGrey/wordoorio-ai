@@ -17,6 +17,7 @@ python-telegram-bot==20.8
 
 # Web scraping (извлечение текста из статей по URL)
 trafilatura==1.12.2
+lxml_html_clean
 
 # Supervisor для запуска нескольких процессов
 supervisor==4.2.5
