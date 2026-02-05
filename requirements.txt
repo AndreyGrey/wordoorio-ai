@@ -15,5 +15,8 @@ python-telegram-bot==20.8
 # YouTube transcript extraction (TranscriptAPI.com)
 # Требуется переменная окружения TRANSCRIPT_API_KEY
 
+# Web scraping (извлечение текста из статей по URL)
+trafilatura==1.12.2
+
 # Supervisor для запуска нескольких процессов
 supervisor==4.2.5

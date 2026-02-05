@@ -203,7 +203,62 @@
             let text = '';
 
             try {
-                if (mode === 'youtube') {
+                if (mode === 'article') {
+                    // Article режим — двухэтапная загрузка
+                    const articleInput = document.getElementById('articleInput');
+                    const url = articleInput.value.trim();
+
+                    if (!url) {
+                        showError('Please enter an article URL');
+                        button.disabled = false;
+                        button.textContent = 'WORDOORIO!';
+                        return;
+                    }
+
+                    // Этап 1: Скрейпим текст статьи
+                    button.textContent = 'FETCHING ARTICLE...';
+                    const scrapeResponse = await fetch('/api/scrape-url', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ url: url })
+                    });
+
+                    const scrapeData = await scrapeResponse.json();
+
+                    if (scrapeData.error) {
+                        showError(scrapeData.error);
+                        button.disabled = false;
+                        button.textContent = 'WORDOORIO!';
+                        return;
+                    }
+
+                    text = scrapeData.text;
+                    button.textContent = 'ANALYZING...';
+
+                    // Этап 2: Показываем анимацию с реальными словами
+                    showLoadingAnimation(text);
+
+                    // Этап 3: Анализируем текст
+                    const analyzeResponse = await fetch('/analyze', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ text: text })
+                    });
+
+                    const data = await analyzeResponse.json();
+
+                    if (data.error) {
+                        showError(data.error);
+                        return;
+                    }
+
+                    if (data.success || data.highlights) {
+                        showResults(data);
+                    } else {
+                        showError(data.error || 'Unknown error');
+                    }
+
+                } else if (mode === 'youtube') {
                     // YouTube режим — двухэтапная загрузка
                     const youtubeInput = document.getElementById('youtubeInput');
                     const url = youtubeInput.value.trim();
@@ -323,9 +378,14 @@
 
             // Получаем текст в зависимости от режима
             const mode = getCurrentMode();
-            const inputText = mode === 'youtube'
-                ? document.getElementById('youtubeInput').value.trim()
-                : document.getElementById('textInput').value.trim();
+            let inputText;
+            if (mode === 'youtube') {
+                inputText = document.getElementById('youtubeInput').value.trim();
+            } else if (mode === 'article') {
+                inputText = document.getElementById('articleInput').value.trim();
+            } else {
+                inputText = document.getElementById('textInput').value.trim();
+            }
 
             // Создаем новую сессию для этого анализа
             const sessionId = storage.createSession(inputText, 'main');

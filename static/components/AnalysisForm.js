@@ -34,6 +34,7 @@ function createAnalysisForm(config = {}) {
             <div class="mode-tabs">
                 <button class="mode-tab active" data-mode="text">Text</button>
                 <button class="mode-tab" data-mode="youtube">YouTube</button>
+                <button class="mode-tab" data-mode="article">Article</button>
             </div>
 
             <!-- Режим Text -->
@@ -52,6 +53,16 @@ function createAnalysisForm(config = {}) {
                     id="youtubeInput"
                     class="form-url-input"
                     placeholder="Paste YouTube video link here..."
+                >
+            </div>
+
+            <!-- Режим Article -->
+            <div id="article-mode" class="input-mode">
+                <input
+                    type="text"
+                    id="articleInput"
+                    class="form-url-input"
+                    placeholder="Paste article URL here..."
                 >
             </div>
 
@@ -366,8 +377,7 @@ function initAnalysisForm(containerId = 'form-container', config = {}) {
  */
 function initModeTabs() {
     const tabs = document.querySelectorAll('.mode-tab');
-    const textMode = document.getElementById('text-mode');
-    const youtubeMode = document.getElementById('youtube-mode');
+    const modes = document.querySelectorAll('.input-mode');
 
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
@@ -376,15 +386,11 @@ function initModeTabs() {
             // Добавляем active на кликнутый
             tab.classList.add('active');
 
-            // Переключаем режимы
+            // Скрываем все режимы, показываем нужный
             const mode = tab.dataset.mode;
-            if (mode === 'text') {
-                textMode.classList.add('active');
-                youtubeMode.classList.remove('active');
-            } else {
-                textMode.classList.remove('active');
-                youtubeMode.classList.add('active');
-            }
+            modes.forEach(m => m.classList.remove('active'));
+            const target = document.getElementById(mode + '-mode');
+            if (target) target.classList.add('active');
         });
     });
 }
