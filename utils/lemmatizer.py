@@ -23,6 +23,42 @@ def _get_nlp():
     return _nlp
 
 
+def lemmatize_with_pos(text: str) -> tuple:
+    """
+    Преобразует слово или фразу в словарную форму + возвращает флаг причастия.
+
+    Используется для согласования EN ↔ RU: если EN = причастие,
+    то RU перевод тоже не нужно лемматизировать.
+
+    Args:
+        text: Слово или фраза для лемматизации
+
+    Returns:
+        tuple: (лемматизированный текст, is_participle)
+            - is_participle = True если первое слово — причастие (VBN/VBG)
+    """
+    if not text or not text.strip():
+        return text, False
+
+    nlp = _get_nlp()
+    doc = nlp(text.strip())
+
+    lemmas = []
+    is_participle = False
+
+    for i, token in enumerate(doc):
+        if token.tag_ in ('VBN', 'VBG'):
+            # VBN = past participle (embroiled, broken, written)
+            # VBG = gerund/present participle (amplifying, running)
+            lemmas.append(token.text.lower())
+            if i == 0:  # Первое слово — определяет тип всего highlight
+                is_participle = True
+        else:
+            lemmas.append(token.lemma_)
+
+    return " ".join(lemmas), is_participle
+
+
 def lemmatize(text: str) -> str:
     """
     Преобразует слово или фразу в словарную форму
@@ -40,24 +76,8 @@ def lemmatize(text: str) -> str:
     Returns:
         Лемматизированный текст
     """
-    if not text or not text.strip():
-        return text
-
-    nlp = _get_nlp()
-    doc = nlp(text.strip())
-
-    # Лемматизируем каждое слово, НО причастия оставляем как есть
-    lemmas = []
-    for token in doc:
-        if token.tag_ in ('VBN', 'VBG'):
-            # VBN = past participle (embroiled, broken, written)
-            # VBG = gerund/present participle (amplifying, running)
-            # Оставляем как есть — это причастия, не глаголы
-            lemmas.append(token.text.lower())
-        else:
-            lemmas.append(token.lemma_)
-
-    return " ".join(lemmas)
+    lemma, _ = lemmatize_with_pos(text)
+    return lemma
 
 
 def _get_morph():
@@ -139,27 +159,35 @@ def lemmatize_russian(text: str) -> str:
 if __name__ == "__main__":
     print("🧪 Тестируем лемматизатор...\n")
 
-    print("=== Английский (spaCy) ===")
+    print("=== Английский (spaCy) — lemmatize_with_pos() ===")
     english_tests = [
-        # Обычные слова → лемматизируются
-        ("incentives", "incentive"),
-        ("went", "go"),
-        ("bigger", "big"),
-        ("stories", "story"),
-        # Причастия (VBN, VBG) → НЕ лемматизируются
-        ("embroiled", "embroiled"),  # VBN - оставляем
-        ("amplifying", "amplifying"),  # VBG - оставляем
-        ("running", "running"),  # VBG - оставляем
-        ("broken", "broken"),  # VBN - оставляем
-        # Фразы
-        ("gave up", "give up"),
-        ("came across", "come across"),
+        # (вход, ожидаемая_лемма, ожидаемый_is_participle)
+        # Обычные слова → лемматизируются, is_participle=False
+        ("incentives", "incentive", False),
+        ("went", "go", False),
+        ("bigger", "big", False),
+        ("stories", "story", False),
+        # Причастия (VBN, VBG) → НЕ лемматизируются, is_participle=True
+        ("embroiled", "embroiled", True),   # VBN
+        ("amplifying", "amplifying", True),  # VBG
+        ("running", "running", True),        # VBG
+        ("broken", "broken", True),          # VBN
+        ("peppered", "peppered", True),      # VBN
+        # Фразы — is_participle по первому слову
+        ("gave up", "give up", False),       # gave=VBD, не причастие
+        ("came across", "come across", False),
+        ("peppered with", "peppered with", True),  # peppered=VBN
     ]
 
-    for test, expected in english_tests:
-        result = lemmatize(test)
-        status = "✓" if result == expected else f"✗ (ожидалось '{expected}')"
-        print(f"  '{test}' → '{result}' {status}")
+    for test, expected_lemma, expected_participle in english_tests:
+        lemma, is_part = lemmatize_with_pos(test)
+        lemma_ok = lemma == expected_lemma
+        part_ok = is_part == expected_participle
+        if lemma_ok and part_ok:
+            status = "✓"
+        else:
+            status = f"✗ (лемма: '{lemma}', participle: {is_part})"
+        print(f"  '{test}' → '{lemma}' [participle={is_part}] {status}")
 
     print("\n=== Русский (pymorphy2) ===")
     russian_tests = [

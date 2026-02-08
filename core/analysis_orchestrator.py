@@ -22,7 +22,7 @@ from contracts.analysis_contracts import (
     create_error_result
 )
 from core.yandex_ai_client import YandexAIClient
-from utils.lemmatizer import lemmatize, lemmatize_russian
+from utils.lemmatizer import lemmatize_with_pos, lemmatize_russian
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
@@ -218,9 +218,9 @@ class AnalysisOrchestrator:
             import time
             word = highlight_dict.get('highlight', '')
 
-            # Лемматизируем слово для запроса в словарь
+            # Лемматизируем слово + получаем флаг причастия для согласования EN↔RU
             lemma_start = time.time()
-            word_lemma = lemmatize(word)
+            word_lemma, is_participle = lemmatize_with_pos(word)
             lemma_time = time.time() - lemma_start
 
             # Yandex Dictionary API поддерживает ТОЛЬКО отдельные слова, НЕ фразы
@@ -257,10 +257,18 @@ class AnalysisOrchestrator:
                 dict_time = time.time() - dict_start
                 print(f"🔄 {word} → {final_lemma} [словарь '{dict_query}': {dict_time*1000:.0f}ms]", flush=True)
 
-            # Получаем основной перевод от агента и нормализуем через pymorphy2
+            # Получаем основной перевод от агента
             raw_translation = highlight_dict.get('highlight_translation', '').strip()
-            main_translation = lemmatize_russian(raw_translation).lower() if raw_translation else ''
-            print(f"   🇷🇺 {raw_translation} → {main_translation}", flush=True)
+
+            # Согласование EN ↔ RU: если EN = причастие, RU не лемматизируем
+            if is_participle:
+                # EN причастие (embroiled, peppered) → RU оставляем как вернул AI
+                main_translation = raw_translation.lower() if raw_translation else ''
+                print(f"   🇷🇺 {raw_translation} → {main_translation} [EN=причастие, RU не трогаем]", flush=True)
+            else:
+                # EN не причастие → RU нормализуем через pymorphy2
+                main_translation = lemmatize_russian(raw_translation).lower() if raw_translation else ''
+                print(f"   🇷🇺 {raw_translation} → {main_translation}", flush=True)
 
             # Исключаем основной перевод из дополнительных значений (убираем дубликат)
             if main_translation and dictionary_meanings:
