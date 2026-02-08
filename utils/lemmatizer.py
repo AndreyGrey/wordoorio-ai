@@ -29,10 +29,10 @@ def lemmatize(text: str) -> str:
 
     Примеры:
         - "incentives" → "incentive"
-        - "running" → "run"
         - "went" → "go"
         - "gave up" → "give up"
-        - "making sense" → "make sense"
+        - "embroiled" → "embroiled" (причастие — не трогаем)
+        - "amplifying" → "amplifying" (герундий — не трогаем)
 
     Args:
         text: Слово или фраза для лемматизации
@@ -46,8 +46,16 @@ def lemmatize(text: str) -> str:
     nlp = _get_nlp()
     doc = nlp(text.strip())
 
-    # Лемматизируем каждое слово
-    lemmas = [token.lemma_ for token in doc]
+    # Лемматизируем каждое слово, НО причастия оставляем как есть
+    lemmas = []
+    for token in doc:
+        if token.tag_ in ('VBN', 'VBG'):
+            # VBN = past participle (embroiled, broken, written)
+            # VBG = gerund/present participle (amplifying, running)
+            # Оставляем как есть — это причастия, не глаголы
+            lemmas.append(token.text.lower())
+        else:
+            lemmas.append(token.lemma_)
 
     return " ".join(lemmas)
 
@@ -133,21 +141,25 @@ if __name__ == "__main__":
 
     print("=== Английский (spaCy) ===")
     english_tests = [
-        "incentives",
-        "running",
-        "went",
-        "bigger",
-        "stories",
-        "gave up",
-        "making sense",
-        "came across",
-        "compelling arguments",
-        "amplifying",
+        # Обычные слова → лемматизируются
+        ("incentives", "incentive"),
+        ("went", "go"),
+        ("bigger", "big"),
+        ("stories", "story"),
+        # Причастия (VBN, VBG) → НЕ лемматизируются
+        ("embroiled", "embroiled"),  # VBN - оставляем
+        ("amplifying", "amplifying"),  # VBG - оставляем
+        ("running", "running"),  # VBG - оставляем
+        ("broken", "broken"),  # VBN - оставляем
+        # Фразы
+        ("gave up", "give up"),
+        ("came across", "come across"),
     ]
 
-    for test in english_tests:
+    for test, expected in english_tests:
         result = lemmatize(test)
-        print(f"  '{test}' → '{result}'")
+        status = "✓" if result == expected else f"✗ (ожидалось '{expected}')"
+        print(f"  '{test}' → '{result}' {status}")
 
     print("\n=== Русский (pymorphy2) ===")
     russian_tests = [
