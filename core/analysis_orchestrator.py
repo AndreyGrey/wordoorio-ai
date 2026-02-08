@@ -22,7 +22,7 @@ from contracts.analysis_contracts import (
     create_error_result
 )
 from core.yandex_ai_client import YandexAIClient
-from utils.lemmatizer import lemmatize
+from utils.lemmatizer import lemmatize, lemmatize_russian
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
@@ -257,8 +257,10 @@ class AnalysisOrchestrator:
                 dict_time = time.time() - dict_start
                 print(f"🔄 {word} → {final_lemma} [словарь '{dict_query}': {dict_time*1000:.0f}ms]", flush=True)
 
-            # Получаем основной перевод от агента
-            main_translation = highlight_dict.get('highlight_translation', '').lower().strip()
+            # Получаем основной перевод от агента и нормализуем через pymorphy2
+            raw_translation = highlight_dict.get('highlight_translation', '').strip()
+            main_translation = lemmatize_russian(raw_translation).lower() if raw_translation else ''
+            print(f"   🇷🇺 {raw_translation} → {main_translation}", flush=True)
 
             # Исключаем основной перевод из дополнительных значений (убираем дубликат)
             if main_translation and dictionary_meanings:
@@ -290,9 +292,9 @@ class AnalysisOrchestrator:
 
             # Создаем Highlight из данных агента
             highlight = Highlight(
-                highlight=word,  # Оригинальное слово - то что видит пользователь
+                highlight=word_lemma,  # spaCy-лемма для отображения на карточке
                 context=highlight_dict.get('context', ''),  # Контекст с оригинальной формой
-                highlight_translation=highlight_dict.get('highlight_translation', ''),
+                highlight_translation=main_translation,  # Нормализованный русский перевод
                 lemma=final_lemma,  # Форма для хранения (оригинал если в словаре, иначе лемма)
                 dictionary_meanings=dictionary_meanings
             )
