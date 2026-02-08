@@ -275,11 +275,99 @@ function handleDeleteCard(card, index) {
  * @param {string} index - Индекс карточки
  */
 function handleSaveCard(card, index) {
+    // Получаем данные хайлайта через callback
+    let highlightData = null;
+    if (typeof window.getHighlightData === 'function') {
+        highlightData = window.getHighlightData(index);
+    }
+
+    // Если есть несколько вариантов перевода — показываем выбор
+    if (highlightData && highlightData.dictionary_meanings && highlightData.dictionary_meanings.length > 0) {
+        showTranslationChoices(card, index, highlightData);
+        return;
+    }
+
+    // Один вариант — сохраняем сразу
+    completeSave(card, index, highlightData ? highlightData.highlight_translation : null);
+}
+
+/**
+ * Показывает пиллы выбора перевода
+ * @param {HTMLElement} card - DOM элемент карточки
+ * @param {string} index - Индекс карточки
+ * @param {Object} highlightData - Данные хайлайта
+ */
+function showTranslationChoices(card, index, highlightData) {
+    // Собираем все варианты: основной + из словаря
+    const choices = [highlightData.highlight_translation, ...highlightData.dictionary_meanings];
+
+    // Создаём или находим оверлей с пиллами
+    let overlay = card.querySelector('.translation-choices-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'translation-choices-overlay';
+        card.appendChild(overlay);
+    }
+
+    // Генерируем HTML пиллов
+    overlay.innerHTML = choices.map(choice =>
+        `<button class="translation-pill" data-translation="${choice}" data-index="${index}">${choice}</button>`
+    ).join('') + `
+        <button class="cancel-pill" data-index="${index}">
+            <svg viewBox="0 0 24 24" fill="none">
+                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+        </button>
+    `;
+
+    // Добавляем обработчики
+    overlay.querySelectorAll('.translation-pill').forEach(pill => {
+        pill.addEventListener('click', handleTranslationSelect);
+    });
+    overlay.querySelector('.cancel-pill').addEventListener('click', handleCancelChoice);
+
+    // Переключаем в режим выбора
+    card.classList.remove('actions-visible');
+    card.classList.add('choosing');
+}
+
+/**
+ * Обработчик выбора перевода
+ * @param {Event} e - Событие клика
+ */
+function handleTranslationSelect(e) {
+    const pill = e.currentTarget;
+    const card = pill.closest('.highlight-card-v6');
+    const index = pill.dataset.index;
+    const translation = pill.dataset.translation;
+
+    card.classList.remove('choosing');
+    completeSave(card, index, translation);
+}
+
+/**
+ * Обработчик отмены выбора
+ * @param {Event} e - Событие клика
+ */
+function handleCancelChoice(e) {
+    const btn = e.currentTarget;
+    const card = btn.closest('.highlight-card-v6');
+    card.classList.remove('choosing');
+    card.classList.add('actions-visible');
+}
+
+/**
+ * Завершает сохранение карточки
+ * @param {HTMLElement} card - DOM элемент карточки
+ * @param {string} index - Индекс карточки
+ * @param {string|null} translation - Выбранный перевод
+ */
+function completeSave(card, index, translation) {
     // Визуальная индикация сохранения
     card.classList.add('card-saved');
-    
-    // Показываем уведомление
-    showSaveNotification(card);
+
+    // Показываем уведомление с выбранным переводом
+    showSaveNotification(card, translation);
 
     // Убираем индикацию через некоторое время
     setTimeout(() => {
@@ -289,24 +377,25 @@ function handleSaveCard(card, index) {
 
     // Вызываем callback если нужен (для интеграции с backend)
     if (typeof window.onHighlightSaved === 'function') {
-        window.onHighlightSaved(index);
+        window.onHighlightSaved(index, translation);
     }
 }
 
 /**
  * Показывает уведомление о сохранении
  * @param {HTMLElement} card - DOM элемент карточки
+ * @param {string|null} translation - Выбранный перевод (опционально)
  */
-function showSaveNotification(card) {
+function showSaveNotification(card, translation = null) {
     const notification = document.createElement('div');
     notification.className = 'save-notification';
     notification.innerHTML = `
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        <span>Сохранено</span>
+        <span>${translation || 'Сохранено'}</span>
     `;
-    
+
     card.appendChild(notification);
 
     // Удаляем уведомление через 2 секунды
@@ -773,6 +862,154 @@ function getHighlightCardStyles() {
         /* Отключаем will-change после завершения анимации */
         .highlight-card-v6:not(.actions-visible):not(.card-removing):not(.card-saved) {
             will-change: auto;
+        }
+
+        /* ===== РЕЖИМ ВЫБОРА ПЕРЕВОДА (choosing) ===== */
+
+        /* Оверлей с пиллами выбора */
+        .translation-choices-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 20px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 3;
+        }
+
+        .highlight-card-v6.choosing .translation-choices-overlay {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* В режиме choosing: кнопки +/- скрыты даже при hover */
+        .highlight-card-v6.choosing .highlight-actions-overlay,
+        .highlight-card-v6.choosing.actions-visible .highlight-actions-overlay {
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        .highlight-card-v6.choosing .highlight-blurrable {
+            filter: blur(8px);
+            opacity: 0.3;
+        }
+
+        /* Таблетка перевода скрывается в режиме choosing */
+        .highlight-card-v6.choosing .highlight-subtitle {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+        }
+
+        /* Заголовок центрируется в режиме choosing */
+        .highlight-card-v6 .highlight-title {
+            transition: all 0.4s ease;
+        }
+
+        .highlight-card-v6.choosing .highlight-title {
+            text-align: center;
+            transform: translateY(20px);
+        }
+
+        .highlight-card-v6.choosing::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* Пиллы выбора перевода */
+        .translation-pill {
+            background: var(--text-dark, #0A3A4D);
+            color: var(--text-light, #ffffff);
+            font-size: 17px;
+            font-weight: 600;
+            padding: 12px 24px;
+            border-radius: 50px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            line-height: 1.1;
+            transform: scale(0.8);
+            opacity: 0;
+            animation: pillAppear 0.3s ease forwards;
+        }
+
+        .translation-pill:nth-child(1) { animation-delay: 0.05s; }
+        .translation-pill:nth-child(2) { animation-delay: 0.1s; }
+        .translation-pill:nth-child(3) { animation-delay: 0.15s; }
+        .translation-pill:nth-child(4) { animation-delay: 0.2s; }
+        .translation-pill:nth-child(5) { animation-delay: 0.25s; }
+
+        @keyframes pillAppear {
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .translation-pill:hover {
+            background: #1a5a6d;
+            transform: scale(1.05) translateY(-2px);
+        }
+
+        .translation-pill:active {
+            transform: scale(0.95);
+        }
+
+        /* Кнопка отмены */
+        .cancel-pill {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(4px);
+            color: var(--text-dark, #0A3A4D);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            transform: scale(0.8);
+            opacity: 0;
+            animation: pillAppear 0.3s ease forwards;
+            animation-delay: 0.3s;
+        }
+
+        .cancel-pill:hover {
+            background: rgba(255, 100, 100, 0.3);
+            border-color: rgba(255, 100, 100, 0.5);
+        }
+
+        .cancel-pill svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Мобильная адаптивность для пиллов */
+        @media (max-width: 480px) {
+            .translation-pill {
+                font-size: 15px;
+                padding: 10px 18px;
+            }
+
+            .cancel-pill {
+                width: 40px;
+                height: 40px;
+            }
         }
     `;
 }

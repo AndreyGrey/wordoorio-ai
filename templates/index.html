@@ -411,8 +411,17 @@
             document.getElementById('results').style.display = 'block';
         }
 
+        // Callback для получения данных хайлайта (нужно для выбора перевода)
+        window.getHighlightData = function(index) {
+            const storage = new HighlightsStorage();
+            const analysis = storage.getLastAnalysis();
+            if (!analysis || !analysis.highlights) return null;
+            return analysis.highlights[index] || null;
+        };
+
         // Callback для сохранения карточки
-        window.onHighlightSaved = async function(index) {
+        // translation — выбранный пользователем перевод (или null для дефолтного)
+        window.onHighlightSaved = async function(index, translation) {
             const storage = new HighlightsStorage();
             const analysis = storage.getLastAnalysis();
 
@@ -424,8 +433,13 @@
 
             const highlight = analysis.highlights[index];
 
+            // Если выбран конкретный перевод — заменяем highlight_translation
+            const highlightToSave = translation
+                ? { ...highlight, highlight_translation: translation }
+                : highlight;
+
             // ВСЕГДА сохраняем локально в localStorage
-            storage.saveHighlight(analysis.session_id, highlight);
+            storage.saveHighlight(analysis.session_id, highlightToSave);
 
             // Показываем уведомление о локальном сохранении
             showNotification('✓ Сохранено');
@@ -433,7 +447,7 @@
             // Пытаемся синхронизировать с сервером (опционально, только если авторизован)
             // Добавляем page_id к highlight для правильной группировки в analyses
             const highlightWithPageId = {
-                ...highlight,
+                ...highlightToSave,
                 page_id: analysis.session_id  // Уникальный ID текущего анализа (session_id)
             };
             const result = await addToDictionary(highlightWithPageId);
