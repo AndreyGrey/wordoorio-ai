@@ -257,18 +257,14 @@ class AnalysisOrchestrator:
                 dict_time = time.time() - dict_start
                 print(f"🔄 {word} → {final_lemma} [словарь '{dict_query}': {dict_time*1000:.0f}ms]", flush=True)
 
-            # Получаем основной перевод от агента
+            # Получаем основной перевод от агента и нормализуем через pymorphy2
+            # lemmatize_russian() корректно обрабатывает:
+            # - Причастия → м.р. ед.ч. им.п. через inflect() (не инфинитив!)
+            # - Глаголы → инфинитив через normal_form
+            # - Фразы → не трогает
             raw_translation = highlight_dict.get('highlight_translation', '').strip()
-
-            # Согласование EN ↔ RU: если EN = причастие, RU не лемматизируем
-            if is_participle:
-                # EN причастие (embroiled, peppered) → RU оставляем как вернул AI
-                main_translation = raw_translation.lower() if raw_translation else ''
-                print(f"   🇷🇺 {raw_translation} → {main_translation} [EN=причастие, RU не трогаем]", flush=True)
-            else:
-                # EN не причастие → RU нормализуем через pymorphy2
-                main_translation = lemmatize_russian(raw_translation).lower() if raw_translation else ''
-                print(f"   🇷🇺 {raw_translation} → {main_translation}", flush=True)
+            main_translation = lemmatize_russian(raw_translation).lower() if raw_translation else ''
+            print(f"   🇷🇺 {raw_translation} → {main_translation}", flush=True)
 
             # Исключаем основной перевод из дополнительных значений (убираем дубликат)
             if main_translation and dictionary_meanings:
