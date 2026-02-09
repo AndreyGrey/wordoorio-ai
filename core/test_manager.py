@@ -93,14 +93,28 @@ class TestManager:
                 logger.warning(f"[TestManager] Не найден word_id для слова {test_data['word']}")
                 continue
 
+            # Валидация: проверяем количество и уникальность вариантов
+            wrong_options = test_data.get('wrong_options', [])
+
+            if len(wrong_options) < 3:
+                logger.warning(f"[TestManager] Недостаточно вариантов для '{test_data['word']}': {wrong_options}")
+                continue
+
+            all_options = [test_data['correct_translation']] + wrong_options[:3]
+            unique_options = set(all_options)
+
+            if len(unique_options) < 4:
+                logger.warning(f"[TestManager] Дубликаты в вариантах для '{test_data['word']}': {wrong_options}")
+                continue  # Пропускаем тест с дубликатами
+
             test_id = self.db.insert_test(
                 user_id=user_id,
                 word_id=word_id,
                 word=test_data['word'],
                 correct_translation=test_data['correct_translation'],
-                wrong_option_1=test_data['wrong_options'][0],
-                wrong_option_2=test_data['wrong_options'][1],
-                wrong_option_3=test_data['wrong_options'][2]
+                wrong_option_1=wrong_options[0],
+                wrong_option_2=wrong_options[1],
+                wrong_option_3=wrong_options[2]
             )
             test_ids.append(test_id)
             logger.info(f"[TestManager] Создан тест {test_id} для слова '{test_data['word']}'")
