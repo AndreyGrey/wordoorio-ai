@@ -199,7 +199,7 @@ async def start_training(update: Update, context: ContextTypes.DEFAULT_TYPE, use
 
     try:
         # 1. Отбираем слова для тренировки
-        words = training_service.select_words_for_training(user_id, count=8)
+        words = training_service.select_words_for_training(user_id, count=10)
 
         if not words:
             await loading_msg.edit_text(

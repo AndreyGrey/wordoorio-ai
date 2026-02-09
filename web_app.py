@@ -1051,7 +1051,7 @@ def telegram_webhook():
                     import asyncio
 
                     training_service = TrainingService(db)
-                    words = training_service.select_words_for_training(user_id, count=8)
+                    words = training_service.select_words_for_training(user_id, count=10)
                     logger.info(f"[TG Webhook] Отобрано слов: {len(words) if words else 0}")
 
                     if not words:
