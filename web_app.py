@@ -1524,44 +1524,22 @@ def api_scrape_url():
         {"success": true, "text": "...", "title": "..."}
     """
     try:
-        import trafilatura
+        from core.scraper_service import ScraperService
 
         data = request.get_json()
         url = data.get('url', '').strip()
 
-        if not url:
-            return jsonify({'error': 'URL не указан'}), 400
-
-        if not url.startswith(('http://', 'https://')):
-            url = 'https://' + url
-
-        # Загружаем страницу
-        downloaded = trafilatura.fetch_url(url)
-        if not downloaded:
-            return jsonify({'error': 'Не удалось загрузить страницу'}), 400
-
-        # Извлекаем текст
-        text = trafilatura.extract(downloaded)
-        if not text:
-            return jsonify({'error': 'Не удалось извлечь текст из страницы'}), 400
-
-        # Извлекаем метаданные (заголовок)
-        metadata = trafilatura.extract_metadata(downloaded)
-        title = metadata.title if metadata and metadata.title else ''
-
-        # Ограничиваем длину текста
-        MAX_TEXT_LENGTH = 15000
-        if len(text) > MAX_TEXT_LENGTH:
-            text = text[:MAX_TEXT_LENGTH]
-
-        logger.info(f"[Scrape] URL: {url}, title: {title}, длина текста: {len(text)}")
+        scraper = ScraperService()
+        content = scraper.scrape_url(url)
 
         return jsonify({
             'success': True,
-            'text': text,
-            'title': title
+            'text': content.text,
+            'title': content.title
         })
 
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"[Scrape] Ошибка: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500

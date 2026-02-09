@@ -61,8 +61,8 @@ Wordoorio/
 ├── core/               # Основная бизнес-логика
 │   ├── training_service.py    # 8-шаговый алгоритм отбора слов
 │   ├── test_manager.py        # Управление тестами
-│   ├── yandex_ai_client.py    # Интеграция с Yandex AI
-│   └── auth_manager.py        # Авторизация через Telegram
+│   ├── scraper_service.py     # Извлечение текста из веб-страниц
+│   └── yandex_ai_client.py    # Интеграция с Yandex AI
 ├── agents/             # AI агенты для анализа текста
 └── templates/          # HTML шаблоны
 
@@ -83,26 +83,12 @@ Wordoorio/
 - `tests` - сгенерированные тесты
 - `word_test_statistics` - статистика ответов
 
-**Авторизация:**
-- Telegram Login Widget на сайте
-- Связка telegram_id с аккаунтом
-- Бот проверяет авторизацию через AuthManager
-
 ### Частые ошибки
 
-1. **AuthManager ожидает строку (путь к БД), не объект:**
-   ```python
-   # ✅ ПРАВИЛЬНО
-   auth_manager = AuthManager(db.db_path)
-
-   # ❌ НЕПРАВИЛЬНО
-   auth_manager = AuthManager(db)
-   ```
-
-2. **Множественные процессы бота:**
+1. **Множественные процессы бота:**
    - Всегда проверяй и убивай старые процессы: `pkill -9 -f "telegram_bot.py"`
 
-3. **Yandex AI использует Api-Key, не Bearer:**
+2. **Yandex AI использует Api-Key, не Bearer:**
    ```python
    headers = {"Authorization": f"Api-Key {api_key}"}  # ✅
    headers = {"Authorization": f"Bearer {token}"}      # ❌
