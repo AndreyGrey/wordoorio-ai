@@ -959,12 +959,10 @@ def telegram_webhook():
             if text.startswith('/start'):
                 user = db.get_user_by_telegram_id(telegram_id)
                 if user:
-                    keyboard = {'inline_keyboard': [[{'text': 'НАЧАТЬ', 'callback_data': 'start_training'}]]}
+                    keyboard = {'inline_keyboard': [[{'text': '🏋️ НАЧАТЬ ТРЕНИРОВКУ', 'callback_data': 'start_training'}]]}
                     telegram_send_message(
                         chat_id,
-                        f"Привет, {user.get('username', 'пользователь')}!\n\n"
-                        "Готов потренировать английские слова?\n\n"
-                        "Нажми НАЧАТЬ для запуска теста из 8 слов.",
+                        f"Привет, {user.get('username', 'пользователь')}!",
                         reply_markup=keyboard
                     )
                 else:
