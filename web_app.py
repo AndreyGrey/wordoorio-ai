@@ -1009,18 +1009,74 @@ def telegram_webhook():
                         else:
                             telegram_send_message(chat_id, "Ошибка привязки. Попробуй позже.")
 
-            # /train
+            # /train - сразу запускаем тренировку
             elif text.startswith('/train'):
                 user = db.get_user_by_telegram_id(telegram_id)
-                if user:
-                    keyboard = {'inline_keyboard': [[{'text': '🏋️ НАЧАТЬ ТРЕНИРОВКУ', 'callback_data': 'start_training'}]]}
-                    telegram_send_message(chat_id, "Готов?", reply_markup=keyboard)
-                else:
+                if not user:
                     telegram_send_message(
                         chat_id,
                         "Сначала авторизуйтесь командой:\n"
                         "`/login username password`"
                     )
+                else:
+                    # Отправляем сообщение и сразу запускаем генерацию
+                    msg_result = telegram_send_message(chat_id, "Подключаемся к агентам")
+                    if msg_result and msg_result.get('result'):
+                        message_id = msg_result['result']['message_id']
+                        # Эмулируем callback start_training
+                        # Код ниже дублирует логику из start_training callback
+                        try:
+                            from core.training_service import TrainingService
+                            from core.test_manager import TestManager
+                            from core.yandex_ai_client import YandexAIClient
+                            import asyncio
+                            import time
+                            import threading
+
+                            user_id = user['id']
+                            training_service = TrainingService(db)
+                            words = training_service.select_words_for_training(user_id, count=10)
+
+                            if not words:
+                                telegram_edit_message(chat_id, message_id, "В твоем словаре пока нет слов.\n\nДобавь слова через веб-интерфейс.")
+                            else:
+                                db.delete_all_user_tests(user_id)
+
+                                loading_done = threading.Event()
+                                loading_phase = {'text': 'Подключаемся к агентам'}
+
+                                def animate_loading():
+                                    dots_states = ["", ".", "..", "..."]
+                                    idx = 0
+                                    while not loading_done.is_set():
+                                        telegram_edit_message(chat_id, message_id, f"{loading_phase['text']}{dots_states[idx % len(dots_states)]}")
+                                        idx += 1
+                                        time.sleep(0.8)
+
+                                animation_thread = threading.Thread(target=animate_loading, daemon=True)
+                                animation_thread.start()
+
+                                ai_client = YandexAIClient()
+                                test_manager = TestManager(db, ai_client)
+                                loading_phase['text'] = 'Генерируем тесты'
+
+                                loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(loop)
+                                test_ids = loop.run_until_complete(test_manager.create_tests_batch(user_id, words))
+                                loop.close()
+
+                                loading_done.set()
+                                animation_thread.join(timeout=0.5)
+
+                                if not test_ids:
+                                    keyboard = {'inline_keyboard': [[{'text': '🔄 Попробовать снова', 'callback_data': 'start_training'}]]}
+                                    telegram_edit_message(chat_id, message_id, "Не удалось создать тесты.", reply_markup=keyboard)
+                                else:
+                                    send_telegram_test(chat_id, message_id, test_manager, test_ids[0], 0, len(test_ids), 0, 0)
+                        except Exception as e:
+                            logger.error(f"[TG /train] Ошибка: {e}", exc_info=True)
+                            keyboard = {'inline_keyboard': [[{'text': '🔄 Попробовать снова', 'callback_data': 'start_training'}]]}
+                            telegram_edit_message(chat_id, message_id, f"Ошибка: `{str(e)[:100]}`", reply_markup=keyboard)
 
         # Обработка callback_query (нажатия кнопок)
         elif 'callback_query' in update:
