@@ -1076,24 +1076,29 @@ def telegram_webhook():
                     # Удаляем старые тесты
                     db.delete_all_user_tests(user_id)
 
-                    # Флаг для остановки анимации
+                    # Состояние анимации
                     loading_done = threading.Event()
+                    loading_phase = {'text': 'Подключаемся к агентам'}
 
                     def animate_loading():
-                        """Анимация точек пока генерируются тесты"""
-                        dots_states = [".", "..", "...", "....", ".....", "......"]
+                        """Анимация точек в два этапа"""
+                        dots_states = ["", ".", "..", "..."]
                         idx = 0
                         while not loading_done.is_set():
-                            telegram_edit_message(chat_id, message_id, f"Генерируем тесты{dots_states[idx % len(dots_states)]}")
+                            telegram_edit_message(chat_id, message_id, f"{loading_phase['text']}{dots_states[idx % len(dots_states)]}")
                             idx += 1
-                            time.sleep(1.5)
+                            time.sleep(0.8)
 
-                    # Запускаем анимацию в отдельном потоке
+                    # Запускаем анимацию
                     animation_thread = threading.Thread(target=animate_loading, daemon=True)
                     animation_thread.start()
 
+                    # Этап 1: Подключаем сервисы
                     ai_client = YandexAIClient()
                     test_manager = TestManager(db, ai_client)
+
+                    # Этап 2: Генерируем тесты
+                    loading_phase['text'] = 'Генерируем тесты'
 
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
