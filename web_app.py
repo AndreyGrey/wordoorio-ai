@@ -1001,7 +1001,7 @@ def telegram_webhook():
                         success = db.link_telegram_to_user(user_id, telegram_id)
 
                         if success:
-                            keyboard = {'inline_keyboard': [[{'text': 'НАЧАТЬ ТРЕНИРОВКУ', 'callback_data': 'start_training'}]]}
+                            keyboard = {'inline_keyboard': [[{'text': '🏋️ НАЧАТЬ ТРЕНИРОВКУ', 'callback_data': 'start_training'}]]}
                             telegram_send_message(
                                 chat_id,
                                 f"Telegram привязан к аккаунту `{username}`.\n\n"
@@ -1015,13 +1015,8 @@ def telegram_webhook():
             elif text.startswith('/train'):
                 user = db.get_user_by_telegram_id(telegram_id)
                 if user:
-                    keyboard = {'inline_keyboard': [[{'text': 'НАЧАТЬ', 'callback_data': 'start_training'}]]}
-                    telegram_send_message(
-                        chat_id,
-                        "Готов потренировать слова?\n\n"
-                        "Нажми кнопку ниже для запуска теста из 8 слов.",
-                        reply_markup=keyboard
-                    )
+                    keyboard = {'inline_keyboard': [[{'text': '🏋️ НАЧАТЬ ТРЕНИРОВКУ', 'callback_data': 'start_training'}]]}
+                    telegram_send_message(chat_id, "Готов?", reply_markup=keyboard)
                 else:
                     telegram_send_message(
                         chat_id,
@@ -1078,13 +1073,27 @@ def telegram_webhook():
                         return jsonify({'ok': True})
 
                     import time
+                    import threading
 
-                    # Анимация загрузки
-                    telegram_edit_message(chat_id, message_id, "Подключаем AI-агентов...")
+                    # Удаляем старые тесты
                     db.delete_all_user_tests(user_id)
-                    time.sleep(0.5)
 
-                    telegram_edit_message(chat_id, message_id, "Генерируем тесты...")
+                    # Флаг для остановки анимации
+                    loading_done = threading.Event()
+
+                    def animate_loading():
+                        """Анимация точек пока генерируются тесты"""
+                        dots_states = [".", "..", "...", "....", ".....", "......"]
+                        idx = 0
+                        while not loading_done.is_set():
+                            telegram_edit_message(chat_id, message_id, f"Генерируем тесты{dots_states[idx % len(dots_states)]}")
+                            idx += 1
+                            time.sleep(1.5)
+
+                    # Запускаем анимацию в отдельном потоке
+                    animation_thread = threading.Thread(target=animate_loading, daemon=True)
+                    animation_thread.start()
+
                     ai_client = YandexAIClient()
                     test_manager = TestManager(db, ai_client)
 
@@ -1092,6 +1101,10 @@ def telegram_webhook():
                     asyncio.set_event_loop(loop)
                     test_ids = loop.run_until_complete(test_manager.create_tests_batch(user_id, words))
                     loop.close()
+
+                    # Останавливаем анимацию
+                    loading_done.set()
+                    animation_thread.join(timeout=0.5)
                     logger.info(f"[TG Webhook] Создано тестов: {len(test_ids) if test_ids else 0}")
 
                     if not test_ids:
