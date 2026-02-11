@@ -954,13 +954,14 @@ class WordoorioDatabase:
             return []
 
     def get_translation_for_word(self, word_id: int) -> str:
-        """Get first translation for a word"""
+        """Get first (main) translation for a word"""
         query = """
         DECLARE $word_id AS Uint64?;
 
         SELECT translation
         FROM dictionary_translations
         WHERE word_id = $word_id
+        ORDER BY added_at ASC
         LIMIT 1
         """
 
