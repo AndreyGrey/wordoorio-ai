@@ -616,9 +616,9 @@
                     </div>
                 `;
 
-                // Создаем контроллер для timeout 60 секунд (20 тестов = 2 AI запроса)
+                // Создаем контроллер для timeout 180 секунд (20 тестов = 2 последовательных AI запроса)
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 60000);
+                const timeoutId = setTimeout(() => controller.abort(), 180000);
 
                 const response = await fetch('/api/training/start', {
                     method: 'POST',
