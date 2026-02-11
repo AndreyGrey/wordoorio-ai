@@ -87,11 +87,14 @@ class TestManager:
         # 3. Сохранение тестов
         test_ids = []
         for test_data in response['tests']:
-            # Находим word_id для этого слова
-            word_id = next((w['word_id'] for w in words_data if w['word'] == test_data['word']), None)
-            if not word_id:
-                logger.warning(f"[TestManager] Не найден word_id для слова {test_data['word']}")
+            # Находим оригинальные данные для этого слова (НЕ из ответа AI!)
+            original_word_data = next((w for w in words_data if w['word'] == test_data['word']), None)
+            if not original_word_data:
+                logger.warning(f"[TestManager] Не найдены данные для слова {test_data['word']}")
                 continue
+
+            word_id = original_word_data['word_id']
+            correct_translation = original_word_data['correct_translation']  # Наш перевод, не от AI!
 
             # Валидация: проверяем количество и уникальность вариантов
             wrong_options = test_data.get('wrong_options', [])
@@ -100,7 +103,7 @@ class TestManager:
                 logger.warning(f"[TestManager] Недостаточно вариантов для '{test_data['word']}': {wrong_options}")
                 continue
 
-            all_options = [test_data['correct_translation']] + wrong_options[:3]
+            all_options = [correct_translation] + wrong_options[:3]
             unique_options = set(all_options)
 
             if len(unique_options) < 4:
@@ -111,7 +114,7 @@ class TestManager:
                 user_id=user_id,
                 word_id=word_id,
                 word=test_data['word'],
-                correct_translation=test_data['correct_translation'],
+                correct_translation=correct_translation,
                 wrong_option_1=wrong_options[0],
                 wrong_option_2=wrong_options[1],
                 wrong_option_3=wrong_options[2],
@@ -177,10 +180,14 @@ class TestManager:
         # 3. Сохранение тестов
         test_ids = []
         for test_data in response['tests']:
-            word_id = next((w['word_id'] for w in words_data if w['word'] == test_data['word']), None)
-            if not word_id:
-                logger.warning(f"[TestManager] Не найден word_id для слова {test_data['word']} (reverse)")
+            # Находим оригинальные данные для этого слова (НЕ из ответа AI!)
+            original_word_data = next((w for w in words_data if w['word'] == test_data['word']), None)
+            if not original_word_data:
+                logger.warning(f"[TestManager] Не найдены данные для слова {test_data['word']} (reverse)")
                 continue
+
+            word_id = original_word_data['word_id']
+            correct_translation = original_word_data['correct_translation']  # Наш перевод, не от AI!
 
             wrong_options = test_data.get('wrong_options', [])
 
@@ -200,7 +207,7 @@ class TestManager:
                 user_id=user_id,
                 word_id=word_id,
                 word=test_data['word'],
-                correct_translation=test_data['correct_translation'],
+                correct_translation=correct_translation,
                 wrong_option_1=wrong_options[0],
                 wrong_option_2=wrong_options[1],
                 wrong_option_3=wrong_options[2],
