@@ -17,13 +17,13 @@ class TrainingService:
     def __init__(self, db: WordoorioDatabase):
         self.db = db
 
-    def select_words_for_training(self, user_id: int, count: int = 8) -> List[Dict]:
+    def select_words_for_training(self, user_id: int, count: int = 10) -> List[Dict]:
         """
         Отбор N слов для тренировки по 8-шаговому алгоритму
 
         Args:
             user_id: ID пользователя
-            count: Количество слов для отбора (по умолчанию 8)
+            count: Количество слов для отбора (по умолчанию 10)
 
         Returns:
             Список словарей со словами для тренировки
@@ -46,7 +46,7 @@ class TrainingService:
         selected_words = []
         position = current_position
         iterations = 0
-        max_iterations = 20  # Защита от бесконечного цикла
+        max_iterations = 50  # Защита от бесконечного цикла
 
         # Продолжаем отбирать, пока не наберем нужное количество
         completed_full_cycle = False

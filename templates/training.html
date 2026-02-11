@@ -616,9 +616,9 @@
                     </div>
                 `;
 
-                // Создаем контроллер для timeout 30 секунд
+                // Создаем контроллер для timeout 60 секунд (20 тестов = 2 AI запроса)
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000);
+                const timeoutId = setTimeout(() => controller.abort(), 60000);
 
                 const response = await fetch('/api/training/start', {
                     method: 'POST',
@@ -666,14 +666,26 @@
             }
 
             const test = currentTraining.tests[currentTestIndex];
+            const testMode = test.test_mode || 1;
 
             // Обновляем прогресс
             const progress = ((currentTestIndex + 1) / currentTraining.tests.length) * 100;
             progressFill.style.width = `${progress}%`;
             progressText.textContent = `Тест ${currentTestIndex + 1} из ${currentTraining.tests.length}`;
 
-            // Показываем слово
-            wordEnglish.textContent = test.word;
+            // Показываем вопрос (зависит от режима)
+            const question = test.question || test.word;
+            wordEnglish.textContent = question;
+
+            // Меняем стиль в зависимости от режима
+            const wordDisplay = document.querySelector('.word-display');
+            if (testMode === 2) {
+                // RU→EN: показываем русское слово
+                wordDisplay.style.background = 'linear-gradient(135deg, #fff3e0 0%, #ffffff 100%)';
+            } else {
+                // EN→RU: показываем английское слово
+                wordDisplay.style.background = 'linear-gradient(135deg, #f7fafc 0%, #ffffff 100%)';
+            }
 
             // Создаем варианты ответов
             optionsContainer.innerHTML = '';

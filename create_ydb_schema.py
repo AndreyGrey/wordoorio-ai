@@ -132,6 +132,7 @@ def create_tables(pool, session):
         """,
 
         # 8. Тесты
+        # test_mode: 1 = EN→RU (англ→рус), 2 = RU→EN (рус→англ)
         """
         CREATE TABLE tests (
             id Uint64,
@@ -142,6 +143,7 @@ def create_tables(pool, session):
             wrong_option_1 Utf8,
             wrong_option_2 Utf8,
             wrong_option_3 Utf8,
+            test_mode Uint32,
             created_at Utf8,
             PRIMARY KEY (id),
             INDEX idx_user_id GLOBAL ON (user_id)

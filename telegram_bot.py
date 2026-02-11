@@ -198,8 +198,8 @@ async def start_training(update: Update, context: ContextTypes.DEFAULT_TYPE, use
     )
 
     try:
-        # 1. Отбираем слова для тренировки
-        words = training_service.select_words_for_training(user_id, count=10)
+        # 1. Отбираем 20 слов для тренировки (10 EN→RU + 10 RU→EN)
+        words = training_service.select_words_for_training(user_id, count=20)
 
         if not words:
             await loading_msg.edit_text(
@@ -208,8 +208,8 @@ async def start_training(update: Update, context: ContextTypes.DEFAULT_TYPE, use
             )
             return ConversationHandler.END
 
-        # 2. Создаем тесты через AI
-        test_ids = await test_manager.create_tests_batch(user_id, words)
+        # 2. Создаем тесты обоих режимов через AI
+        test_ids = await test_manager.create_dual_mode_tests(user_id, words)
 
         if not test_ids:
             await loading_msg.edit_text(
@@ -277,13 +277,26 @@ async def show_current_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Формируем текст сообщения
-    text = (
-        f"📝 Тест {index + 1}/{total}\n"
-        f"{progress_bar}\n\n"
-        f"🔤 *{test['word']}*\n\n"
-        f"Выбери перевод:"
-    )
+    # Формируем текст в зависимости от режима
+    test_mode = test.get('test_mode', 1)
+    question = test.get('question', test['word'])
+
+    if test_mode == 1:
+        # EN→RU: показываем английское, выбираем русское
+        text = (
+            f"📝 Тест {index + 1}/{total}\n"
+            f"{progress_bar}\n\n"
+            f"🔤 *{question}*\n\n"
+            f"Выбери перевод:"
+        )
+    else:
+        # RU→EN: показываем русское, выбираем английское
+        text = (
+            f"📝 Тест {index + 1}/{total}\n"
+            f"{progress_bar}\n\n"
+            f"🇷🇺 *{question}*\n\n"
+            f"Выбери английское слово:"
+        )
 
     # Отправляем или редактируем сообщение
     if update.callback_query:

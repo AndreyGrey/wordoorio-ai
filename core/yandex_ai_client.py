@@ -517,6 +517,95 @@ class YandexAIClient:
             logger.error(f"[generate_test_options] Exception: {type(e).__name__}: {str(e)}")
             raise Exception(f"Ошибка при генерации тестов: {e}")
 
+    async def generate_reverse_test_options(self, words_with_translations: List[Dict[str, str]]) -> Dict:
+        """
+        Генерация неправильных английских вариантов для обратных тестов через Агент #4
+
+        Обратный режим: показываем русское слово, выбираем английское
+
+        Args:
+            words_with_translations: Список словарей с полями:
+                - word: английское слово (правильный ответ)
+                - correct_translation: русский перевод (показываем пользователю)
+
+        Returns:
+            {
+                "tests": [
+                    {
+                        "word": "threshold",
+                        "correct_translation": "порог",
+                        "wrong_options": ["doorframe", "hinges", "latch"]
+                    },
+                    ...
+                ]
+            }
+
+        Raises:
+            Exception: если запрос не удался
+        """
+        # ID Агента #4 для обратных тестов (создан в Yandex AI Studio)
+        agent_id = "fvtknc1676vb5ru06i1b"
+
+        # Подготавливаем входные данные
+        input_data = json.dumps({"words": words_with_translations}, ensure_ascii=False)
+
+        logger.info(f"[generate_reverse_test_options] Вызываем агент {agent_id} с {len(words_with_translations)} словами")
+
+        try:
+            api_key = os.getenv('YANDEX_CLOUD_API_KEY', self.iam_token)
+            if not api_key:
+                raise Exception("Для генерации тестов нужен API ключ Yandex AI")
+
+            url = "https://rest-assistant.api.cloud.yandex.net/v1/responses"
+            headers = {
+                "Authorization": f"Api-Key {api_key}",
+                "x-folder-id": self.folder_id,
+                "Content-Type": "application/json"
+            }
+
+            payload = {
+                "prompt": {"id": agent_id},
+                "input": input_data
+            }
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=120)) as response:
+                    logger.info(f"[generate_reverse_test_options] HTTP status: {response.status}")
+
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"[generate_reverse_test_options] API error {response.status}: {error_text}")
+                        raise Exception(f"Agent API error {response.status}: {error_text}")
+
+                    result = await response.json()
+                    response_text = None
+
+                    if 'output' in result and result['output']:
+                        if isinstance(result['output'], list) and len(result['output']) > 0:
+                            for output_item in result['output']:
+                                if isinstance(output_item, dict):
+                                    if output_item.get('type') == 'message' and 'content' in output_item:
+                                        content = output_item.get('content', [])
+                                        if isinstance(content, list) and len(content) > 0:
+                                            response_text = content[0].get('text', '')
+                                            break
+
+                    if not response_text:
+                        logger.error(f"[generate_reverse_test_options] Пустой response_text")
+                        raise Exception(f"Пустой ответ от агента")
+
+                    logger.info(f"[generate_reverse_test_options] response_text длина: {len(response_text)} символов")
+                    return json.loads(response_text)
+
+        except asyncio.TimeoutError:
+            raise Exception("Timeout при генерации обратных тестов (120s)")
+        except json.JSONDecodeError as e:
+            logger.error(f"[generate_reverse_test_options] JSONDecodeError: {e}")
+            raise Exception(f"Не удалось распарсить ответ агента: {e}")
+        except Exception as e:
+            logger.error(f"[generate_reverse_test_options] Exception: {type(e).__name__}: {str(e)}")
+            raise Exception(f"Ошибка при генерации обратных тестов: {e}")
+
     def _is_primitive_word(self, word: str) -> bool:
         """Проверка, является ли слово примитивным/базовым"""
         return word.lower() in self.PRIMITIVE_WORDS

@@ -1722,7 +1722,7 @@ def training_page():
 
 @app.route('/api/training/start', methods=['POST'])
 def api_training_start():
-    """Начать новую тренировку - отобрать 8 слов и создать тесты"""
+    """Начать новую тренировку - отобрать 20 слов и создать тесты двух режимов"""
     try:
         from core.training_service import TrainingService
         from core.test_manager import TestManager
@@ -1736,17 +1736,17 @@ def api_training_start():
         if not user_id:
             return jsonify({'error': 'Требуется авторизация'}), 401
 
-        # Отбираем слова для тренировки
+        # Отбираем 20 слов для тренировки (10 EN→RU + 10 RU→EN)
         training_service = TrainingService(db)
-        words = training_service.select_words_for_training(user_id, count=10)
+        words = training_service.select_words_for_training(user_id, count=20)
         logger.info(f"[/api/training/start] TrainingService вернул {len(words)} слов")
 
         if not words:
             logger.warning(f"[/api/training/start] Не удалось отобрать слова для user_id={user_id}")
             return jsonify({'error': 'В вашем словаре недостаточно слов для тренировки'}), 400
 
-        # Создаем тесты
-        logger.info(f"[/api/training/start] Создаем тесты для {len(words)} слов")
+        # Создаем тесты обоих режимов
+        logger.info(f"[/api/training/start] Создаем dual mode тесты для {len(words)} слов")
         ai_client = YandexAIClient()
         test_manager = TestManager(db, ai_client)
 
@@ -1758,11 +1758,11 @@ def api_training_start():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-        logger.info(f"[/api/training/start] Вызываем create_tests_batch")
+        logger.info(f"[/api/training/start] Вызываем create_dual_mode_tests")
         test_ids = loop.run_until_complete(
-            test_manager.create_tests_batch(user_id, words)
+            test_manager.create_dual_mode_tests(user_id, words)
         )
-        logger.info(f"[/api/training/start] create_tests_batch вернул {len(test_ids) if test_ids else 0} test_ids")
+        logger.info(f"[/api/training/start] create_dual_mode_tests вернул {len(test_ids) if test_ids else 0} test_ids")
 
         if not test_ids:
             logger.error(f"[/api/training/start] test_ids пустой!")
@@ -1816,11 +1816,13 @@ def api_training_answer():
         return jsonify({
             'success': True,
             'is_correct': result['is_correct'],
-            'correct_translation': result['correct_translation'],
+            'correct_answer': result['correct_answer'],
+            'correct_translation': result['correct_translation'],  # для совместимости
             'additional_meanings': result.get('additional_meanings', []),
             'word': result['word'],
             'new_rating': result['new_rating'],
-            'new_status': result['new_status']
+            'new_status': result['new_status'],
+            'test_mode': result.get('test_mode', 1)
         })
 
     except Exception as e:

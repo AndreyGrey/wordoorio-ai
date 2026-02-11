@@ -639,8 +639,14 @@ class WordoorioDatabase:
 
     def insert_test(self, user_id: int, word_id: int, word: str,
                    correct_translation: str, wrong_option_1: str,
-                   wrong_option_2: str, wrong_option_3: str) -> int:
-        """Insert new test"""
+                   wrong_option_2: str, wrong_option_3: str,
+                   test_mode: int = 1) -> int:
+        """Insert new test
+
+        Args:
+            test_mode: 1 = EN→RU (показываем англ, выбираем рус)
+                       2 = RU→EN (показываем рус, выбираем англ)
+        """
         test_id = self._get_next_id('tests')
 
         query = """
@@ -652,10 +658,11 @@ class WordoorioDatabase:
         DECLARE $wrong_option_1 AS Utf8?;
         DECLARE $wrong_option_2 AS Utf8?;
         DECLARE $wrong_option_3 AS Utf8?;
+        DECLARE $test_mode AS Uint32?;
         DECLARE $created_at AS Utf8?;
 
-        UPSERT INTO tests (id, user_id, word_id, word, correct_translation, wrong_option_1, wrong_option_2, wrong_option_3, created_at)
-        VALUES ($id, $user_id, $word_id, $word, $correct_translation, $wrong_option_1, $wrong_option_2, $wrong_option_3, $created_at)
+        UPSERT INTO tests (id, user_id, word_id, word, correct_translation, wrong_option_1, wrong_option_2, wrong_option_3, test_mode, created_at)
+        VALUES ($id, $user_id, $word_id, $word, $correct_translation, $wrong_option_1, $wrong_option_2, $wrong_option_3, $test_mode, $created_at)
         """
 
         self._execute_query(query, {
@@ -667,6 +674,7 @@ class WordoorioDatabase:
             '$wrong_option_1': wrong_option_1,
             '$wrong_option_2': wrong_option_2,
             '$wrong_option_3': wrong_option_3,
+            '$test_mode': test_mode,
             '$created_at': datetime.now().isoformat()
         })
 
@@ -707,14 +715,17 @@ class WordoorioDatabase:
         self._execute_query(query, {'$user_id': user_id})
 
     def get_pending_tests(self, user_id: int) -> List[Dict]:
-        """Get all pending tests for user"""
+        """Get all pending tests for user
+
+        Returns tests sorted by test_mode (1 first, then 2), then by created_at
+        """
         query = """
         DECLARE $user_id AS Uint64?;
 
         SELECT *
         FROM tests
         WHERE user_id = $user_id
-        ORDER BY created_at DESC
+        ORDER BY test_mode ASC, created_at ASC
         """
 
         return self._fetch_all(query, {'$user_id': user_id})
